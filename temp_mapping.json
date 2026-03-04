@@ -1,0 +1,17 @@
+{
+  "patient_mappings": [
+    {
+      "synthea_id": "abc-123-def-456",
+      "tcia_id": "TCIA-001"
+    }
+  ],
+  "encounter_study_mappings": {
+    "ENC-001": [
+      {
+        "study_uid": "1.2.840.113654.2.55.123456789012345678901234567890.1",
+        "modality": "CT",
+        "study_date": "2023-01-15"
+      }
+    ]
+  }
+}
