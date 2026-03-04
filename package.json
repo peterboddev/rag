@@ -1,0 +1,47 @@
+{
+  "name": "multi-tenant-document-manager",
+  "version": "1.0.0",
+  "description": "Multi-tenant RAG document management system",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "synth": "cdk synth"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.130",
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.9.0",
+    "@types/uuid": "^9.0.7",
+    "aws-cdk": "^2.110.0",
+    "aws-sdk-client-mock": "^4.1.0",
+    "fast-check": "^3.15.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.450.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.450.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.965.0",
+    "@aws-sdk/client-dynamodb": "^3.450.0",
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/client-sqs": "^3.962.0",
+    "@aws-sdk/client-textract": "^3.450.0",
+    "@aws-sdk/lib-dynamodb": "^3.450.0",
+    "@opensearch-project/opensearch": "^3.5.1",
+    "aws-cdk-lib": "^2.110.0",
+    "constructs": "^10.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "uuid": "^9.0.1"
+  }
+}

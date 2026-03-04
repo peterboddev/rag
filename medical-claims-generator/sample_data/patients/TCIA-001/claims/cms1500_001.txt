@@ -1,0 +1,23 @@
+CMS-1500 HEALTH INSURANCE CLAIM FORM
+
+PATIENT INFORMATION
+Patient Name: John Doe
+Patient ID: TCIA-001
+Date of Birth: 1965-03-15
+Gender: Male
+
+INSURANCE INFORMATION
+Insurance Company: Blue Cross Blue Shield
+Policy Number: BC123456789
+Group Number: GRP001
+
+CLAIM INFORMATION
+Claim Number: CLM-2023-001-001
+Date of Service: 2023-01-15
+Diagnosis Code: C34.90 (Malignant neoplasm of unspecified part of bronchus or lung)
+Procedure Code: 71250 (CT Chest with Contrast)
+Billed Amount: $2,500.00
+Provider: Dr. Sarah Johnson, MD
+Provider NPI: 1234567890
+
+CLAIM STATUS: APPROVED
