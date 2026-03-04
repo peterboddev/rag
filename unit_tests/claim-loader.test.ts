@@ -31,11 +31,15 @@ function createMockEvent(body: any, tenantId: string = 'test-tenant'): APIGatewa
 }
 
 // Helper to create readable stream from string
-function createReadableStream(data: string): Readable {
+function createReadableStream(data: string): Readable & { transformToString: () => Promise<string> } {
   const stream = new Readable();
   stream.push(data);
   stream.push(null);
-  return stream;
+  
+  // Add transformToString method for AWS SDK v3 compatibility
+  (stream as any).transformToString = async () => data;
+  
+  return stream as Readable & { transformToString: () => Promise<string> };
 }
 
 describe('Claim Loader Lambda', () => {
@@ -412,7 +416,10 @@ describe('Claim Loader Lambda', () => {
         ]
       };
 
-      s3Mock.on(GetObjectCommand).resolves({
+      s3Mock.on(GetObjectCommand, {
+        Bucket: 'medical-claims-synthetic-data-dev',
+        Key: 'mapping.json'
+      }).resolves({
         Body: createReadableStream(JSON.stringify(mappingData)) as any
       });
 
