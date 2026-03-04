@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchClient, PutMetricDataCommand, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { v4 as uuidv4 } from 'uuid';
 import { DocumentRecord, ClaimMetadata, ProcessingMetadata } from '../types';
 
@@ -48,7 +48,7 @@ function logStructured(level: 'INFO' | 'WARN' | 'ERROR', message: string, metada
 /**
  * Publish CloudWatch metric
  */
-async function publishMetric(metricName: string, value: number, unit: string = 'Count', dimensions: Record<string, string> = {}) {
+async function publishMetric(metricName: string, value: number, unit: StandardUnit = StandardUnit.Count, dimensions: Record<string, string> = {}) {
   try {
     await cloudWatchClient.send(new PutMetricDataCommand({
       Namespace: 'InsuranceClaimPortal',
@@ -176,7 +176,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     });
 
     // Publish invocation metric
-    await publishMetric('LambdaInvocations', 1, 'Count', { FunctionName: 'claim-loader' });
+    await publishMetric('LambdaInvocations', 1, StandardUnit.Count, { FunctionName: 'claim-loader' });
 
     if (event.httpMethod !== 'POST') {
       return {
@@ -192,7 +192,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Extract tenant_id from JWT token
     const tenantId = extractTenantFromToken(event);
     if (!tenantId) {
-      await publishMetric('AuthenticationErrors', 1, 'Count', { FunctionName: 'claim-loader' });
+      await publishMetric('AuthenticationErrors', 1, StandardUnit.Count, { FunctionName: 'claim-loader' });
       return {
         statusCode: 401,
         headers: {
@@ -208,7 +208,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Validate required fields
     if (!patientId || !claimId || !customerUUID) {
-      await publishMetric('ValidationErrors', 1, 'Count', { FunctionName: 'claim-loader' });
+      await publishMetric('ValidationErrors', 1, StandardUnit.Count, { FunctionName: 'claim-loader' });
       return {
         statusCode: 400,
         headers: {
@@ -236,7 +236,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     logStructured('INFO', 'Found claim documents', { patientId, claimId, totalDocuments });
 
     // Publish document count metric
-    await publishMetric('ClaimDocumentsFound', totalDocuments, 'Count', { 
+    await publishMetric('ClaimDocumentsFound', totalDocuments, StandardUnit.Count, { 
       FunctionName: 'claim-loader',
       PatientId: patientId 
     });
@@ -272,19 +272,19 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     // Publish success/failure metrics
-    await publishMetric('DocumentsProcessedSuccessfully', documentsProcessed, 'Count', { 
+    await publishMetric('DocumentsProcessedSuccessfully', documentsProcessed, StandardUnit.Count, { 
       FunctionName: 'claim-loader' 
     });
     
     if (errors.length > 0) {
-      await publishMetric('DocumentProcessingErrors', errors.length, 'Count', { 
+      await publishMetric('DocumentProcessingErrors', errors.length, StandardUnit.Count, { 
         FunctionName: 'claim-loader' 
       });
     }
 
     // Publish duration metric
     const duration = Date.now() - startTime;
-    await publishMetric('LambdaDuration', duration, 'Milliseconds', { 
+    await publishMetric('LambdaDuration', duration, StandardUnit.Milliseconds, { 
       FunctionName: 'claim-loader' 
     });
 
@@ -325,7 +325,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     });
 
     // Publish error metric
-    await publishMetric('LambdaErrors', 1, 'Count', { FunctionName: 'claim-loader' });
+    await publishMetric('LambdaErrors', 1, StandardUnit.Count, { FunctionName: 'claim-loader' });
 
     return {
       statusCode: 500,

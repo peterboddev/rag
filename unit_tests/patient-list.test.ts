@@ -8,6 +8,7 @@ const s3Mock = mockClient(S3Client);
 
 // Import handler after mocking
 let handler: any;
+let resetCache: any;
 
 describe('Patient List Lambda', () => {
   beforeAll(async () => {
@@ -18,10 +19,15 @@ describe('Patient List Lambda', () => {
     // Import handler after environment is set
     const module = await import('../src/lambda/patient-list');
     handler = module.handler;
+    resetCache = module.resetCache;
   });
 
   beforeEach(() => {
     s3Mock.reset();
+    // Reset the in-memory cache before each test
+    if (resetCache) {
+      resetCache();
+    }
   });
 
   afterAll(() => {
