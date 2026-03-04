@@ -46,8 +46,12 @@ describe('ContentPrioritizationService', () => {
     };
 
     it('should prioritize recent documents higher', () => {
-      const recentDoc = createMockDocument('1', 'recent.pdf', 'application/pdf', '2024-01-10T00:00:00Z');
-      const oldDoc = createMockDocument('2', 'old.pdf', 'application/pdf', '2023-01-01T00:00:00Z');
+      const now = new Date();
+      const recentDate = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000); // 5 days ago
+      const oldDate = new Date(now.getTime() - 100 * 24 * 60 * 60 * 1000); // 100 days ago
+      
+      const recentDoc = createMockDocument('1', 'recent.pdf', 'application/pdf', recentDate.toISOString());
+      const oldDoc = createMockDocument('2', 'old.pdf', 'application/pdf', oldDate.toISOString());
       
       const priorities = service.prioritizeDocuments([recentDoc, oldDoc], defaultCriteria);
       
@@ -152,7 +156,7 @@ describe('ContentPrioritizationService', () => {
     });
 
     it('should extract key excerpts for moderate token limits', () => {
-      const longText = 'Beginning content. ' + 'Middle content. '.repeat(50) + 'End content.';
+      const longText = 'Beginning content. ' + 'Middle content. '.repeat(100) + 'End content.'; // Make it longer
       const doc = createMockDocument('1', 'test.pdf', 'application/pdf', '2024-01-01T00:00:00Z', longText);
       
       const result = service.extractKeyContent(doc, 300);
