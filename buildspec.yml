@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing dependencies..."
+      - npm ci
+      
+  pre_build:
+    commands:
+      - echo "Running unit tests..."
+      - npm run test --if-present
+      
+  build:
+    commands:
+      - echo "Building TypeScript..."
+      - npm run build
+      - echo "Synthesizing CDK..."
+      - npm run synth
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: cdk.out
