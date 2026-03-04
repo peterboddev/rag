@@ -17,7 +17,6 @@
     "synth": "cdk synth"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.130",
     "@types/node": "^20.9.0",
     "@types/uuid": "^9.0.7",
     "aws-cdk": "^2.110.0"
@@ -33,6 +32,8 @@
     "@aws-sdk/client-textract": "^3.450.0",
     "@aws-sdk/lib-dynamodb": "^3.450.0",
     "@opensearch-project/opensearch": "^3.5.1",
+    "@types/aws-lambda": "^8.10.130",
+    "@types/jest": "^29.5.8",
     "aws-cdk-lib": "^2.110.0",
     "aws-sdk-client-mock": "^4.1.0",
     "constructs": "^10.3.0",
@@ -42,7 +43,6 @@
     "pg": "^8.11.3",
     "ts-jest": "^29.1.1",
     "typescript": "^5.2.2",
-    "@types/jest": "^29.5.8",
     "uuid": "^9.0.1"
   }
 }
