@@ -38,13 +38,20 @@ describe('Patient Detail Lambda', () => {
   it('should return patient details with claims', async () => {
     const mockMapping = createMockMapping();
     
-    // Mock mapping.json retrieval
-    s3Mock.on(GetObjectCommand).resolves({
+    // Mock mapping.json retrieval - must match the exact command parameters
+    s3Mock.on(GetObjectCommand, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Key: 'mapping.json',
+    }).resolves({
       Body: createMockBody(JSON.stringify(mockMapping)) as any,
     });
 
-    // Mock claims listing
-    s3Mock.on(ListObjectsV2Command).resolves({
+    // Mock claims listing - must match the exact command parameters
+    s3Mock.on(ListObjectsV2Command, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Prefix: 'patients/TCIA-001/claims/',
+      Delimiter: '/',
+    }).resolves({
       Contents: [
         { Key: 'patients/TCIA-001/claims/cms1500_claim_123.pdf' },
         { Key: 'patients/TCIA-001/claims/cms1500_claim_123.txt' },
@@ -80,7 +87,10 @@ describe('Patient Detail Lambda', () => {
   it('should return 404 when patient not found in mapping', async () => {
     const mockMapping = createMockMapping();
     
-    s3Mock.on(GetObjectCommand).resolves({
+    s3Mock.on(GetObjectCommand, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Key: 'mapping.json',
+    }).resolves({
       Body: createMockBody(JSON.stringify(mockMapping)) as any,
     });
 
@@ -95,11 +105,18 @@ describe('Patient Detail Lambda', () => {
   it('should handle patient with no claims', async () => {
     const mockMapping = createMockMapping();
     
-    s3Mock.on(GetObjectCommand).resolves({
+    s3Mock.on(GetObjectCommand, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Key: 'mapping.json',
+    }).resolves({
       Body: createMockBody(JSON.stringify(mockMapping)) as any,
     });
 
-    s3Mock.on(ListObjectsV2Command).resolves({
+    s3Mock.on(ListObjectsV2Command, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Prefix: 'patients/TCIA-001/claims/',
+      Delimiter: '/',
+    }).resolves({
       Contents: [],
     });
 
@@ -114,11 +131,18 @@ describe('Patient Detail Lambda', () => {
   it('should handle multiple claims for same patient', async () => {
     const mockMapping = createMockMapping();
     
-    s3Mock.on(GetObjectCommand).resolves({
+    s3Mock.on(GetObjectCommand, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Key: 'mapping.json',
+    }).resolves({
       Body: createMockBody(JSON.stringify(mockMapping)) as any,
     });
 
-    s3Mock.on(ListObjectsV2Command).resolves({
+    s3Mock.on(ListObjectsV2Command, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Prefix: 'patients/TCIA-001/claims/',
+      Delimiter: '/',
+    }).resolves({
       Contents: [
         { Key: 'patients/TCIA-001/claims/cms1500_claim_123.pdf' },
         { Key: 'patients/TCIA-001/claims/eob_123.pdf' },
@@ -137,7 +161,10 @@ describe('Patient Detail Lambda', () => {
   });
 
   it('should handle S3 errors gracefully', async () => {
-    s3Mock.on(GetObjectCommand).rejects(new Error('S3 access denied'));
+    s3Mock.on(GetObjectCommand, {
+      Bucket: 'medical-claims-synthetic-data-dev',
+      Key: 'mapping.json',
+    }).rejects(new Error('S3 access denied'));
 
     const event = createMockEvent('TCIA-001');
     const result = await handler(event as APIGatewayProxyEvent);

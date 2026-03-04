@@ -27,8 +27,14 @@ export class ContentPrioritizationService {
       priorities.push(priority);
     }
     
-    // Sort by priority (higher scores first)
-    priorities.sort((a, b) => b.priority - a.priority);
+    // Sort by priority (higher scores first), with document ID as tiebreaker
+    priorities.sort((a, b) => {
+      if (Math.abs(a.priority - b.priority) < 0.001) {
+        // If priorities are essentially equal, use document ID as tiebreaker
+        return a.documentId.localeCompare(b.documentId);
+      }
+      return b.priority - a.priority;
+    });
     
     console.log('Document prioritization completed', {
       documentCount: documents.length,
@@ -137,7 +143,7 @@ export class ContentPrioritizationService {
     
     return {
       documentId: document.id,
-      priority: Math.round(score * 100) / 100,
+      priority: Math.round(score * 1000) / 1000, // Use 3 decimal places for better precision
       reasoning: reasoning.join(', ') || 'standard priority',
       recommendedTokens
     };
@@ -262,12 +268,22 @@ export class ContentPrioritizationService {
     // Simple approach: take beginning and end portions
     const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
     
+    // If very few sentences, truncate by character count
     if (sentences.length <= 2) {
-      return text.substring(0, tokenLimit * 4); // Rough character limit
+      const maxChars = tokenLimit * 4; // Rough character limit
+      if (text.length <= maxChars) {
+        return text;
+      }
+      return text.substring(0, maxChars) + '...';
     }
     
-    const beginningTokens = Math.floor(tokenLimit * 0.7);
-    const endTokens = tokenLimit - beginningTokens;
+    // Reserve tokens for truncation marker
+    const truncationMarker = '\n[...content truncated...]\n';
+    const truncationTokens = this.tokenEstimator.estimateTokens(truncationMarker);
+    const availableTokens = tokenLimit - truncationTokens;
+    
+    const beginningTokens = Math.floor(availableTokens * 0.7);
+    const endTokens = availableTokens - beginningTokens;
     
     let beginning = '';
     let beginningCurrentTokens = 0;
@@ -296,7 +312,13 @@ export class ContentPrioritizationService {
       }
     }
     
-    return beginning + '\n[...content truncated...]\n' + ending;
+    // If we extracted content from both beginning and end, add truncation marker
+    if (beginning.trim() && ending.trim()) {
+      return beginning.trim() + truncationMarker + ending.trim();
+    }
+    
+    // If only beginning was extracted, return it
+    return beginning.trim() || ending.trim();
   }
 
   /**

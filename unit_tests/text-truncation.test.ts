@@ -46,8 +46,8 @@ describe('TextTruncationService', () => {
     });
 
     it('should use beginning and end strategy by default', () => {
-      const text = 'Start sentence. Middle sentence one. Middle sentence two. End sentence.';
-      const result = service.truncateToTokenLimit(text, 20);
+      const text = 'Start sentence. Middle sentence one. Middle sentence two. Middle sentence three. Middle sentence four. End sentence.';
+      const result = service.truncateToTokenLimit(text, 15); // Longer text, reasonable limit
       
       expect(result.content).toContain('Start sentence');
       expect(result.content).toContain('End sentence');
@@ -207,7 +207,7 @@ describe('TextTruncationService', () => {
     });
 
     it('should implement beginning-and-end strategy', () => {
-      const result = service.truncateToTokenLimit(longText, 25, TruncationStrategy.BEGINNING_AND_END);
+      const result = service.truncateToTokenLimit(longText, 15, TruncationStrategy.BEGINNING_AND_END); // Reduced from 25
       
       expect(result.content).toContain('Beginning sentence');
       expect(result.content).toContain('End sentence');
@@ -215,7 +215,7 @@ describe('TextTruncationService', () => {
     });
 
     it('should implement proportional strategy', () => {
-      const result = service.truncateToTokenLimit(longText, 30, TruncationStrategy.PROPORTIONAL);
+      const result = service.truncateToTokenLimit(longText, 15, TruncationStrategy.PROPORTIONAL); // Reduced from 30
       
       expect(result.content.length).toBeLessThan(longText.length);
       expect(result.truncationPoints.length).toBeGreaterThanOrEqual(0);
