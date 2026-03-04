@@ -16,6 +16,11 @@ interface CachedPatientList {
 // In-memory cache for patient list (survives across warm Lambda invocations)
 let patientListCache: CachedPatientList | null = null;
 
+// Test helper function to reset cache (only for testing)
+export const resetCache = () => {
+  patientListCache = null;
+};
+
 interface PatientMapping {
   syntheaId: string;
   tciaId: string;
