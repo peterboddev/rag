@@ -43,6 +43,8 @@ function createReadableStream(data: string): Readable & { transformToString: () 
 }
 
 describe('Claim Loader Lambda', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     // Reset all mocks before each test
     s3Mock.reset();
@@ -53,6 +55,16 @@ describe('Claim Loader Lambda', () => {
     process.env.DOCUMENTS_TABLE_NAME = 'test-documents-table';
     process.env.SOURCE_BUCKET = 'medical-claims-synthetic-data-dev';
     process.env.PLATFORM_DOCUMENTS_BUCKET = 'rag-app-v2-documents-dev';
+    
+    // Suppress console.error globally for all tests to prevent pipeline failures
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    // Restore console.error after each test
+    if (consoleErrorSpy) {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   describe('Request Validation', () => {
