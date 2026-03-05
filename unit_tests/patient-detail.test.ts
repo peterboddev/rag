@@ -161,10 +161,13 @@ describe('Patient Detail Lambda', () => {
   });
 
   it('should handle S3 errors gracefully', async () => {
-    s3Mock.on(GetObjectCommand, {
-      Bucket: 'medical-claims-synthetic-data-dev',
-      Key: 'mapping.json',
-    }).rejects(new Error('S3 access denied'));
+    // Explicitly reject only the mapping.json GetObjectCommand
+    s3Mock.on(GetObjectCommand).callsFake((input) => {
+      if (input.Key === 'mapping.json') {
+        throw new Error('S3 access denied');
+      }
+      throw new Error('Unexpected S3 call');
+    });
 
     const event = createMockEvent('TCIA-001');
     const result = await handler(event as APIGatewayProxyEvent);
@@ -172,6 +175,7 @@ describe('Patient Detail Lambda', () => {
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
     expect(body.error).toBe('Internal server error');
+    expect(body.message).toContain('Failed to load patient mapping');
   });
 
   it('should include CORS headers in response', async () => {
