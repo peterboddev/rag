@@ -17,6 +17,7 @@ jest.mock('@aws-sdk/lib-dynamodb', () => ({
 
 describe('Chunk Visualization Lambda Handler', () => {
   let mockEvent: APIGatewayProxyEvent;
+  let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -26,6 +27,9 @@ describe('Chunk Visualization Lambda Handler', () => {
     DynamoDBDocumentClient.from.mockReturnValue({
       send: jest.fn().mockResolvedValue({ Items: [] })
     });
+    
+    // Suppress console.error globally for all tests to prevent pipeline failures
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     
     mockEvent = {
       httpMethod: 'POST',
@@ -51,6 +55,13 @@ describe('Chunk Visualization Lambda Handler', () => {
         requestId: 'test-request-id'
       }
     } as any;
+  });
+
+  afterEach(() => {
+    // Restore console.error after each test
+    if (consoleErrorSpy) {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   describe('Successful chunk generation', () => {

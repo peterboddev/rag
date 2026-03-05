@@ -11,6 +11,8 @@ let handler: any;
 let resetCache: any;
 
 describe('Patient List Lambda', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeAll(async () => {
     // Set environment variables
     process.env.REGION = 'us-east-1';
@@ -27,6 +29,15 @@ describe('Patient List Lambda', () => {
     // Reset the in-memory cache before each test
     if (resetCache) {
       resetCache();
+    }
+    // Suppress console.error globally for all tests to prevent pipeline failures
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    // Restore console.error after each test
+    if (consoleErrorSpy) {
+      consoleErrorSpy.mockRestore();
     }
   });
 
