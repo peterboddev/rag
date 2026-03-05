@@ -19,6 +19,8 @@ phases:
       - npm run build
       - echo "Synthesizing CDK..."
       - npm run synth
+      - echo "Copying CDK template to expected SAM format..."
+      - cp cdk.out/MultiTenantDocumentManagerStack.template.json cdk.out/template.yaml
 
 artifacts:
   files:
