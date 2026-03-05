@@ -165,12 +165,12 @@ describe('Patient Detail Lambda', () => {
   });
 
   it('should handle S3 errors gracefully', async () => {
-    // Explicitly reject only the mapping.json GetObjectCommand
-    s3Mock.on(GetObjectCommand).callsFake((input) => {
+    // Mock to reject with error for mapping.json
+    s3Mock.on(GetObjectCommand).callsFake(async (input) => {
       if (input.Key === 'mapping.json') {
-        throw new Error('S3 access denied');
+        return Promise.reject(new Error('S3 access denied'));
       }
-      throw new Error('Unexpected S3 call');
+      return Promise.reject(new Error('Unexpected S3 call'));
     });
 
     const event = createMockEvent('TCIA-001');
