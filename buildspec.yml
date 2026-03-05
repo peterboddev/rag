@@ -21,12 +21,16 @@ phases:
       - npm run synth
       - echo "Verifying CDK output..."
       - ls -la cdk.out/ | head -20
+      
+  post_build:
+    commands:
       - echo "Copying CDK template to expected SAM format..."
       - cp cdk.out/MultiTenantDocumentManagerStack.template.json cdk.out/template.yaml
       - echo "Verifying template.yaml was created..."
       - ls -la cdk.out/template.yaml
       - echo "Template file size:"
       - wc -l cdk.out/template.yaml
+      - echo "Build artifacts ready for deployment"
 
 artifacts:
   files:
