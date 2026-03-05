@@ -12,6 +12,10 @@ describe('Patient Detail Lambda', () => {
     process.env.REGION = 'us-east-1';
   });
 
+  afterEach(() => {
+    s3Mock.reset();
+  });
+
   const createMockEvent = (patientId?: string): Partial<APIGatewayProxyEvent> => ({
     pathParameters: patientId ? { patientId } : undefined,
     headers: {},
