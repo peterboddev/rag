@@ -165,6 +165,9 @@ describe('Patient Detail Lambda', () => {
   });
 
   it('should handle S3 errors gracefully', async () => {
+    // Suppress console.error for this test since we're testing error handling
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    
     // Mock to reject with error for mapping.json
     s3Mock.on(GetObjectCommand).callsFake(async (input) => {
       if (input.Key === 'mapping.json') {
@@ -180,6 +183,12 @@ describe('Patient Detail Lambda', () => {
     const body = JSON.parse(result.body);
     expect(body.error).toBe('Internal server error');
     expect(body.message).toContain('Failed to load patient mapping');
+    
+    // Verify console.error was called (error handling is working)
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    
+    // Restore console.error
+    consoleErrorSpy.mockRestore();
   });
 
   it('should include CORS headers in response', async () => {
