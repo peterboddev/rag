@@ -6,10 +6,21 @@ import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 const dynamoMock = mockClient(DynamoDBDocumentClient);
 
 describe('Claim Status Lambda', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     dynamoMock.reset();
     process.env.DOCUMENTS_TABLE_NAME = 'rag-app-v2-documents-dev';
     process.env.REGION = 'us-east-1';
+    // Suppress console.error globally for all tests to prevent pipeline failures
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    // Restore console.error after each test
+    if (consoleErrorSpy) {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   const createMockEvent = (claimId?: string): Partial<APIGatewayProxyEvent> => ({
@@ -159,6 +170,9 @@ describe('Claim Status Lambda', () => {
     expect(result.statusCode).toBe(500);
     const body = JSON.parse(result.body);
     expect(body.error).toBe('Internal server error');
+    
+    // Verify console.error was called (error handling is working)
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it('should include CORS headers in response', async () => {
