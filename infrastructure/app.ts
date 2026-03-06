@@ -11,7 +11,7 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
 };
 
-new MultiTenantDocumentManagerStack(app, 'MultiTenantDocumentManagerStack', {
+new MultiTenantDocumentManagerStack(app, 'RAGInfrastructureStack', {
   env,
   description: 'Multi-tenant RAG document management system',
   
