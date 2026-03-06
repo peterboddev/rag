@@ -126,3 +126,4 @@ This application integrates with the existing RAG platform:
 - **Local Development**: Deploy directly using CDK
 - **Production**: Push to repository triggers platform team's deployment pipeline
 - **Environment**: Automatically configured through platform team's infrastructure
+- **CDK Template**: Platform pipeline configured to handle CDK-generated CloudFormation templates
