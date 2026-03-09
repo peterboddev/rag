@@ -128,12 +128,15 @@ export class RAGApplicationStack extends cdk.Stack {
       }),
     });
 
-    const lambdaExecutionRole = iam.Role.fromRoleArn(
-      this,
-      'LambdaExecutionRole',
-      applicationRoleArn,
-      { mutable: false }
-    );
+    // Import IAM role - handle dummy values during synthesis
+    const lambdaExecutionRole = applicationRoleArn.startsWith('arn:')
+      ? iam.Role.fromRoleArn(
+          this,
+          'LambdaExecutionRole',
+          applicationRoleArn,
+          { mutable: false }
+        )
+      : undefined; // During first synthesis, role will be undefined
 
     const api = apigateway.RestApi.fromRestApiAttributes(
       this,
@@ -187,7 +190,7 @@ export class RAGApplicationStack extends cdk.Stack {
         code: lambda.Code.fromAsset('.', {
           exclude: ['cdk.out', 'unit_tests', 'infrastructure', '*.md', 'tests_ongoing', 'frontend']
         }),
-        role: lambdaExecutionRole,
+        role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
         timeout,
         memorySize,
         environment,
