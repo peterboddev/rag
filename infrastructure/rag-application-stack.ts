@@ -538,7 +538,7 @@ export class RAGApplicationStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'ProcessingQueueUrl', {
       value: processingQueue.queueUrl,
-      description: 'SQS Processing Queue URL',
+      description: 'Document Processing Queue URL',
       exportName: `${applicationName}-${environment}-processing-queue-url`
     });
 
