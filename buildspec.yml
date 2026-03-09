@@ -18,39 +18,26 @@ phases:
       - echo "Building TypeScript..."
       - npm run build
       - echo "Synthesizing CDK..."
-      - echo "Environment context: ${ENVIRONMENT:-dev}"
-      - echo "DEBUG - Checking buildspec location..."
-      - cat /codebuild/readonly/buildspec.yml || echo "Cannot read buildspec"
-      - |
-        if [ -n "$ENVIRONMENT" ]; then
-          cdk synth --context environment=$ENVIRONMENT || exit 1
-        else
-          npm run synth || exit 1
-        fi
+      - echo "Environment context ${ENVIRONMENT:-dev}"
+      - npx cdk synth --context environment=${ENVIRONMENT:-dev}
       - echo "Verifying CDK output..."
       - ls -la cdk.out/ | head -20
       - echo "Checking if RAGApplicationStack template was created..."
-      - test -f cdk.out/RAGApplicationStack.template.json && echo "✓ Stack template found" || (echo "✗ Stack template NOT found - CDK synth failed" && exit 1)
+      - test -f cdk.out/RAGApplicationStack.template.json && echo "Stack template found" || exit 1
       
   post_build:
     commands:
       - echo "Copying CDK template to expected SAM format..."
       - cp cdk.out/RAGApplicationStack.template.json template.yaml
-      - echo "Verifying template.yaml was created at root..."
+      - echo "Verifying template.yaml was created..."
       - ls -la template.yaml
-      - echo "Template file size:"
-      - wc -l template.yaml
-      - echo "Current working directory:"
-      - pwd
-      - echo "Listing root directory files:"
-      - ls -la | grep -E "(template|cdk)"
-      - echo "Absolute path check:"
-      - test -f ./template.yaml && echo "✓ template.yaml exists at ./template.yaml" || echo "✗ template.yaml NOT found at ./template.yaml"
-      - test -f $CODEBUILD_SRC_DIR/template.yaml && echo "✓ template.yaml exists at CODEBUILD_SRC_DIR" || echo "✗ template.yaml NOT found at CODEBUILD_SRC_DIR"
       - echo "Build artifacts ready for deployment"
 
 artifacts:
   files:
-    - 'template.yaml'
-    - 'cdk.out/**/*'
+    - '**/*'
   name: BuildOutput
+
+cache:
+  paths:
+    - 'node_modules/**/*'
