@@ -1,0 +1,107 @@
+# Implementation Plan
+
+- [ ] 1. Write bug condition exploration test
+  - **Property 1: Fault Condition** - Parameterized Resource Naming
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the bug exists
+  - **Scoped PBT Approach**: Test concrete failing cases - staging deployment and custom application name
+  - Test that CDK synth with `--context environment=staging` produces resources with '-staging' suffix (not '-dev')
+  - Test that CDK synth with `--context applicationName=medical-rag` produces resources with 'medical-rag' prefix (not 'rag-app-v2')
+  - Test that stack name follows pattern `{applicationName}-stack-{environment}` (not hardcoded 'RAGInfrastructureStack')
+  - Test that IAM policy ARNs are constructed dynamically from parameters (not hardcoded bucket names)
+  - Test that Lambda environment variables use parameter values (not hardcoded 'rag-app-v2-documents-dev')
+  - Test that production deployment uses RETAIN removal policy (not DESTROY)
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists)
+  - Document counterexamples found (e.g., "DynamoDB table named 'rag-app-v2-customers-dev' instead of 'rag-app-v2-customers-staging'")
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
+
+- [ ] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Existing Functionality
+  - **IMPORTANT**: Follow observation-first methodology
+  - Observe behavior on UNFIXED code for default context (applicationName='rag-app-v2', environment='dev')
+  - Synthesize CloudFormation template with `cdk synth` (no context overrides) on unfixed code
+  - Capture resource configurations: DynamoDB table names, S3 bucket names, Lambda runtimes, IAM policies, API Gateway routes
+  - Write property-based tests capturing observed behavior patterns:
+    - All Lambda functions use nodejs20.x runtime
+    - DynamoDB tables include all GSI indexes (tenant-id-index, email-index, tenant-documents-index, customer-documents-index, claim-documents-index)
+    - IAM roles grant permissions to Bedrock, Textract, S3, DynamoDB, OpenSearch, SQS
+    - API Gateway routes create all existing endpoints with correct Lambda integrations
+    - S3 event notifications trigger on uploads/ prefix
+    - CloudFormation parameters accept UserPoolId, KnowledgeBaseId, VectorDbEndpoint, ProcessingQueueUrl
+    - Stack outputs export all resource names and ARNs
+    - CORS configuration allows same origins, methods, headers
+  - Property-based testing generates many test cases for stronger guarantees
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
+
+- [ ] 3. Fix for infrastructure parameterization
+
+  - [ ] 3.1 Parameterize app.ts stack instantiation
+    - Add context variable retrieval for applicationName and environment with defaults
+    - Construct stack name from context variables: `${applicationName}-stack-${environment}`
+    - Use environment context variable in stack tags
+    - Create custom props interface extending StackProps
+    - Pass applicationName and environment to stack constructor
+    - _Bug_Condition: isBugCondition(input) where input.targetEnvironment != 'dev' OR input.applicationName != 'rag-app-v2'_
+    - _Expected_Behavior: Stack name follows pattern `{applicationName}-stack-{environment}` and tags use context values_
+    - _Preservation: Stack instantiation with default context produces same result as original code_
+    - _Requirements: 2.1, 2.2, 3.1_
+
+  - [ ] 3.2 Parameterize multi-tenant-document-manager-stack.ts resources
+    - Add custom props interface with applicationName and environment
+    - Update constructor signature to accept custom props
+    - Create CloudFormation parameters for platform bucket names (PlatformDocumentsBucket, SourceBucket)
+    - Parameterize DynamoDB table names using `${props.applicationName}-{resourceType}-${props.environment}` pattern
+    - Parameterize S3 bucket name using same pattern
+    - Construct IAM policy ARNs dynamically from parameters
+    - Parameterize Lambda environment variables using parameter values
+    - Add environment-specific removal policies (RETAIN for prod, DESTROY for dev/staging)
+    - _Bug_Condition: Resources use hardcoded '-dev' suffix and hardcoded bucket names in IAM policies_
+    - _Expected_Behavior: All resource names derived from configurable parameters, IAM ARNs constructed dynamically_
+    - _Preservation: All Lambda runtimes, DynamoDB indexes, IAM permissions, API routes, S3 notifications, outputs unchanged_
+    - _Requirements: 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
+
+  - [ ] 3.3 Add default context values to cdk.json
+    - Add applicationName: 'rag-app-v2' to context
+    - Add environment: 'dev' to context
+    - _Bug_Condition: Missing default context values prevent fallback behavior_
+    - _Expected_Behavior: Default context values enable deployment without explicit context flags_
+    - _Preservation: Existing cdk.json context values remain unchanged_
+    - _Requirements: 2.1, 2.2, 3.1_
+
+  - [ ] 3.4 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Parameterized Resource Naming
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms the expected behavior is satisfied
+    - Run bug condition exploration test from step 1
+    - Verify CDK synth with staging context produces '-staging' suffixed resources
+    - Verify CDK synth with custom application name produces resources with that name
+    - Verify stack name follows parameterized pattern
+    - Verify IAM policy ARNs are constructed dynamically
+    - Verify Lambda environment variables use parameter values
+    - Verify production deployment uses RETAIN removal policy
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
+
+  - [ ] 3.5 Verify preservation tests still pass
+    - **Property 2: Preservation** - Existing Functionality
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify CDK synth with default context produces identical resources as unfixed code
+    - Verify all Lambda functions still use nodejs20.x runtime
+    - Verify all DynamoDB indexes are preserved
+    - Verify all IAM permissions are preserved
+    - Verify all API Gateway routes are preserved
+    - Verify all CloudFormation outputs are preserved
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [ ] 4. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

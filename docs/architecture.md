@@ -1,408 +1,314 @@
-# Architecture Documentation
+# RAG Application Architecture
 
-## System Overview
+## Overview
 
-The Multi-Tenant Document Manager is a serverless application built on AWS that provides secure document upload, processing, and management capabilities for multiple tenants. The system integrates with the RAG (Retrieval-Augmented Generation) platform infrastructure to enable AI-powered document processing.
+The RAG Application follows a clear separation of concerns between platform-provided infrastructure and application-specific resources. This architecture enables centralized management of shared resources while allowing application teams to manage their own business logic and data processing pipelines.
 
 ## Architecture Diagram
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│   React App     │    │   API Gateway    │    │   Lambda Functions  │
-│                 │    │                  │    │                     │
-│ - Tenant Setup  │───▶│ - CORS Enabled   │───▶│ - Customer Manager  │
-│ - File Upload   │    │ - Rate Limiting  │    │ - Document Upload   │
-│ - Progress UI   │    │ - Authentication │    │ - Document Process  │
-└─────────────────┘    └──────────────────┘    └─────────────────────┘
-                                                          │
-                       ┌─────────────────────────────────┼─────────────────────────────────┐
-                       │                                 │                                 │
-                       ▼                                 ▼                                 ▼
-            ┌─────────────────┐              ┌─────────────────┐              ┌─────────────────┐
-            │   DynamoDB      │              │   S3 Buckets    │              │   Textract      │
-            │                 │              │                 │              │                 │
-            │ - Customers     │              │ - Documents     │              │ - Text Extract  │
-            │ - Documents     │              │ - Platform      │              │ - OCR Process   │
-            │ - GSI Indexes   │              │ - Event Trigger │              │ - Retry Logic   │
-            └─────────────────┘              └─────────────────┘              └─────────────────┘
-                                                          │
-                                                          ▼
-                                             ┌─────────────────────────────────┐
-                                             │     RAG Platform Services       │
-                                             │                                 │
-                                             │ - Bedrock Nova Pro             │
-                                             │ - Vector Database (OpenSearch) │
-                                             │ - Knowledge Base               │
-                                             │ - Embedding Generation         │
-                                             └─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                    Platform-Managed Resources                    │
+│                     (Managed by Platform Team)                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   DynamoDB   │  │   DynamoDB   │  │  API Gateway │          │
+│  │  Customers   │  │  Documents   │  │   REST API   │          │
+│  │    Table     │  │    Table     │  │              │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   IAM Role   │  │   Cognito    │  │     SSM      │          │
+│  │  (Lambda)    │  │  User Pool   │  │  Parameters  │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ SSM Parameter Lookup
+                              │ (Deployment Time)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Application-Managed Resources                   │
+│                  (Managed by Development Team)                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │  S3 Bucket   │  │  SQS Queue   │  │   Lambda     │          │
+│  │  Documents   │  │  Processing  │  │  Functions   │          │
+│  │              │  │              │  │   (18 total) │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────┐           │
+│  │           API Gateway Routes/Methods             │           │
+│  │  (Added to platform-provided API Gateway)        │           │
+│  └──────────────────────────────────────────────────┘           │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ AWS Service Calls
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      External AWS Services                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Bedrock    │  │   Textract   │  │  OpenSearch  │          │
+│  │   Nova Pro   │  │              │  │  Serverless  │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Component Architecture
+## Component Responsibilities
 
-### Frontend Layer (React Application)
+### Platform-Managed Resources
 
-**Technology Stack**:
-- React 18 with TypeScript
-- AWS Amplify UI Components
-- Context API for state management
-
-**Key Components**:
-- **TenantSetup**: Handles tenant creation and joining
-- **DocumentUpload**: File upload interface with drag-and-drop
-- **AuthContext**: Manages tenant authentication state
-
-**Responsibilities**:
-- User interface for tenant management
-- File selection and validation
-- Progress tracking and error handling
-- API communication with backend services
-
-### API Layer (AWS API Gateway)
-
-**Configuration**:
-- REST API with CORS enabled
-- Rate limiting and throttling
-- Request/response transformation
-- Integration with Lambda functions
-
-**Security**:
-- Cognito User Pool authorization (production)
-- Header-based tenant identification (development)
-- Input validation and sanitization
-
-### Business Logic Layer (AWS Lambda)
-
-#### Customer Manager Lambda
-- **Runtime**: Node.js 18.x
-- **Memory**: 256 MB
-- **Timeout**: 30 seconds
-
-**Responsibilities**:
-- Customer creation and lookup
-- Deterministic UUID generation
-- Tenant isolation enforcement
-- DynamoDB customer record management
-
-#### Document Upload Lambda
-- **Runtime**: Node.js 18.x
-- **Memory**: 512 MB
-- **Timeout**: 60 seconds
-
-**Responsibilities**:
-- File validation and processing
-- S3 upload with metadata
-- DynamoDB document record creation
-- Base64 decoding and file handling
-
-#### Document Processing Lambda
-- **Runtime**: Node.js 18.x
-- **Memory**: 1024 MB
-- **Timeout**: 5 minutes
-
-**Responsibilities**:
-- S3 event-driven processing
-- Textract integration for OCR
-- Text extraction and processing
-- Platform S3 bucket integration
-- Error handling and retry logic
-
-### Data Layer
+The platform team manages these resources centrally for all applications:
 
 #### DynamoDB Tables
+- **Customers Table** (`rag-app-customers-dev`)
+  - Partition Key: `uuid`
+  - GSI: `tenant-id-index` (tenantId, customerId)
+  - GSI: `email-index` (email)
+  - Purpose: Store customer metadata and tenant associations
 
-**Customers Table**:
+- **Documents Table** (`rag-app-documents-dev`)
+  - Partition Key: `id`
+  - Sort Key: `customerUuid`
+  - GSI: `tenant-documents-index` (tenantId, createdAt)
+  - GSI: `customer-documents-index` (customerUuid, createdAt)
+  - GSI: `claim-documents-index` (claimId, createdAt)
+  - Purpose: Store document metadata and processing status
+
+#### IAM Role
+- **Application Role**: Centrally managed role with permissions for:
+  - Bedrock: Model invocation and knowledge base access
+  - Textract: Document text extraction
+  - S3: Read/write access to application and external buckets
+  - DynamoDB: Full access to platform tables
+  - OpenSearch: Vector database operations
+  - SQS: Queue operations
+  - CloudWatch: Logging
+
+#### API Gateway
+- **REST API**: Shared API Gateway with:
+  - Cognito authorizer for authentication
+  - CORS configuration
+  - CloudWatch logging
+  - Throttling and rate limiting
+
+#### Cognito User Pool
+- **User Pool**: User authentication and authorization
+- **Identity Pool**: AWS credential vending for authenticated users
+
+#### SSM Parameter Store
+- Configuration repository for resource identifiers
+- Parameters follow pattern: `/rag-app/{environment}/{service}/{parameter}`
+
+### Application-Managed Resources
+
+The development team manages these application-specific resources:
+
+#### S3 Bucket
+- **Documents Bucket** (`rag-app-documents-dev`)
+  - Purpose: Store uploaded documents
+  - Encryption: S3-managed keys
+  - CORS: Enabled for web uploads
+  - Event Notifications: Trigger Lambda on object creation
+
+#### SQS Queue
+- **Processing Queue** (`rag-app-document-processing-dev`)
+  - Purpose: Asynchronous document processing
+  - Visibility Timeout: 900 seconds
+  - Retention: 14 days
+  - Encryption: SQS-managed keys
+
+#### Lambda Functions (18 total)
+1. **customer-manager**: Customer CRUD operations
+2. **document-upload**: Handle document uploads
+3. **document-processing**: Process documents with Textract
+4. **document-summary**: Generate document summaries
+5. **document-retry**: Retry failed processing
+6. **document-delete**: Delete documents
+7. **document-summary-selective**: Selective summarization
+8. **chunking-config-get**: Get chunking configuration
+9. **chunking-config-update**: Update chunking configuration
+10. **chunking-methods-list**: List available chunking methods
+11. **chunking-cleanup-trigger**: Trigger cleanup jobs
+12. **chunking-cleanup-status**: Get cleanup job status
+13. **chunk-visualization-get**: Visualize document chunks
+14. **embeddings-generate**: Generate embeddings
+15. **patient-list**: List patients (Insurance Claim Portal)
+16. **patient-detail**: Get patient details
+17. **claim-loader**: Load claim documents
+18. **claim-status**: Get claim processing status
+
+#### API Gateway Routes
+Routes added to platform-provided API Gateway:
+- `/customers` - Customer management
+- `/documents` - Document operations
+- `/chunking-methods` - Chunking configuration
+- `/patients` - Insurance Claim Portal
+- `/claims` - Claim processing
+
+## Data Flow
+
+### Document Upload Flow
+
 ```
-Partition Key: uuid (Customer UUID)
-Attributes:
-- tenantId (String) - For tenant isolation
-- customerId (String) - Unique within tenant
-- email (String) - Customer email
-- createdAt (String) - ISO timestamp
-- updatedAt (String) - ISO timestamp
-- documentCount (Number) - Count of documents
-
-Global Secondary Indexes:
-- tenant-id-index: tenantId (PK), customerId (SK)
-- email-index: email (PK)
-```
-
-**Documents Table**:
-```
-Partition Key: id (Document ID)
-Sort Key: customerUuid (Customer UUID)
-Attributes:
-- tenantId (String) - For tenant isolation
-- fileName (String) - Original filename
-- s3Key (String) - S3 object key
-- contentType (String) - MIME type
-- processingStatus (String) - queued|processing|completed|failed
-- extractedText (String) - Processed text content
-- createdAt (String) - ISO timestamp
-- updatedAt (String) - ISO timestamp
-
-Global Secondary Indexes:
-- tenant-documents-index: tenantId (PK), createdAt (SK)
-```
-
-#### S3 Storage
-
-**Documents Bucket** (`rag-app-v2-documents-dev`):
-- **Structure**: `uploads/{tenant_id}/{customer_uuid}/{document_id}/{filename}`
-- **Encryption**: S3-managed encryption
-- **Events**: Triggers document processing Lambda
-- **Lifecycle**: Configurable retention policies
-
-**Platform Integration**:
-- **Processed Documents**: Uploaded to platform S3 bucket
-- **Key Format**: `processed/{tenant_id}/{customer_uuid}/{document_id}.txt`
-- **Metadata**: Original file information and processing timestamps
-
-### Integration Layer
-
-#### AWS Textract Integration
-- **Service**: DetectDocumentText API
-- **Supported Formats**: PDF, PNG, JPG, TIFF
-- **Retry Strategy**: Exponential backoff (3 attempts)
-- **Error Handling**: Graceful degradation with status tracking
-
-#### RAG Platform Integration
-- **Bedrock Nova Pro**: Text generation and reasoning
-- **Vector Database**: OpenSearch Serverless for embeddings
-- **Knowledge Base**: AWS Bedrock Knowledge Base service
-- **Document Processing**: Automated embedding generation
-
-## Multi-Tenant Architecture
-
-### Tenant Isolation Strategy
-
-**Application-Level Isolation**:
-- All database queries filtered by `tenant_id`
-- S3 object keys prefixed with tenant identifier
-- Lambda functions enforce tenant context
-
-**Data Isolation Mechanisms**:
-
-1. **DynamoDB**:
-   ```typescript
-   // Query with tenant filtering
-   const result = await dynamoClient.send(new QueryCommand({
-     TableName: 'customers',
-     IndexName: 'tenant-id-index',
-     KeyConditionExpression: 'tenantId = :tenantId',
-     ExpressionAttributeValues: { ':tenantId': tenantId }
-   }));
-   ```
-
-2. **S3**:
-   ```typescript
-   // Tenant-specific S3 key structure
-   const s3Key = `uploads/${tenantId}/${customerUUID}/${documentId}/${fileName}`;
-   ```
-
-3. **Aurora PostgreSQL** (Future):
-   ```sql
-   -- Row-level security policy
-   CREATE POLICY tenant_isolation_policy ON customers
-     FOR ALL TO application_role
-     USING (tenant_id = current_setting('app.current_tenant_id'));
-   ```
-
-### Customer UUID Generation
-
-**Deterministic UUID Strategy**:
-```typescript
-import { v5 as uuidv5 } from 'uuid';
-
-const NAMESPACE_UUID = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-
-function generateCustomerUUID(tenantId: string, customerId: string): string {
-  return uuidv5(`${tenantId}:${customerId}`, NAMESPACE_UUID);
-}
+1. User uploads document via API
+   ↓
+2. API Gateway (Platform) → document-upload Lambda
+   ↓
+3. Lambda validates request and creates metadata
+   ↓
+4. Document stored in S3 bucket (Application)
+   ↓
+5. S3 event triggers document-processing Lambda
+   ↓
+6. Lambda extracts text using Textract
+   ↓
+7. Text and embeddings stored in OpenSearch
+   ↓
+8. Metadata updated in DynamoDB (Platform)
 ```
 
-**Benefits**:
-- Consistent UUIDs across requests
-- No UUID collisions between tenants
-- Enables efficient database queries
-- Supports both DynamoDB and PostgreSQL
+### Multi-Tenant Query Flow
+
+```
+1. User makes API request with tenant context
+   ↓
+2. API Gateway (Platform) validates Cognito token
+   ↓
+3. Lambda function receives request
+   ↓
+4. Lambda queries DynamoDB with tenant filter
+   ↓
+5. Results filtered by tenantId for isolation
+   ↓
+6. Response returned to user
+```
 
 ## Security Architecture
 
 ### Authentication & Authorization
+- **Cognito User Pool**: User authentication
+- **JWT Tokens**: API request authorization
+- **Tenant Attributes**: Custom attributes for tenant context
+- **API Gateway Authorizer**: Token validation
 
-**Development Environment**:
-- Header-based tenant identification (`X-Tenant-Id`)
-- No user authentication required
-- Simplified for local testing
+### Data Isolation
+- **Tenant ID**: All data tagged with tenantId
+- **GSI Indexes**: Efficient tenant-based queries
+- **Lambda Validation**: Tenant context validation in all functions
+- **Row-Level Security**: Enforced at application layer
 
-**Production Environment**:
-- AWS Cognito User Pool integration
-- JWT token-based authentication
-- Tenant ID extracted from custom claims
-- API Gateway Cognito authorizer
-
-### Data Protection
-
-**Encryption**:
-- **In Transit**: HTTPS/TLS 1.2+ for all communications
-- **At Rest**: 
-  - S3: Server-side encryption (SSE-S3)
-  - DynamoDB: AWS-managed encryption
-  - Aurora: Encryption at rest with KMS
-
-**Access Control**:
-- **IAM Roles**: Least-privilege principle
-- **Lambda Execution**: Scoped permissions per function
-- **Cross-Service**: Service-to-service authentication
-
-### Input Validation
-
-**File Upload Security**:
-- File type validation (whitelist approach)
-- File size limits (configurable)
-- Content type verification
-- Malware scanning (future enhancement)
-
-**API Security**:
-- Request payload validation
-- SQL injection prevention
-- XSS protection through proper encoding
-- Rate limiting and throttling
-
-## Scalability & Performance
-
-### Auto-Scaling Components
-
-**Lambda Functions**:
-- Automatic scaling based on request volume
-- Concurrent execution limits configurable
-- Cold start optimization through provisioned concurrency
-
-**DynamoDB**:
-- On-demand billing mode for automatic scaling
-- Global Secondary Indexes for efficient queries
-- Point-in-time recovery enabled
-
-**API Gateway**:
-- Built-in scaling and load balancing
-- Caching capabilities for improved performance
-- Request/response transformation
-
-### Performance Optimizations
-
-**Database Design**:
-- Efficient GSI design for tenant-based queries
-- Composite keys for optimal query patterns
-- Minimal data duplication
-
-**File Processing**:
-- Asynchronous processing via S3 events
-- Parallel processing for multiple documents
-- Retry mechanisms for failed operations
-
-**Frontend Optimizations**:
-- Code splitting and lazy loading
-- Optimized bundle sizes
-- Progressive file upload with progress tracking
-
-## Monitoring & Observability
-
-### Logging Strategy
-
-**Structured Logging**:
-```typescript
-console.log(JSON.stringify({
-  timestamp: new Date().toISOString(),
-  level: 'INFO',
-  service: 'customer-manager',
-  tenantId: tenantId,
-  customerId: customerId,
-  action: 'customer_created',
-  message: 'Customer created successfully'
-}));
-```
-
-**Log Aggregation**:
-- CloudWatch Logs for centralized logging
-- Log groups per Lambda function
-- Retention policies for cost optimization
-
-### Metrics & Alarms
-
-**Key Metrics**:
-- Lambda function duration and errors
-- DynamoDB read/write capacity utilization
-- S3 upload success/failure rates
-- Textract processing times and errors
-
-**Alerting**:
-- CloudWatch Alarms for critical metrics
-- SNS notifications for operational issues
-- Dashboard for real-time monitoring
+### IAM Permissions
+- **Least Privilege**: Platform role has minimal required permissions
+- **Service-Specific**: Separate permissions for each AWS service
+- **Resource-Based**: Policies scoped to specific resources
+- **Audit Trail**: CloudTrail logging for all API calls
 
 ## Deployment Architecture
 
-### Infrastructure as Code
+### CDK Stack Structure
 
-**AWS CDK**:
-- TypeScript-based infrastructure definitions
-- Environment-specific configurations
-- Parameterized deployments for platform integration
+```
+RAGApplicationStack
+├── SSM Parameter Lookups (Deployment Time)
+│   ├── IAM Role ARN
+│   ├── API Gateway ID
+│   ├── DynamoDB Table Names
+│   └── Root Resource ID
+│
+├── Resource Imports
+│   ├── DynamoDB Tables (fromTableName)
+│   ├── IAM Role (fromRoleArn)
+│   └── API Gateway (fromRestApiAttributes)
+│
+├── Application Resources
+│   ├── S3 Bucket
+│   ├── SQS Queue
+│   └── Lambda Functions
+│
+└── API Gateway Routes
+    └── Methods added to imported API
+```
 
-**CI/CD Pipeline**:
-- External pipeline managed by platform team
-- Automated testing and deployment
-- Blue-green deployment strategy
+### Environment Configuration
 
-### Environment Management
+Configuration is managed through:
+1. **SSM Parameters**: Platform resource identifiers
+2. **CDK Parameters**: Service-specific configuration
+3. **CDK Context**: Environment-specific values
+4. **Lambda Environment Variables**: Runtime configuration
 
-**Development**:
-- Local CDK deployment
-- Simplified authentication
-- Debug logging enabled
+## Monitoring & Observability
 
-**Production**:
-- Platform team managed deployment
-- Full Cognito integration
-- Production-grade monitoring and alerting
+### CloudWatch Logs
+- Lambda function logs: `/aws/lambda/{function-name}`
+- API Gateway logs: Managed by platform team
+- Log retention: Configured per environment
+
+### CloudWatch Metrics
+- Lambda: Invocations, errors, duration, throttles
+- API Gateway: Request count, latency, errors
+- DynamoDB: Read/write capacity, throttles
+- S3: Bucket size, request metrics
+- SQS: Messages sent, received, deleted
+
+### X-Ray Tracing
+- Optional tracing for Lambda functions
+- End-to-end request tracing
+- Performance bottleneck identification
+
+## Scalability
+
+### Auto-Scaling
+- **Lambda**: Automatic scaling up to account limits
+- **DynamoDB**: On-demand billing mode (platform-managed)
+- **API Gateway**: Automatic scaling with throttling
+- **S3**: Unlimited storage capacity
+
+### Performance Optimization
+- **DynamoDB GSI**: Efficient tenant-based queries
+- **Lambda Memory**: Optimized per function (256MB - 2048MB)
+- **Lambda Timeout**: Configured per function (30s - 15min)
+- **S3 Event Notifications**: Asynchronous processing
+
+## Cost Optimization
+
+### Shared Resources
+- Platform-managed resources shared across applications
+- Reduced operational overhead
+- Centralized capacity planning
+
+### Application Resources
+- Pay-per-use Lambda pricing
+- S3 storage costs based on usage
+- SQS charges per message
+- DynamoDB on-demand billing
+
+## Disaster Recovery
+
+### Backup Strategy
+- **DynamoDB**: Point-in-time recovery (platform-managed)
+- **S3**: Versioning enabled for document bucket
+- **Lambda**: Code stored in version control
+- **Infrastructure**: CDK code in Git repository
+
+### Recovery Procedures
+1. Platform team restores platform infrastructure
+2. Development team redeploys application stack
+3. S3 data recovered from versioning
+4. DynamoDB data recovered from backups
 
 ## Future Enhancements
 
-### Planned Features
-
-1. **Advanced Document Processing**:
-   - Form and table extraction with Textract
-   - Multi-page document handling
-   - Document classification and routing
-
-2. **Enhanced Security**:
-   - Document encryption with customer-managed keys
-   - Audit logging and compliance reporting
-   - Advanced threat detection
-
-3. **Performance Improvements**:
-   - Document preview generation
-   - Caching layer for frequently accessed documents
-   - Batch processing capabilities
-
-4. **User Experience**:
-   - Real-time processing status updates
-   - Document search and filtering
-   - Bulk upload capabilities
-
-### Integration Roadmap
-
-1. **RAG Platform Features**:
-   - Direct integration with vector database
-   - Custom embedding models
-   - Advanced retrieval strategies
-
-2. **Analytics & Insights**:
-   - Document processing analytics
-   - Usage metrics and reporting
-   - Cost optimization recommendations
-
-3. **Multi-Region Support**:
-   - Cross-region replication
-   - Disaster recovery capabilities
-   - Global load balancing
+### Planned Improvements
+- Multi-region deployment support
+- Enhanced monitoring dashboards
+- Automated testing pipeline
+- Performance optimization
+- Cost allocation tagging

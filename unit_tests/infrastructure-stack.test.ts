@@ -13,14 +13,16 @@ describe('Documents Table GSI Configuration', () => {
       stack = new cdk.Stack(app, 'TestStack');
       
       // Create a minimal documents table with the three GSIs
+      // Note: In the actual RAGApplicationStack, this table is imported from platform infrastructure
+      // This test validates the expected GSI structure that the platform team must provide
       const documentsTable = new dynamodb.Table(stack, 'DocumentsTable', {
-        tableName: 'rag-app-v2-documents-dev',
+        tableName: 'rag-app-documents-dev',
         partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING },
         sortKey: { name: 'customerUuid', type: dynamodb.AttributeType.STRING },
         billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       });
 
-      // Add the three GSIs as in the actual stack
+      // Add the three GSIs as expected in the platform infrastructure
       documentsTable.addGlobalSecondaryIndex({
         indexName: 'tenant-documents-index',
         partitionKey: { name: 'tenantId', type: dynamodb.AttributeType.STRING },
@@ -44,7 +46,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should have claim-documents-index GSI with correct partition key', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         GlobalSecondaryIndexes: Match.arrayWith([
           Match.objectLike({
             IndexName: 'claim-documents-index',
@@ -61,7 +63,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should have claim-documents-index GSI with correct sort key', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         GlobalSecondaryIndexes: Match.arrayWith([
           Match.objectLike({
             IndexName: 'claim-documents-index',
@@ -79,7 +81,7 @@ describe('Documents Table GSI Configuration', () => {
     it('should have all three GSIs configured', () => {
       const resources = template.findResources('AWS::DynamoDB::Table', {
         Properties: {
-          TableName: 'rag-app-v2-documents-dev'
+          TableName: 'rag-app-documents-dev'
         }
       });
 
@@ -91,7 +93,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should define claimId attribute for GSI', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         AttributeDefinitions: Match.arrayWith([
           {
             AttributeName: 'claimId',
@@ -103,7 +105,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should have tenant-documents-index GSI', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         GlobalSecondaryIndexes: Match.arrayWith([
           Match.objectLike({
             IndexName: 'tenant-documents-index'
@@ -114,7 +116,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should have customer-documents-index GSI', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         GlobalSecondaryIndexes: Match.arrayWith([
           Match.objectLike({
             IndexName: 'customer-documents-index'
@@ -125,7 +127,7 @@ describe('Documents Table GSI Configuration', () => {
 
     it('should configure claim-documents-index with projection type ALL', () => {
       template.hasResourceProperties('AWS::DynamoDB::Table', {
-        TableName: 'rag-app-v2-documents-dev',
+        TableName: 'rag-app-documents-dev',
         GlobalSecondaryIndexes: Match.arrayWith([
           Match.objectLike({
             IndexName: 'claim-documents-index',
@@ -170,4 +172,3 @@ describe('Documents Table GSI Configuration', () => {
     });
   });
 });
-

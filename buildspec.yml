@@ -18,22 +18,32 @@ phases:
       - echo "Building TypeScript..."
       - npm run build
       - echo "Synthesizing CDK..."
-      - npm run synth
+      - echo "Environment context: ${ENVIRONMENT:-dev}"
+      - |
+        if [ -n "$ENVIRONMENT" ]; then
+          cdk synth --context environment=$ENVIRONMENT
+        else
+          npm run synth
+        fi
       - echo "Verifying CDK output..."
       - ls -la cdk.out/ | head -20
       
   post_build:
     commands:
       - echo "Copying CDK template to expected SAM format..."
-      - cp cdk.out/MultiTenantDocumentManagerStack.template.json cdk.out/template.yaml
+      - cp cdk.out/RAGApplicationStack.template.json cdk.out/template.yaml
       - echo "Verifying template.yaml was created..."
       - ls -la cdk.out/template.yaml
       - echo "Template file size:"
       - wc -l cdk.out/template.yaml
+      - echo "Listing all files in cdk.out directory..."
+      - ls -la cdk.out/
+      - echo "Verifying template.yaml exists in artifact base directory..."
+      - test -f cdk.out/template.yaml && echo "✓ template.yaml exists" || echo "✗ template.yaml NOT found"
       - echo "Build artifacts ready for deployment"
 
 artifacts:
   files:
     - '**/*'
-    - template.yaml
   base-directory: cdk.out
+  name: BuildOutput
