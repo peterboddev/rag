@@ -38,8 +38,13 @@ phases:
       - ls -la template.yaml
       - echo "Template file size:"
       - wc -l template.yaml
-      - echo "Listing cdk.out directory..."
-      - ls -la cdk.out/ | head -20
+      - echo "Current working directory:"
+      - pwd
+      - echo "Listing root directory files:"
+      - ls -la | grep -E "(template|cdk)"
+      - echo "Absolute path check:"
+      - test -f ./template.yaml && echo "✓ template.yaml exists at ./template.yaml" || echo "✗ template.yaml NOT found at ./template.yaml"
+      - test -f $CODEBUILD_SRC_DIR/template.yaml && echo "✓ template.yaml exists at CODEBUILD_SRC_DIR" || echo "✗ template.yaml NOT found at CODEBUILD_SRC_DIR"
       - echo "Build artifacts ready for deployment"
 
 artifacts:
