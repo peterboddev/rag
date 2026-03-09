@@ -34,20 +34,16 @@ phases:
     commands:
       - echo "Copying CDK template to expected SAM format..."
       - cp cdk.out/RAGApplicationStack.template.json template.yaml
-      - echo "Verifying template.yaml was created..."
+      - echo "Verifying template.yaml was created at root..."
       - ls -la template.yaml
       - echo "Template file size:"
       - wc -l template.yaml
-      - echo "Moving template.yaml into cdk.out for artifact packaging..."
-      - mv template.yaml cdk.out/
-      - echo "Listing all files in cdk.out directory..."
-      - ls -la cdk.out/ | grep -E "(template|RAGApplicationStack)"
-      - echo "Verifying template.yaml exists in artifact base directory..."
-      - test -f cdk.out/template.yaml && echo "✓ template.yaml exists" || echo "✗ template.yaml NOT found"
+      - echo "Listing cdk.out directory..."
+      - ls -la cdk.out/ | head -20
       - echo "Build artifacts ready for deployment"
 
 artifacts:
   files:
-    - '**/*'
-  base-directory: cdk.out
+    - 'template.yaml'
+    - 'cdk.out/**/*'
   name: BuildOutput
