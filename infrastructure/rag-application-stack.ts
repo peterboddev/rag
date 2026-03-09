@@ -63,20 +63,8 @@ export class RAGApplicationStack extends cdk.Stack {
       `/${applicationName}/${environment}/dynamodb/documents-table-name`
     );
 
-    // Error handling for missing SSM parameters
-    if (!applicationRoleArn || applicationRoleArn.includes('dummy-value')) {
-      throw new Error(
-        `SSM parameter /${applicationName}/${environment}/iam/application-role-arn not found. ` +
-        `Ensure platform infrastructure is deployed before application stack.`
-      );
-    }
-
-    if (!apiGatewayId || apiGatewayId.includes('dummy-value')) {
-      throw new Error(
-        `SSM parameter /${applicationName}/${environment}/apigateway/api-id not found. ` +
-        `Ensure platform infrastructure is deployed before application stack.`
-      );
-    }
+    // Note: valueFromLookup returns dummy values during first synthesis
+    // Real values are looked up during deployment and cached in cdk.context.json
 
     // 3. Import platform resources
     const customersTable = dynamodb.Table.fromTableName(
