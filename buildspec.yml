@@ -18,30 +18,18 @@ phases:
       - echo "Building TypeScript..."
       - npm run build
       - echo "Synthesizing CDK..."
-      - echo "Environment context ${ENVIRONMENT:-dev}"
       - npx cdk synth --context environment=${ENVIRONMENT:-dev}
-      - echo "Verifying CDK output..."
-      - ls -la cdk.out/ | head -20
-      - echo "Checking if RAGApplicationStack template was created..."
-      - test -f cdk.out/RAGApplicationStack.template.json && echo "Stack template found" || exit 1
-      
+      - echo "Listing generated templates..."
+      - ls -la cdk.out/*.template.json
+
   post_build:
     commands:
-      - echo "Copying CDK template to expected SAM format..."
-      - cp cdk.out/RAGApplicationStack.template.json template.yaml
-      - echo "Verifying template.yaml was created..."
-      - ls -la template.yaml
-      - echo "Build completed successfully"
+      - echo "Build completed successfully on $(date)"
+      - echo "Artifacts ready for deployment"
 
 artifacts:
   files:
-    - 'template.yaml'
-    - 'cdk.out/**/*'
-    - 'dist/**/*'
-    - 'src/**/*'
-    - 'node_modules/**/*'
-    - 'package.json'
-    - 'package-lock.json'
+    - '**/*'
   name: BuildOutput
 
 cache:
