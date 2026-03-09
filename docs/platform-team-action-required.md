@@ -1,98 +1,78 @@
 # Platform Team Action Required
 
-## Issue: CodeBuild Not Using Repository buildspec.yml
+## Issue: CodeBuild Still Using Old Platform-Managed Buildspec
+
+### Background
+
+As part of the platform infrastructure migration, **buildspec ownership has transferred from platform team to application team**. The application team now maintains `buildspec.yml` in their repository.
 
 ### Problem
 
-The CodeBuild project for `rag-app-build` appears to have a buildspec override configured that is not using the `buildspec.yml` from the application repository.
+The CodeBuild project for `rag-app-build` is still configured to use the old platform-managed buildspec instead of the repository's `buildspec.yml`.
 
 **Evidence:**
 - Repository `buildspec.yml` has 13 commands in `post_build` phase
-- CodeBuild logs show: `POST_BUILD: 1 commands`
+- CodeBuild logs show: `POST_BUILD: 1 commands` (old platform buildspec)
 - Artifacts collection fails with: `Skipping invalid file path template.yaml`
 
 ### Root Cause
 
-The CodeBuild project configuration likely has one of these issues:
-1. **Buildspec Override**: Project is configured with an inline buildspec or alternate buildspec path
-2. **Cached Buildspec**: Project is using an old cached version of the buildspec
+The CodeBuild project configuration still has the old buildspec override from when platform team controlled the build process. This override needs to be removed to allow the application team's buildspec to be used.
 
 ### Required Action
 
-The platform team needs to configure the CodeBuild project to use the buildspec.yml from the repository:
+The platform team needs to **remove the buildspec override** from the CodeBuild project configuration:
 
-#### Option 1: Use Repository Buildspec (Recommended)
+#### Steps to Remove Buildspec Override
 
-In the CodeBuild project configuration:
 1. Go to AWS Console → CodeBuild → Projects → `rag-app-build`
 2. Click "Edit" → "Buildspec"
-3. Select "Use a buildspec file"
-4. Set buildspec name to: `buildspec.yml`
-5. Save changes
+3. Change from "Insert build commands" or custom buildspec to: **"Use a buildspec file"**
+4. Set buildspec name to: `buildspec.yml` (default)
+5. Remove any inline buildspec commands
+6. Save changes
 
-#### Option 2: Update Buildspec Override
+This will allow CodeBuild to use the `buildspec.yml` from the application repository.
 
-If the platform team needs to maintain a buildspec override, update it to include the application team's post_build commands:
+#### Verification Command
 
-```yaml
-version: 0.2
+```bash
+# Check CodeBuild project configuration
+aws codebuild batch-get-projects --names rag-app-build \
+  --query 'projects[0].source.buildspec' --output text
 
-phases:
-  install:
-    runtime-versions:
-      nodejs: 20
-    commands:
-      - echo "Installing dependencies..."
-      - npm ci --include=dev
-      
-  pre_build:
-    commands:
-      - echo "Running unit tests..."
-      - npm run test --if-present
-      
-  build:
-    commands:
-      - echo "Building TypeScript..."
-      - npm run build
-      - echo "Synthesizing CDK..."
-      - echo "Environment context: ${ENVIRONMENT:-dev}"
-      - |
-        if [ -n "$ENVIRONMENT" ]; then
-          cdk synth --context environment=$ENVIRONMENT || exit 1
-        else
-          npm run synth || exit 1
-        fi
-      - echo "Verifying CDK output..."
-      - ls -la cdk.out/ | head -20
-      - echo "Checking if RAGApplicationStack template was created..."
-      - test -f cdk.out/RAGApplicationStack.template.json && echo "✓ Stack template found" || (echo "✗ Stack template NOT found - CDK synth failed" && exit 1)
-      
-  post_build:
-    commands:
-      - echo "Copying CDK template to expected SAM format..."
-      - cp cdk.out/RAGApplicationStack.template.json template.yaml
-      - echo "Verifying template.yaml was created at root..."
-      - ls -la template.yaml
-      - echo "Template file size:"
-      - wc -l template.yaml
-      - echo "Build artifacts ready for deployment"
-
-artifacts:
-  files:
-    - 'template.yaml'
-    - 'cdk.out/**/*'
-  name: BuildOutput
+# Should return empty string (uses repo buildspec.yml)
+# If it returns YAML content, the override is still active
 ```
 
-### Why This Matters
+### Why This Change Was Made
 
-The application team needs control over:
-1. **Build steps**: TypeScript compilation, CDK synthesis
-2. **Test execution**: Unit test configuration and execution
-3. **Artifact generation**: Creating `template.yaml` for deployment stage
-4. **Environment configuration**: Handling environment-specific builds
+As part of the platform infrastructure migration:
+- **Before**: Platform team controlled buildspec, managed build/test/deploy process
+- **After**: Application team controls buildspec, manages their own build/test/artifact generation
+- **Platform team still manages**: Pipeline infrastructure, deployment stages, integration testing
 
-Without the correct buildspec, the deployment stage fails because `template.yaml` is not created.
+This change gives application teams more flexibility to:
+1. Customize build steps for their specific needs
+2. Update dependencies and build tools independently
+3. Control artifact generation format
+4. Iterate faster without platform team coordination
+
+### What Application Team Now Controls
+
+The application team's `buildspec.yml` defines:
+- Dependency installation (`npm ci`)
+- Unit test execution (`npm run test`)
+- TypeScript compilation (`npm run build`)
+- CDK synthesis (`cdk synth`)
+- Artifact generation (`template.yaml` creation)
+
+### What Platform Team Still Controls
+
+- CodeBuild project configuration (environment variables, IAM roles, VPC settings)
+- Deployment stages (CloudFormation deployment, integration testing)
+- Pipeline orchestration (triggering, stage transitions)
+- Production release management
 
 ### Verification
 
@@ -115,11 +95,19 @@ aws codebuild batch-get-projects --names rag-app-build \
 
 ### Timeline
 
-This is blocking application deployment. Please prioritize this configuration change.
+This is blocking application deployment as part of the platform infrastructure migration. Please prioritize removing the buildspec override.
+
+### Migration Checklist for Platform Team
+
+- [ ] Remove buildspec override from CodeBuild project
+- [ ] Verify CodeBuild uses repository's `buildspec.yml`
+- [ ] Confirm `template.yaml` is created in artifacts
+- [ ] Verify deployment stage can find `template.yaml`
+- [ ] Update any platform documentation referencing old buildspec management
 
 ### Contact
 
-For questions about the application team's build requirements, contact the development team.
+For questions about the application team's build requirements or the migration, contact the development team.
 
 ## Related Documentation
 
