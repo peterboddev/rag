@@ -202,18 +202,20 @@ export class RAGApplicationStack extends cdk.Stack {
             '.vscode',
             '.pytest_cache',
             'docs',
-            'node_modules/@types',
-            'node_modules/typescript',
-            'node_modules/aws-cdk',
-            'node_modules/aws-cdk-lib',
-            'node_modules/constructs',
-            'node_modules/jest',
-            'node_modules/@jest',
-            'node_modules/ts-jest',
-            'node_modules/ts-node',
-            'node_modules/@typescript-eslint',
-            'node_modules/eslint'
-          ]
+            'node_modules'  // Exclude all node_modules - will be installed during bundling
+          ],
+          bundling: {
+            image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+            command: [
+              'bash', '-c', [
+                'cp -r /asset-input/dist /asset-output/',
+                'cp -r /asset-input/src /asset-output/',
+                'cp /asset-input/package*.json /asset-output/',
+                'cd /asset-output',
+                'npm ci --omit=dev --ignore-scripts'
+              ].join(' && ')
+            ],
+          },
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
         timeout,
