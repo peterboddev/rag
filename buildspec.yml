@@ -21,6 +21,8 @@ phases:
       - npx cdk synth --context environment=${ENVIRONMENT:-dev}
       - echo "Listing generated templates..."
       - ls -la cdk.out/*.template.json
+      - echo "Copying template for deployment..."
+      - cp cdk.out/RAGApplicationStack.template.json template.yaml
 
   post_build:
     commands:
