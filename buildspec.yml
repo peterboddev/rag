@@ -31,7 +31,7 @@ phases:
       - cp cdk.out/RAGApplicationStack.template.json template.yaml
       - echo "Verifying template.yaml was created..."
       - ls -la template.yaml
-      - echo "Build artifacts ready for deployment"
+      - echo "Build completed successfully"
 
 artifacts:
   files:
