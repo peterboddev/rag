@@ -498,10 +498,11 @@ export class RAGApplicationStack extends cdk.Stack {
     );
 
     // 8. Export stack outputs
+    // Note: API Gateway URL is exported by platform team's API Gateway stack
     new cdk.CfnOutput(this, 'ApiGatewayUrl', {
       value: `https://${apiGatewayId}.execute-api.${this.region}.amazonaws.com/${environment}`,
       description: 'API Gateway URL',
-      exportName: `${applicationName}-${environment}-api-url`
+      // exportName removed - platform team exports this from their API Gateway stack
     });
 
     new cdk.CfnOutput(this, 'DocumentsBucketName', {
