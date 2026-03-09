@@ -35,7 +35,8 @@ phases:
 
 artifacts:
   files:
-    - '**/*'
+    - 'template.yaml'
+    - 'cdk.out/**/*'
   name: BuildOutput
 
 cache:
