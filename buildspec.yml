@@ -37,6 +37,11 @@ artifacts:
   files:
     - 'template.yaml'
     - 'cdk.out/**/*'
+    - 'dist/**/*'
+    - 'src/**/*'
+    - 'node_modules/**/*'
+    - 'package.json'
+    - 'package-lock.json'
   name: BuildOutput
 
 cache:
