@@ -21,12 +21,14 @@ phases:
       - echo "Environment context: ${ENVIRONMENT:-dev}"
       - |
         if [ -n "$ENVIRONMENT" ]; then
-          cdk synth --context environment=$ENVIRONMENT
+          cdk synth --context environment=$ENVIRONMENT || exit 1
         else
-          npm run synth
+          npm run synth || exit 1
         fi
       - echo "Verifying CDK output..."
       - ls -la cdk.out/ | head -20
+      - echo "Checking if RAGApplicationStack template was created..."
+      - test -f cdk.out/RAGApplicationStack.template.json && echo "✓ Stack template found" || (echo "✗ Stack template NOT found - CDK synth failed" && exit 1)
       
   post_build:
     commands:
