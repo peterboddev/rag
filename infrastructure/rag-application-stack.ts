@@ -188,7 +188,21 @@ export class RAGApplicationStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler,
         code: lambda.Code.fromAsset('.', {
-          exclude: ['cdk.out', 'unit_tests', 'infrastructure', '*.md', 'tests_ongoing', 'frontend']
+          exclude: [
+            'cdk.out', 
+            'unit_tests', 
+            'infrastructure', 
+            '*.md', 
+            'tests_ongoing', 
+            'frontend',
+            'medical-claims-generator',
+            'htmlcov',
+            '.git',
+            '.kiro',
+            '.vscode',
+            '.pytest_cache',
+            'docs'
+          ]
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
         timeout,
