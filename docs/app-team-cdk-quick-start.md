@@ -1,5 +1,18 @@
 # App Team CDK Quick Start
 
+## ⚠️ CRITICAL: CodeBuild Role Must Have SSM Permissions
+
+**Before you can deploy, the platform team MUST add SSM read permissions to your CodeBuild role.**
+
+Without these permissions, `cdk synth` will fail with:
+```
+User: arn:aws:sts::ACCOUNT:assumed-role/CodeBuildRole/... is not authorized to perform: ssm:GetParameter
+```
+
+See "Required CodeBuild Permissions" section below for the exact IAM policy needed.
+
+---
+
 ## Problem: CDK Synthesis Fails with "SSM parameter not found"
 
 If you're seeing this error:
