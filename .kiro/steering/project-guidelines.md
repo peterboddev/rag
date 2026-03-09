@@ -11,6 +11,10 @@ This application is part of a larger system that uses an external CI/CD pipeline
 - External pipeline automatically triggers on code push
 - CodeBuild handles building, testing, and integration testing
 - Platform team manages the overall deployment pipeline
+- **buildspec.yml**: Application team owns and maintains the buildspec.yml in the repository root
+  - Platform team's CodeBuild project must be configured to use the repository's buildspec.yml
+  - If platform team needs to override buildspec, coordinate with application team
+  - Application team is responsible for build, test, and artifact generation steps
 
 ### Testing Strategy
 - **Unit Tests**: Owned by this project, stored in `unit_tests/` directory
