@@ -201,7 +201,18 @@ export class RAGApplicationStack extends cdk.Stack {
             '.kiro',
             '.vscode',
             '.pytest_cache',
-            'docs'
+            'docs',
+            'node_modules/@types',
+            'node_modules/typescript',
+            'node_modules/aws-cdk',
+            'node_modules/aws-cdk-lib',
+            'node_modules/constructs',
+            'node_modules/jest',
+            'node_modules/@jest',
+            'node_modules/ts-jest',
+            'node_modules/ts-node',
+            'node_modules/@typescript-eslint',
+            'node_modules/eslint'
           ]
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
