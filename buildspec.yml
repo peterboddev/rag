@@ -19,6 +19,8 @@ phases:
       - npm run build
       - echo "Synthesizing CDK..."
       - echo "Environment context: ${ENVIRONMENT:-dev}"
+      - echo "DEBUG - Checking buildspec location..."
+      - cat /codebuild/readonly/buildspec.yml || echo "Cannot read buildspec"
       - |
         if [ -n "$ENVIRONMENT" ]; then
           cdk synth --context environment=$ENVIRONMENT || exit 1
