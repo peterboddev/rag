@@ -27,6 +27,7 @@ phases:
   post_build:
     commands:
       - echo "Build completed successfully on $(date)"
+      - echo "CDK assets ready for publishing"
       - echo "Artifacts ready for deployment"
 
 artifacts:
