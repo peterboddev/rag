@@ -32,7 +32,7 @@ The current implementation creates its own DynamoDB tables, IAM roles, and API G
 
 1. THE Application_Stack SHALL use application name `rag-app` instead of `rag-app-v2`
 2. WHEN resources are created, THE Application_Stack SHALL construct names using pattern `rag-app-{resourceType}-{environment}`
-3. WHEN the stack is instantiated, THE Application_Stack SHALL use stack name `RAGApplicationStack`
+3. WHEN the stack is instantiated, THE Application_Stack SHALL use stack name `rag-app-development` (to match platform pipeline expectation)
 4. WHEN Lambda functions reference buckets, THE Lambda_Function SHALL use bucket names with `rag-app` prefix
 5. WHEN environment variables are set, THE Lambda_Function SHALL reference resources using `rag-app` naming pattern
 
