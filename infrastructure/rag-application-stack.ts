@@ -86,7 +86,7 @@ export class RAGApplicationStack extends cdk.Stack {
     const documentsCustomerIndexName = 'customer-documents-index';
     const documentsTenantIndexName = 'tenant-documents-index';
     
-    // Create first GSI
+    // Create first GSI (idempotent - ignores if already exists)
     const gsiCustomer = new cr.AwsCustomResource(this, 'GSICustomer', {
       onCreate: {
         service: 'DynamoDB',
@@ -110,13 +110,14 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
         outputPaths: [], // Don't capture response - table description can be too large
+        ignoreErrorCodesMatching: 'ResourceInUseException', // Ignore if GSI already exists
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
       }),
     });
 
-    // Create second GSI - depends on first GSI to ensure sequential creation
+    // Create second GSI - depends on first GSI to ensure sequential creation (idempotent - ignores if already exists)
     const gsiTenant = new cr.AwsCustomResource(this, 'GSITenant', {
       onCreate: {
         service: 'DynamoDB',
@@ -140,6 +141,7 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
         outputPaths: [], // Don't capture response - table description can be too large
+        ignoreErrorCodesMatching: 'ResourceInUseException', // Ignore if GSI already exists
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
