@@ -201,21 +201,8 @@ export class RAGApplicationStack extends cdk.Stack {
             '.kiro',
             '.vscode',
             '.pytest_cache',
-            'docs',
-            'node_modules'  // Exclude all node_modules - will be installed during bundling
-          ],
-          bundling: {
-            image: lambda.Runtime.NODEJS_20_X.bundlingImage,
-            command: [
-              'bash', '-c', [
-                'cp -r /asset-input/dist /asset-output/',
-                'cp -r /asset-input/src /asset-output/',
-                'cp /asset-input/package*.json /asset-output/',
-                'cd /asset-output',
-                'npm ci --omit=dev --ignore-scripts'
-              ].join(' && ')
-            ],
-          },
+            'docs'
+          ]
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
         timeout,
