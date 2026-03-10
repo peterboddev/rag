@@ -79,13 +79,73 @@ export class RAGApplicationStack extends cdk.Stack {
       documentsTableName
     );
 
-    // 3a. Import DynamoDB tables without GSI management
-    // Note: Platform team manages the tables and their GSIs
-    // We just reference them for Lambda environment variables
+    // 3a. Add Global Secondary Indexes to platform tables sequentially
+    // Note: DynamoDB only allows 1 GSI operation at a time
     
-    // Documents Table GSI names (for reference in queries)
+    // Documents Table GSI names
     const documentsCustomerIndexName = 'customer-documents-index';
     const documentsTenantIndexName = 'tenant-documents-index';
+    
+    // Create first GSI
+    const gsiCustomer = new cr.AwsCustomResource(this, 'GSICustomer', {
+      onCreate: {
+        service: 'DynamoDB',
+        action: 'updateTable',
+        parameters: {
+          TableName: documentsTableName,
+          AttributeDefinitions: [
+            { AttributeName: 'customerUuid', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexUpdates: [
+            {
+              Create: {
+                IndexName: documentsCustomerIndexName,
+                KeySchema: [
+                  { AttributeName: 'customerUuid', KeyType: 'HASH' },
+                ],
+                Projection: { ProjectionType: 'ALL' },
+              },
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
+    });
+
+    // Create second GSI - depends on first GSI to ensure sequential creation
+    const gsiTenant = new cr.AwsCustomResource(this, 'GSITenant', {
+      onCreate: {
+        service: 'DynamoDB',
+        action: 'updateTable',
+        parameters: {
+          TableName: documentsTableName,
+          AttributeDefinitions: [
+            { AttributeName: 'tenantId', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexUpdates: [
+            {
+              Create: {
+                IndexName: documentsTenantIndexName,
+                KeySchema: [
+                  { AttributeName: 'tenantId', KeyType: 'HASH' },
+                ],
+                Projection: { ProjectionType: 'ALL' },
+              },
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
+    });
+
+    // Ensure second GSI waits for first GSI to complete
+    gsiTenant.node.addDependency(gsiCustomer);
 
     // Import IAM role - handle dummy values during synthesis
     const lambdaExecutionRole = applicationRoleArn.startsWith('arn:')
