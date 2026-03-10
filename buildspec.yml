@@ -6,37 +6,29 @@ phases:
       nodejs: 20
     commands:
       - echo "Installing dependencies..."
-      - npm ci --include=dev
-      
+      - npm ci
+  
   pre_build:
     commands:
-      - echo "Running unit tests..."
-      - npm run test --if-present
-      
+      - echo "Running tests..."
+      - npm run test
+  
   build:
     commands:
-      - echo "Building TypeScript..."
+      - echo "Building application..."
       - npm run build
-      - echo "Synthesizing CDK..."
-      - npx cdk synth --context environment=${ENVIRONMENT:-dev}
-      - echo "Listing generated templates..."
-      - ls -la cdk.out/*.template.json
-      - echo "Copying template for deployment..."
-      - cp cdk.out/RAGApplicationStack.template.json template.yaml
-
+      - echo "Synthesizing CDK stack..."
+      - npx cdk synth
+  
   post_build:
     commands:
-      - echo "Build completed successfully on $(date)"
-      - echo "CDK assets ready for publishing"
-      - echo "Artifacts ready for deployment"
+      - echo "Build completed successfully"
 
 artifacts:
   files:
-    - 'template.yaml'
-    - 'cdk.out/*.json'
-    - 'cdk.out/*.template.json'
-    - 'cdk.out/*.template.yaml'
-  name: BuildOutput
+    - '**/*'
+  # Include ALL files - required for npx cdk deploy in deploy stage
+  # Platform team's deploy stage needs: source code, cdk.out/, package.json, and asset directories
 
 cache:
   paths:
