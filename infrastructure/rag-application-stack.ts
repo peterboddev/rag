@@ -191,6 +191,26 @@ export class RAGApplicationStack extends cdk.Stack {
       }
     );
 
+    // Create Cognito User Pool Authorizer for API Gateway
+    const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
+      cognitoUserPools: [
+        iam.Role.fromRoleArn(this, 'DummyRoleForUserPool', 'arn:aws:iam::123456789012:role/dummy', { mutable: false })
+          ? undefined as any // Workaround: We can't import UserPool directly, so we'll use CfnAuthorizer instead
+          : undefined as any
+      ]
+    });
+
+    // Use CfnAuthorizer to reference the platform-provided Cognito User Pool
+    const authorizer = new apigateway.CfnAuthorizer(this, 'ApiAuthorizer', {
+      name: 'CognitoAuthorizer',
+      type: 'COGNITO_USER_POOLS',
+      restApiId: apiGatewayId,
+      identitySource: 'method.request.header.Authorization',
+      providerArns: [
+        `arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${userPoolIdParam.valueAsString}`
+      ],
+    });
+
     // 4. Create application-specific resources
     // Note: Using auto-generated bucket names to avoid conflicts
     // CDK will generate names like: rag-app-development-documentsbucket-xxxxx
@@ -486,68 +506,75 @@ export class RAGApplicationStack extends cdk.Stack {
     );
 
     // 6. Add API routes to imported API Gateway
-    // Create resource hierarchy
+    // Create resource hierarchy with Cognito authorization
+    const methodOptions: apigateway.MethodOptions = {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: {
+        authorizerId: authorizer.ref,
+      },
+    };
+
     const customersResource = api.root.addResource('customers');
-    customersResource.addMethod('POST', new apigateway.LambdaIntegration(customerManagerFunction));
+    customersResource.addMethod('POST', new apigateway.LambdaIntegration(customerManagerFunction), methodOptions);
 
     const customerResource = customersResource.addResource('{customerUUID}');
     const chunkingConfigResource = customerResource.addResource('chunking-config');
-    chunkingConfigResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingConfigGetFunction));
-    chunkingConfigResource.addMethod('PUT', new apigateway.LambdaIntegration(chunkingConfigUpdateFunction));
+    chunkingConfigResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingConfigGetFunction), methodOptions);
+    chunkingConfigResource.addMethod('PUT', new apigateway.LambdaIntegration(chunkingConfigUpdateFunction), methodOptions);
 
     const chunkingCleanupResource = chunkingConfigResource.addResource('cleanup');
-    chunkingCleanupResource.addMethod('POST', new apigateway.LambdaIntegration(chunkingCleanupTriggerFunction));
+    chunkingCleanupResource.addMethod('POST', new apigateway.LambdaIntegration(chunkingCleanupTriggerFunction), methodOptions);
 
     const cleanupStatusResource = chunkingCleanupResource.addResource('{jobId}');
-    cleanupStatusResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingCleanupStatusFunction));
+    cleanupStatusResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingCleanupStatusFunction), methodOptions);
 
     const chunkingMethodsResource = api.root.addResource('chunking-methods');
-    chunkingMethodsResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingMethodsListFunction));
+    chunkingMethodsResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingMethodsListFunction), methodOptions);
 
     const documentsResource = api.root.addResource('documents');
-    documentsResource.addMethod('POST', new apigateway.LambdaIntegration(documentUploadFunction));
+    documentsResource.addMethod('POST', new apigateway.LambdaIntegration(documentUploadFunction), methodOptions);
 
     const processResource = documentsResource.addResource('process');
-    processResource.addMethod('POST', new apigateway.LambdaIntegration(documentProcessingFunction));
+    processResource.addMethod('POST', new apigateway.LambdaIntegration(documentProcessingFunction), methodOptions);
 
     const summaryResource = documentsResource.addResource('summary');
-    summaryResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummaryFunction));
+    summaryResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummaryFunction), methodOptions);
 
     const summarySelectiveResource = summaryResource.addResource('selective');
-    summarySelectiveResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummarySelectiveFunction));
+    summarySelectiveResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummarySelectiveFunction), methodOptions);
 
     const retryResource = documentsResource.addResource('retry');
-    retryResource.addMethod('POST', new apigateway.LambdaIntegration(documentRetryFunction));
+    retryResource.addMethod('POST', new apigateway.LambdaIntegration(documentRetryFunction), methodOptions);
 
     const deleteResource = documentsResource.addResource('delete');
-    deleteResource.addMethod('DELETE', new apigateway.LambdaIntegration(documentDeleteFunction));
+    deleteResource.addMethod('DELETE', new apigateway.LambdaIntegration(documentDeleteFunction), methodOptions);
 
     const chunksResource = documentsResource.addResource('chunks');
     const visualizationResource = chunksResource.addResource('visualization');
     visualizationResource.addMethod('POST', new apigateway.LambdaIntegration(chunkVisualizationFunction, {
       proxy: true,
-    }));
+    }), methodOptions);
 
     const embeddingsResource = documentsResource.addResource('embeddings');
     const generateResource = embeddingsResource.addResource('generate');
     generateResource.addMethod('POST', new apigateway.LambdaIntegration(embeddingsGenerateFunction, {
       proxy: true,
-    }));
+    }), methodOptions);
 
     // Insurance Claim Portal endpoints
     const patientsResource = api.root.addResource('patients');
-    patientsResource.addMethod('GET', new apigateway.LambdaIntegration(patientListFunction));
+    patientsResource.addMethod('GET', new apigateway.LambdaIntegration(patientListFunction), methodOptions);
 
     const patientResource = patientsResource.addResource('{patientId}');
-    patientResource.addMethod('GET', new apigateway.LambdaIntegration(patientDetailFunction));
+    patientResource.addMethod('GET', new apigateway.LambdaIntegration(patientDetailFunction), methodOptions);
 
     const claimsResource = api.root.addResource('claims');
     const claimLoadResource = claimsResource.addResource('load');
-    claimLoadResource.addMethod('POST', new apigateway.LambdaIntegration(claimLoaderFunction));
+    claimLoadResource.addMethod('POST', new apigateway.LambdaIntegration(claimLoaderFunction), methodOptions);
 
     const claimResource = claimsResource.addResource('{claimId}');
     const claimStatusResource = claimResource.addResource('status');
-    claimStatusResource.addMethod('GET', new apigateway.LambdaIntegration(claimStatusFunction));
+    claimStatusResource.addMethod('GET', new apigateway.LambdaIntegration(claimStatusFunction), methodOptions);
 
     // Create a new deployment to make the routes available
     // This is necessary because we're adding methods to an imported API Gateway
