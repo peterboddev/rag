@@ -4,6 +4,80 @@
 
 This guide explains how to build RAG applications using the platform-provided foundational infrastructure. The platform provides core AI/ML services, while you create application-specific resources and business logic.
 
+**Important**: This platform supports CDK (Cloud Development Kit) applications only. All applications must use AWS CDK with TypeScript for infrastructure as code.
+
+## Application Pipeline Build Process
+
+### Your buildspec.yml File
+
+**IMPORTANT**: Your application repository MUST contain a `buildspec.yml` file at the root. This file controls how your application is built and deployed.
+
+The platform pipeline uses your buildspec.yml to:
+- Install dependencies
+- Run tests
+- Build your application
+- Synthesize CDK stacks (generate CloudFormation templates)
+
+#### Example buildspec.yml for CDK Applications
+
+```yaml
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing dependencies..."
+      - npm ci
+  
+  pre_build:
+    commands:
+      - echo "Running tests..."
+      - npm run test
+  
+  build:
+    commands:
+      - echo "Building application..."
+      - npm run build
+      - echo "Synthesizing CDK stack..."
+      - npx cdk synth
+  
+  post_build:
+    commands:
+      - echo "Build completed successfully"
+
+artifacts:
+  files:
+    - '**/*'
+  # IMPORTANT: Do NOT use base-directory for CDK apps
+  # The platform expects all files including cdk.out/ at the root
+
+cache:
+  paths:
+    - 'node_modules/**/*'
+```
+
+#### Critical buildspec.yml Rules
+
+1. **Do NOT set `NODE_ENV=production`** in environment variables - it breaks devDependencies installation
+2. **Do NOT use `base-directory: cdk.out`** in artifacts - it causes double-nested paths
+3. **Use `nodejs: 20`** for Node.js runtime (compatible with npm 11+)
+4. **Include `npx cdk synth`** in build commands to generate CloudFormation templates
+5. **Cache node_modules** for faster builds
+
+#### Troubleshooting Your buildspec.yml
+
+If your build fails, check:
+- [ ] buildspec.yml exists at repository root
+- [ ] Runtime versions are specified correctly
+- [ ] All required commands are present (npm ci, npm test, npm build, npx cdk synth)
+- [ ] Artifacts section includes necessary files
+- [ ] No `NODE_ENV=production` in env variables
+- [ ] No `base-directory` in artifacts section
+
+See [Application Team Troubleshooting Guide](./APP_TEAM_TROUBLESHOOTING.md) for detailed debugging steps.
+
 ## Architecture: Platform vs Application Responsibilities
 
 ### What Platform Provides (Read-Only for App Teams)
@@ -15,12 +89,19 @@ The platform team deploys and manages these foundational services:
 | **VPC & Networking** | VPC, subnets, security groups, NAT gateways | Use for Lambda/resources |
 | **AWS Bedrock** | Nova Pro model access, embedding models | Invoke models via IAM role |
 | **Vector Database** | OpenSearch Serverless collection | Read/write vectors via IAM role |
-| **DynamoDB Tables** | Customers and documents tables | Read/write data via IAM role |
+| **DynamoDB Tables** | Customers and documents tables (base tables only) | Read/write data via IAM role |
+| **DynamoDB GSIs** | None - app team manages GSIs | Full control - create/modify GSIs |
 | **Authentication** | Cognito user pools, identity pools | Authenticate users, manage tokens |
 | **API Gateway** | REST API with Cognito authorizer | Add methods and integrations |
 | **IAM Role** | Lambda execution role with all permissions | Attach to your Lambda functions |
 
 **Key Point**: Platform provides the foundation. You build on top of it.
+
+**Important - DynamoDB GSI Ownership**: 
+- Platform team creates the base DynamoDB tables (customers, documents)
+- **Application team has full control over Global Secondary Indexes (GSIs)**
+- You create, modify, and delete GSIs based on your query patterns
+- GSIs must be created sequentially (DynamoDB limitation: 1 GSI operation at a time)
 
 ### What You Create (Full Control)
 
@@ -66,6 +147,164 @@ The platform-provided IAM role (`rag-app-rag-role-dev`) includes these permissio
 - **API Gateway**: Add methods and integrations to platform-provided API
 
 ## Getting Started
+
+### Quick Start: CDK Application Setup
+
+If you're building your application with AWS CDK, follow this quick start to properly reference platform resources.
+
+#### Common Error: "SSM parameter not found"
+
+If you see this error during `cdk synth`:
+```
+Error: SSM parameter /rag-app/dev/iam/application-role-arn not found
+```
+
+**Root Cause**: You're trying to read SSM parameters at synthesis time (build time) instead of deployment time.
+
+**Solution**: Use CDK's `ssm.StringParameter.valueFromLookup()` method.
+
+#### ❌ WRONG: Reading SSM at Synthesis Time
+
+```typescript
+// DON'T DO THIS - Fails during cdk synth
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+
+const ssmClient = new SSMClient({ region: 'us-east-1' });
+const response = await ssmClient.send(new GetParameterCommand({
+  Name: '/rag-app/dev/iam/application-role-arn'
+}));
+
+if (!response.Parameter?.Value) {
+  throw new Error('SSM parameter not found'); // ❌ Fails in CodeBuild
+}
+```
+
+#### ✅ CORRECT: Using CDK's valueFromLookup()
+
+```typescript
+import * as cdk from 'aws-cdk-lib';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as iam from 'aws-cdk-lib/aws-iam';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { Construct } from 'constructs';
+
+export class RAGApplicationStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    // ✅ Look up all platform resources using valueFromLookup
+    const applicationRoleArn = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/iam/application-role-arn'
+    );
+
+    const bedrockModelId = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/bedrock/nova-pro-model-id'
+    );
+
+    const vectorDbEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/opensearch/collection-endpoint'
+    );
+
+    const customersTableName = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/dynamodb/customers-table-name'
+    );
+
+    const documentsTableName = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/dynamodb/documents-table-name'
+    );
+
+    const apiGatewayId = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/apigateway/api-id'
+    );
+
+    const apiGatewayRootResourceId = ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/apigateway/root-resource-id'
+    );
+
+    // Import the platform-provided IAM role
+    const applicationRole = iam.Role.fromRoleArn(
+      this,
+      'ApplicationRole',
+      applicationRoleArn
+    );
+
+    // Create your S3 bucket (must start with rag-app-)
+    const documentsBucket = new s3.Bucket(this, 'DocumentsBucket', {
+      bucketName: 'rag-app-my-documents-dev',
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      versioned: true,
+    });
+
+    // Create your SQS queue (must start with rag-app-)
+    const processingQueue = new sqs.Queue(this, 'ProcessingQueue', {
+      queueName: 'rag-app-processing-dev',
+      visibilityTimeout: cdk.Duration.seconds(300),
+    });
+
+    // Create your Lambda function using platform role
+    const chatFunction = new lambda.Function(this, 'ChatFunction', {
+      functionName: 'rag-app-chat-dev',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'chat.handler',
+      code: lambda.Code.fromAsset('lambda'),
+      role: applicationRole, // ✅ Use platform-provided role
+      environment: {
+        BEDROCK_MODEL_ID: bedrockModelId,
+        VECTOR_DB_ENDPOINT: vectorDbEndpoint,
+        CUSTOMERS_TABLE: customersTableName,
+        DOCUMENTS_TABLE: documentsTableName,
+        DOCUMENTS_BUCKET: documentsBucket.bucketName,
+        PROCESSING_QUEUE_URL: processingQueue.queueUrl,
+      },
+    });
+  }
+}
+```
+
+#### Why This Works
+
+1. **Synthesis Time** (`cdk synth`):
+   - CDK generates CloudFormation templates
+   - `valueFromLookup()` uses cached values from `cdk.context.json`
+   - No AWS API calls needed
+   - Works in CodeBuild without AWS credentials
+
+2. **Deployment Time** (`cdk deploy`):
+   - CDK looks up actual SSM parameter values
+   - Values are cached in `cdk.context.json`
+   - CloudFormation uses real values to create resources
+
+#### Testing Your CDK Stack
+
+```bash
+# First deployment - CDK will look up and cache values
+npx cdk deploy
+
+# Subsequent syntheses use cached values
+npx cdk synth
+
+# Check cached values
+cat cdk.context.json
+```
+
+#### Alternative: CloudFormation Exports
+
+You can also use CloudFormation exports instead of SSM:
+
+```typescript
+const applicationRoleArn = cdk.Fn.importValue('rag-app-dev-application-role-arn');
+const applicationRole = iam.Role.fromRoleArn(this, 'ApplicationRole', applicationRoleArn);
+```
 
 ### Step 1: Retrieve Platform Configuration
 
@@ -609,16 +848,6 @@ npx cdk deploy --require-approval never
 npx cdk deploy --context environment=staging
 ```
 
-### Using SAM
-
-```bash
-# Build
-sam build
-
-# Deploy
-sam deploy --guided
-```
-
 ## Verification
 
 ### Check Your Resources
@@ -659,12 +888,9 @@ aws dynamodb scan \
 
 ## Troubleshooting
 
-### Issue: Pipeline Build Fails - "template.yaml not found"
+### Issue: Pipeline Build Fails - CDK Synthesis Error
 
-**Symptom**: Application pipeline deployment stage fails with:
-```
-File [template.yaml] does not exist in artifact [BuildOutput]
-```
+**Symptom**: Application pipeline build stage fails during CDK synthesis.
 
 **Root Cause**: Build failed before CDK synthesis could create the template file.
 
@@ -728,7 +954,7 @@ ls cdk.out/
 
 #### Step 4: Update templatePath in Pipeline Config
 
-If using CDK, specify the correct template path:
+Specify the correct template path in your application configuration:
 
 ```json
 {
@@ -736,12 +962,7 @@ If using CDK, specify the correct template path:
 }
 ```
 
-For SAM applications, use:
-```json
-{
-  "templatePath": "template.yaml"
-}
-```
+Replace `YourStackName` with your actual CDK stack name (e.g., `RAGApplicationStack`).
 
 ### Issue: NODE_ENV=production Breaks Builds
 
@@ -806,6 +1027,99 @@ aws s3 ls | grep rag-app
 **Solution**: Verify platform infrastructure is deployed:
 ```bash
 aws ssm get-parameters-by-path --path "/rag-app/dev/" --recursive
+```
+
+### Issue: CDK Synthesis Fails - "SSM parameter not found"
+
+**Symptom**: `cdk synth` fails with error like:
+```
+Error: SSM parameter /rag-app/dev/iam/application-role-arn not found. 
+Ensure platform infrastructure is deployed before application stack.
+```
+
+**Root Cause**: Your CDK code is trying to read SSM parameters during synthesis (build time) instead of deployment time.
+
+**Why This Fails**:
+- CDK synthesis happens in CodeBuild during the build phase
+- CodeBuild may run in a different account/region or without SSM access
+- SSM parameters should be looked up at deployment time, not synthesis time
+
+**❌ WRONG - Reading SSM at Synthesis Time**:
+```typescript
+// This throws an error during cdk synth
+const roleArn = await ssm.getParameter({
+  Name: '/rag-app/dev/iam/application-role-arn'
+}).promise();
+
+// Or using synchronous SDK calls
+const roleArn = execSync('aws ssm get-parameter --name /rag-app/dev/iam/application-role-arn').toString();
+```
+
+**✅ CORRECT - Using CDK's valueFromLookup**:
+```typescript
+import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as iam from 'aws-cdk-lib/aws-iam';
+
+// CDK will look up the value at deployment time (not synthesis time)
+const applicationRoleArn = ssm.StringParameter.valueFromLookup(
+  this,
+  '/rag-app/dev/iam/application-role-arn'
+);
+
+// Import the role using the ARN
+const applicationRole = iam.Role.fromRoleArn(
+  this,
+  'ApplicationRole',
+  applicationRoleArn
+);
+
+// Use the role in your Lambda functions
+const myFunction = new lambda.Function(this, 'MyFunction', {
+  runtime: lambda.Runtime.NODEJS_20_X,
+  handler: 'index.handler',
+  code: lambda.Code.fromAsset('lambda'),
+  role: applicationRole, // ✅ Uses platform-provided role
+  environment: {
+    BEDROCK_MODEL_ID: ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/bedrock/nova-pro-model-id'
+    ),
+    CUSTOMERS_TABLE: ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/dynamodb/customers-table-name'
+    ),
+    DOCUMENTS_TABLE: ssm.StringParameter.valueFromLookup(
+      this,
+      '/rag-app/dev/dynamodb/documents-table-name'
+    ),
+  },
+});
+```
+
+**Key Points**:
+- Use `ssm.StringParameter.valueFromLookup()` for all platform parameters
+- This method performs the lookup at deployment time (when CDK has AWS credentials)
+- Never use AWS SDK calls or CLI commands in CDK synthesis code
+- The first deployment will cache the values in `cdk.context.json`
+
+**Verification**:
+```bash
+# Test synthesis locally (should work without AWS credentials)
+npx cdk synth
+
+# If it works locally, it will work in CodeBuild
+```
+
+**Alternative - Using CloudFormation Exports**:
+```typescript
+// Platform also exports values via CloudFormation
+const applicationRoleArn = cdk.Fn.importValue('rag-app-dev-application-role-arn');
+
+const applicationRole = iam.Role.fromRoleArn(
+  this,
+  'ApplicationRole',
+  applicationRoleArn
+);
 ```
 
 ### Issue: Lambda Cannot Access DynamoDB
