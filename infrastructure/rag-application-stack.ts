@@ -110,11 +110,12 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
         outputPaths: [], // Don't capture response - table description can be too large
-        ignoreErrorCodesMatching: 'ResourceInUseException', // Ignore if GSI already exists
+        ignoreErrorCodesMatching: 'ResourceInUseException|ValidationException', // Ignore if GSI already exists
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
       }),
+      installLatestAwsSdk: false, // Use runtime SDK version
     });
 
     // Create second GSI - depends on first GSI to ensure sequential creation (idempotent - ignores if already exists)
@@ -141,11 +142,12 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
         outputPaths: [], // Don't capture response - table description can be too large
-        ignoreErrorCodesMatching: 'ResourceInUseException', // Ignore if GSI already exists
+        ignoreErrorCodesMatching: 'ResourceInUseException|ValidationException', // Ignore if GSI already exists
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
       }),
+      installLatestAwsSdk: false, // Use runtime SDK version
     });
 
     // Ensure second GSI waits for first GSI to complete
