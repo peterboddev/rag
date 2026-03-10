@@ -114,15 +114,90 @@ project-root/
 ## Integration with Platform Team
 
 ### Responsibilities
-- **Platform Team**: API Gateway deployment, integration testing, production deployment
-- **Development Team**: Unit testing, CDK infrastructure definition, API method implementation
-- **Shared**: API Gateway method definitions and configurations
+
+#### Platform Team Responsibilities
+- **API Gateway**: Deployment and management of the base API Gateway
+- **Integration Testing**: End-to-end testing across services
+- **Production Deployment**: Managing production releases
+- **Base Infrastructure**: VPC, networking, Cognito, base DynamoDB tables
+
+#### Development Team Responsibilities
+- **Unit Testing**: All unit tests in `unit_tests/` directory
+- **CDK Infrastructure**: Define application-specific resources
+- **API Methods**: Implement API Gateway methods and integrations
+- **DynamoDB GSIs**: Create, modify, and delete Global Secondary Indexes on platform-provided tables
+- **Application Resources**: S3 buckets, Lambda functions, SQS queues, etc.
+
+#### Shared Responsibilities
+- **API Gateway Methods**: Definitions and configurations
+- **DynamoDB Tables**: Platform creates base tables, application team manages GSIs
+
+### DynamoDB Table and GSI Ownership
+
+**CRITICAL - Application Team Controls GSIs**:
+
+- **Platform Team**: Creates and manages base DynamoDB tables (customers, documents)
+  - Provides table names via SSM parameters
+  - Cannot delete tables
+  
+- **Application Team**: Has full control over Global Secondary Indexes (GSIs)
+  - Create GSIs based on query patterns
+  - Modify existing GSIs
+  - Delete GSIs when no longer needed
+  - **Important**: DynamoDB only allows 1 GSI operation at a time - create GSIs sequentially using CDK dependencies
+
+**Example: Creating GSIs Sequentially**
+```typescript
+// Create first GSI
+const gsiCustomer = new cr.AwsCustomResource(this, 'GSICustomer', {
+  onCreate: {
+    service: 'DynamoDB',
+    action: 'updateTable',
+    parameters: {
+      TableName: documentsTableName,
+      GlobalSecondaryIndexUpdates: [
+        {
+          Create: {
+            IndexName: 'customer-documents-index',
+            KeySchema: [{ AttributeName: 'customerUuid', KeyType: 'HASH' }],
+            Projection: { ProjectionType: 'ALL' },
+          },
+        },
+      ],
+    },
+  },
+});
+
+// Create second GSI - depends on first
+const gsiTenant = new cr.AwsCustomResource(this, 'GSITenant', {
+  onCreate: {
+    service: 'DynamoDB',
+    action: 'updateTable',
+    parameters: {
+      TableName: documentsTableName,
+      GlobalSecondaryIndexUpdates: [
+        {
+          Create: {
+            IndexName: 'tenant-documents-index',
+            KeySchema: [{ AttributeName: 'tenantId', KeyType: 'HASH' }],
+            Projection: { ProjectionType: 'ALL' },
+          },
+        },
+      ],
+    },
+  },
+});
+
+// CRITICAL: Ensure sequential creation
+gsiTenant.node.addDependency(gsiCustomer);
+```
 
 ### Communication
 - API Gateway ID will be provided by platform team
 - Coordinate with platform team for any breaking changes to API structure
 - Platform team handles all integration test failures
 - Report any infrastructure deployment issues to platform team
+- Application team manages GSIs independently - no coordination needed
 
 ## Testing Requirements
 
