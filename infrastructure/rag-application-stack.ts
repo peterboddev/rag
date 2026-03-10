@@ -186,6 +186,11 @@ export class RAGApplicationStack extends cdk.Stack {
       timeout: cdk.Duration = cdk.Duration.seconds(30),
       memorySize: number = 256
     ): lambda.Function => {
+      // Convert handler path from dist/src/lambda/xxx.handler to src/lambda/xxx.ts
+      const sourcePath = handler
+        .replace('dist/', '')
+        .replace('.handler', '.ts');
+      
       return new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: 'index.handler',
@@ -195,7 +200,7 @@ export class RAGApplicationStack extends cdk.Stack {
             command: [
               'bash', '-c', [
                 'npm install --omit=dev',
-                `npx esbuild ${handler.replace('.handler', '.ts')} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
+                `npx esbuild ${sourcePath} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
               ].join(' && ')
             ],
           },
