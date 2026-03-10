@@ -29,7 +29,7 @@ The new architecture follows a clear separation of concerns:
 
 2. **SSM Parameter Store Integration**: Retrieve all platform resource identifiers from SSM Parameter Store at deployment time, enabling environment-agnostic configuration.
 
-3. **Stack Renaming**: Change stack name from `RAGInfrastructureStack` to `RAGApplicationStack` to reflect that it now contains application-specific resources only.
+3. **Stack Naming**: Use stack ID `rag-app-development` to match platform pipeline expectation (class name remains `RAGApplicationStack`).
 
 4. **Resource Naming Convention**: Standardize on `rag-app-{resourceType}-{environment}` pattern, removing the `-v2` suffix.
 
@@ -101,7 +101,8 @@ const app = new cdk.App();
 
 const environment = app.node.tryGetContext('environment') || 'dev';
 
-new RAGApplicationStack(app, 'RAGApplicationStack', {
+// Stack name must match platform pipeline expectation
+new RAGApplicationStack(app, 'rag-app-development', {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
