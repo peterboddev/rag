@@ -79,54 +79,13 @@ export class RAGApplicationStack extends cdk.Stack {
       documentsTableName
     );
 
-    // 3a. Add Global Secondary Indexes to platform tables
-    // Note: Platform created the tables, but we manage GSIs for our query patterns
+    // 3a. Import DynamoDB tables without GSI management
+    // Note: Platform team manages the tables and their GSIs
+    // We just reference them for Lambda environment variables
     
-    // Customers Table GSIs
-    const customersEmailIndexName = 'email-index';
-    
-    // Documents Table GSIs
+    // Documents Table GSI names (for reference in queries)
     const documentsCustomerIndexName = 'customer-documents-index';
     const documentsTenantIndexName = 'tenant-documents-index';
-    
-    // Create custom resource to add GSIs if they don't exist
-    const gsiManager = new cr.AwsCustomResource(this, 'GSIManager', {
-      onCreate: {
-        service: 'DynamoDB',
-        action: 'updateTable',
-        parameters: {
-          TableName: documentsTableName,
-          AttributeDefinitions: [
-            { AttributeName: 'customerUuid', AttributeType: 'S' },
-            { AttributeName: 'tenantId', AttributeType: 'S' },
-          ],
-          GlobalSecondaryIndexUpdates: [
-            {
-              Create: {
-                IndexName: documentsCustomerIndexName,
-                KeySchema: [
-                  { AttributeName: 'customerUuid', KeyType: 'HASH' },
-                ],
-                Projection: { ProjectionType: 'ALL' },
-              },
-            },
-            {
-              Create: {
-                IndexName: documentsTenantIndexName,
-                KeySchema: [
-                  { AttributeName: 'tenantId', KeyType: 'HASH' },
-                ],
-                Projection: { ProjectionType: 'ALL' },
-              },
-            },
-          ],
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSIs'),
-      },
-      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
-    });
 
     // Import IAM role - handle dummy values during synthesis
     const lambdaExecutionRole = applicationRoleArn.startsWith('arn:')
