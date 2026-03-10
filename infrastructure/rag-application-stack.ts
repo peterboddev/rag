@@ -148,8 +148,10 @@ export class RAGApplicationStack extends cdk.Stack {
     );
 
     // 4. Create application-specific resources
+    // Note: Using auto-generated bucket names to avoid conflicts
+    // CDK will generate names like: rag-app-development-documentsbucket-xxxxx
     const documentsBucket = new s3.Bucket(this, 'DocumentsBucket', {
-      bucketName: `${applicationName}-documents-${environment}`,
+      // bucketName removed - let CDK auto-generate to avoid conflicts
       removalPolicy: environment === 'prod' 
         ? cdk.RemovalPolicy.RETAIN 
         : cdk.RemovalPolicy.DESTROY,
@@ -169,7 +171,7 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     const processingQueue = new sqs.Queue(this, 'ProcessingQueue', {
-      queueName: `${applicationName}-document-processing-${environment}`,
+      // queueName removed - let CDK auto-generate to avoid conflicts
       visibilityTimeout: cdk.Duration.seconds(900),
       retentionPeriod: cdk.Duration.days(14),
       encryption: sqs.QueueEncryption.SQS_MANAGED,
