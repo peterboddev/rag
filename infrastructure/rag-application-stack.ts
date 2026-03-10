@@ -178,7 +178,7 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // 5. Create Lambda functions with imported IAM role
-    // Lambda function configuration helper
+    // Lambda function configuration helper with esbuild bundling
     const createLambdaFunction = (
       id: string,
       handler: string,
@@ -188,23 +188,17 @@ export class RAGApplicationStack extends cdk.Stack {
     ): lambda.Function => {
       return new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_20_X,
-        handler,
+        handler: 'index.handler',
         code: lambda.Code.fromAsset('.', {
-          exclude: [
-            'cdk.out', 
-            'unit_tests', 
-            'infrastructure', 
-            '*.md', 
-            'tests_ongoing', 
-            'frontend',
-            'medical-claims-generator',
-            'htmlcov',
-            '.git',
-            '.kiro',
-            '.vscode',
-            '.pytest_cache',
-            'docs'
-          ]
+          bundling: {
+            image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+            command: [
+              'bash', '-c', [
+                'npm install --omit=dev',
+                `npx esbuild ${handler.replace('.handler', '.ts')} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
+              ].join(' && ')
+            ],
+          },
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
         timeout,
