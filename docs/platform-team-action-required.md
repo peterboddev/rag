@@ -1,6 +1,52 @@
 # Platform Team Action Required
 
-## Issue: CodeBuild Still Using Old Platform-Managed Buildspec
+## URGENT: Two Critical Issues Blocking Deployment
+
+### Issue 1: CloudFormation Stack Stuck in ROLLBACK_COMPLETE State
+
+**Stack Name**: `rag-app-development`  
+**Status**: ROLLBACK_COMPLETE  
+**Problem**: Cannot delete stack due to missing/invalid IAM role
+
+#### Error Details
+
+When attempting to delete the stack:
+```
+Role arn:aws:iam::450683699755:role/ApplicationPipelines-Appl-ragappPipelineDeployDevel-hFHWGvHEqaKk 
+is invalid or cannot be assumed
+```
+
+**Current State:**
+- All resources in the stack show `DELETE_COMPLETE` status
+- Stack itself cannot be deleted
+- User has `AWSAdministratorAccess` but CloudFormation enforces role-based deletion
+- The pipeline role that created the stack no longer exists or cannot be assumed
+
+#### Required Action
+
+**Only the platform team can delete this stack** because:
+1. The stack was created by a pipeline role
+2. CloudFormation requires the same role (or service role) to delete it
+3. Even administrator access cannot override this requirement
+
+**Steps to resolve:**
+1. Identify the correct service role or pipeline role that has permissions
+2. Delete the stack using that role:
+   ```bash
+   aws cloudformation delete-stack --stack-name rag-app-development --role-arn <correct-role-arn>
+   ```
+3. Or manually delete via Console using the correct role
+4. Verify stack is fully deleted before next deployment
+
+#### Impact
+
+- Deploy stage shows: `No stacks match the name(s) rag-app-development`
+- Cannot proceed with deployment until stack is removed
+- Blocking entire platform infrastructure migration
+
+---
+
+## Issue 2: CodeBuild Still Using Old Platform-Managed Buildspec
 
 ### Background
 
