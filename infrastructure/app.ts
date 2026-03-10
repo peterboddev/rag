@@ -13,7 +13,9 @@ const env = {
   region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
 };
 
-new RAGApplicationStack(app, 'RAGApplicationStack', {
+// Stack name must match what platform pipeline expects
+// Platform deploys with: npx cdk deploy rag-app-development
+new RAGApplicationStack(app, 'rag-app-development', {
   env,
   description: 'RAG Application - Multi-tenant document management',
   
