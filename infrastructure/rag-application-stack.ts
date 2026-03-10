@@ -191,15 +191,6 @@ export class RAGApplicationStack extends cdk.Stack {
       }
     );
 
-    // Create Cognito User Pool Authorizer for API Gateway
-    const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
-      cognitoUserPools: [
-        iam.Role.fromRoleArn(this, 'DummyRoleForUserPool', 'arn:aws:iam::123456789012:role/dummy', { mutable: false })
-          ? undefined as any // Workaround: We can't import UserPool directly, so we'll use CfnAuthorizer instead
-          : undefined as any
-      ]
-    });
-
     // Use CfnAuthorizer to reference the platform-provided Cognito User Pool
     const authorizer = new apigateway.CfnAuthorizer(this, 'ApiAuthorizer', {
       name: 'CognitoAuthorizer',
@@ -591,7 +582,7 @@ export class RAGApplicationStack extends cdk.Stack {
     deployment.node.addDependency(claimsResource);
 
     // Update the dev stage to use the new deployment
-    const stage = new apigateway.Stage(this, 'ApiStage', {
+    new apigateway.Stage(this, 'ApiStage', {
       deployment,
       stageName: environment,
     });
