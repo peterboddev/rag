@@ -28,7 +28,7 @@ artifacts:
   files:
     - '**/*'
   # Include ALL files - required for npx cdk deploy in deploy stage
-  # Platform team's deploy stage needs: source code, cdk.out/, package.json, and asset directories
+  # Platform team's deploy stage needs: source code, cdk.out/, package.json, node_modules, and asset directories
 
 cache:
   paths:
