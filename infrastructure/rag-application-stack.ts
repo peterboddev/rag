@@ -109,6 +109,7 @@ export class RAGApplicationStack extends cdk.Stack {
           ],
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
+        outputPaths: [], // Don't capture response - table description can be too large
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
@@ -138,6 +139,7 @@ export class RAGApplicationStack extends cdk.Stack {
           ],
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
+        outputPaths: [], // Don't capture response - table description can be too large
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
