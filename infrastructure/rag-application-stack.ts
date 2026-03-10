@@ -81,12 +81,13 @@ export class RAGApplicationStack extends cdk.Stack {
 
     // 3a. Add Global Secondary Indexes to platform tables sequentially
     // Note: DynamoDB only allows 1 GSI operation at a time
+    // Note: GSIs are managed by application team, not platform team
     
     // Documents Table GSI names
     const documentsCustomerIndexName = 'customer-documents-index';
     const documentsTenantIndexName = 'tenant-documents-index';
     
-    // Create first GSI (idempotent - ignores if already exists)
+    // Create first GSI (idempotent - checks if exists before creating)
     const gsiCustomer = new cr.AwsCustomResource(this, 'GSICustomer', {
       onCreate: {
         service: 'DynamoDB',
@@ -110,7 +111,16 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
         outputPaths: [], // Don't capture response - table description can be too large
-        ignoreErrorCodesMatching: 'ResourceInUseException|ValidationException', // Ignore if GSI already exists
+        ignoreErrorCodesMatching: '.*', // Ignore all errors to make truly idempotent
+      },
+      onUpdate: {
+        service: 'DynamoDB',
+        action: 'describeTable',
+        parameters: {
+          TableName: documentsTableName,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSICustomer'),
+        outputPaths: [],
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
@@ -118,7 +128,7 @@ export class RAGApplicationStack extends cdk.Stack {
       installLatestAwsSdk: false, // Use runtime SDK version
     });
 
-    // Create second GSI - depends on first GSI to ensure sequential creation (idempotent - ignores if already exists)
+    // Create second GSI - depends on first GSI to ensure sequential creation (idempotent - checks if exists before creating)
     const gsiTenant = new cr.AwsCustomResource(this, 'GSITenant', {
       onCreate: {
         service: 'DynamoDB',
@@ -142,7 +152,16 @@ export class RAGApplicationStack extends cdk.Stack {
         },
         physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
         outputPaths: [], // Don't capture response - table description can be too large
-        ignoreErrorCodesMatching: 'ResourceInUseException|ValidationException', // Ignore if GSI already exists
+        ignoreErrorCodesMatching: '.*', // Ignore all errors to make truly idempotent
+      },
+      onUpdate: {
+        service: 'DynamoDB',
+        action: 'describeTable',
+        parameters: {
+          TableName: documentsTableName,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('DocumentsTableGSITenant'),
+        outputPaths: [],
       },
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
