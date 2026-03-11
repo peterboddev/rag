@@ -1,18 +1,35 @@
 // API client for insurance claim portal endpoints
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 
 const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || '';
 const API_TIMEOUT = 30000; // 30 seconds
 
-// Helper to get auth token from Amplify
+// Helper to get auth token from Amplify (User Pool JWT only, skip AWS credentials)
 const getAuthToken = async (): Promise<string | null> => {
   try {
-    const session = await fetchAuthSession();
+    // First verify user is authenticated
+    await getCurrentUser();
+    
+    // Fetch session - even if Identity Pool credentials fail, tokens should be available
+    const session = await fetchAuthSession({ forceRefresh: false });
+    
+    // Extract the ID token (JWT) for API Gateway authentication
     const idToken = session.tokens?.idToken?.toString();
     return idToken || null;
-  } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
+  } catch (error: any) {
+    // Log the error but don't fail - the Identity Pool error is expected
+    if (error.name !== 'InvalidIdentityPoolConfigurationException' && 
+        !error.message?.includes('Invalid identity pool configuration')) {
+      console.error('Error getting auth token:', error);
+    }
+    
+    // Try one more time to get just the tokens
+    try {
+      const session = await fetchAuthSession({ forceRefresh: false });
+      return session.tokens?.idToken?.toString() || null;
+    } catch {
+      return null;
+    }
   }
 };
 

@@ -23,7 +23,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !tenantId) {
     return <TenantSetup />;
   }
 

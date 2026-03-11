@@ -19,10 +19,18 @@ const TenantSetup: React.FC = () => {
     const checkExistingAuth = async () => {
       try {
         await getCurrentUser();
-        // User is already signed in, show tenant setup
+        // User is already signed in
         setIsSignedIn(true);
-        // If they already have a tenant, they shouldn't be here
-        // but we'll let them create/join another one
+        
+        // Check if they already have a tenant in localStorage
+        const existingTenantId = localStorage.getItem('tenantId');
+        if (existingTenantId && contextTenantId) {
+          // They already have a tenant, shouldn't be on this page
+          // This will be handled by App.tsx showing main content
+          return;
+        }
+        
+        // No tenant yet, show tenant setup
         setMode('create');
       } catch (err) {
         // User not signed in, stay on sign-in form
@@ -31,7 +39,7 @@ const TenantSetup: React.FC = () => {
     };
     
     checkExistingAuth();
-  }, []);
+  }, [contextTenantId]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

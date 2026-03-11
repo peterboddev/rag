@@ -54,7 +54,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('companyName', companyName);
       localStorage.setItem('isFirstUser', 'true');
       
+      // Update state immediately to trigger re-render
       setTenantId(generatedTenantId);
+      setIsAuthenticated(true);
+      
+      // Force a small delay to ensure state updates propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       return generatedTenantId;
     } catch (err) {
@@ -78,8 +83,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('tenantId', tenantIdToJoin);
       localStorage.setItem('isFirstUser', 'false');
       
+      // Update state immediately to trigger re-render
       setTenantId(tenantIdToJoin);
-      setIsAuthenticated(true); // Ensure authenticated state is set
+      setIsAuthenticated(true);
+      
+      // Force a small delay to ensure state updates propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join tenant';
       setError(errorMessage);
