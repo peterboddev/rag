@@ -505,70 +505,124 @@ export class RAGApplicationStack extends cdk.Stack {
       },
     };
 
+    // CORS configuration for OPTIONS methods (preflight requests)
+    const corsIntegration = new apigateway.MockIntegration({
+      integrationResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+          'method.response.header.Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      }],
+      passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+      requestTemplates: {
+        'application/json': '{"statusCode": 200}',
+      },
+    });
+
+    const corsMethodOptions: apigateway.MethodOptions = {
+      methodResponses: [{
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Access-Control-Allow-Headers': true,
+          'method.response.header.Access-Control-Allow-Methods': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      }],
+    };
+
+    // Helper function to add CORS OPTIONS method to a resource
+    const addCorsOptions = (resource: apigateway.IResource) => {
+      resource.addMethod('OPTIONS', corsIntegration, corsMethodOptions);
+    };
+
     const customersResource = api.root.addResource('customers');
-    customersResource.addMethod('POST', new apigateway.LambdaIntegration(customerManagerFunction), methodOptions);
+    addCorsOptions(customersResource);
+    customersResource.addMethod('POST', new apigateway.LambdaIntegration(customerManagerFunction, { proxy: true }), methodOptions);
 
     const customerResource = customersResource.addResource('{customerUUID}');
+    addCorsOptions(customerResource);
+    
     const chunkingConfigResource = customerResource.addResource('chunking-config');
-    chunkingConfigResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingConfigGetFunction), methodOptions);
-    chunkingConfigResource.addMethod('PUT', new apigateway.LambdaIntegration(chunkingConfigUpdateFunction), methodOptions);
+    addCorsOptions(chunkingConfigResource);
+    chunkingConfigResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingConfigGetFunction, { proxy: true }), methodOptions);
+    chunkingConfigResource.addMethod('PUT', new apigateway.LambdaIntegration(chunkingConfigUpdateFunction, { proxy: true }), methodOptions);
 
     const chunkingCleanupResource = chunkingConfigResource.addResource('cleanup');
-    chunkingCleanupResource.addMethod('POST', new apigateway.LambdaIntegration(chunkingCleanupTriggerFunction), methodOptions);
+    addCorsOptions(chunkingCleanupResource);
+    chunkingCleanupResource.addMethod('POST', new apigateway.LambdaIntegration(chunkingCleanupTriggerFunction, { proxy: true }), methodOptions);
 
     const cleanupStatusResource = chunkingCleanupResource.addResource('{jobId}');
-    cleanupStatusResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingCleanupStatusFunction), methodOptions);
+    addCorsOptions(cleanupStatusResource);
+    cleanupStatusResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingCleanupStatusFunction, { proxy: true }), methodOptions);
 
     const chunkingMethodsResource = api.root.addResource('chunking-methods');
-    chunkingMethodsResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingMethodsListFunction), methodOptions);
+    addCorsOptions(chunkingMethodsResource);
+    chunkingMethodsResource.addMethod('GET', new apigateway.LambdaIntegration(chunkingMethodsListFunction, { proxy: true }), methodOptions);
 
     const documentsResource = api.root.addResource('documents');
-    documentsResource.addMethod('POST', new apigateway.LambdaIntegration(documentUploadFunction), methodOptions);
+    addCorsOptions(documentsResource);
+    documentsResource.addMethod('POST', new apigateway.LambdaIntegration(documentUploadFunction, { proxy: true }), methodOptions);
 
     const processResource = documentsResource.addResource('process');
-    processResource.addMethod('POST', new apigateway.LambdaIntegration(documentProcessingFunction), methodOptions);
+    addCorsOptions(processResource);
+    processResource.addMethod('POST', new apigateway.LambdaIntegration(documentProcessingFunction, { proxy: true }), methodOptions);
 
     const summaryResource = documentsResource.addResource('summary');
-    summaryResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummaryFunction), methodOptions);
+    addCorsOptions(summaryResource);
+    summaryResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummaryFunction, { proxy: true }), methodOptions);
 
     const summarySelectiveResource = summaryResource.addResource('selective');
-    summarySelectiveResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummarySelectiveFunction), methodOptions);
+    addCorsOptions(summarySelectiveResource);
+    summarySelectiveResource.addMethod('POST', new apigateway.LambdaIntegration(documentSummarySelectiveFunction, { proxy: true }), methodOptions);
 
     const retryResource = documentsResource.addResource('retry');
-    retryResource.addMethod('POST', new apigateway.LambdaIntegration(documentRetryFunction), methodOptions);
+    addCorsOptions(retryResource);
+    retryResource.addMethod('POST', new apigateway.LambdaIntegration(documentRetryFunction, { proxy: true }), methodOptions);
 
     const deleteResource = documentsResource.addResource('delete');
-    deleteResource.addMethod('DELETE', new apigateway.LambdaIntegration(documentDeleteFunction), methodOptions);
+    addCorsOptions(deleteResource);
+    deleteResource.addMethod('DELETE', new apigateway.LambdaIntegration(documentDeleteFunction, { proxy: true }), methodOptions);
 
     const chunksResource = documentsResource.addResource('chunks');
+    addCorsOptions(chunksResource);
+    
     const visualizationResource = chunksResource.addResource('visualization');
-    visualizationResource.addMethod('POST', new apigateway.LambdaIntegration(chunkVisualizationFunction, {
-      proxy: true,
-    }), methodOptions);
+    addCorsOptions(visualizationResource);
+    visualizationResource.addMethod('POST', new apigateway.LambdaIntegration(chunkVisualizationFunction, { proxy: true }), methodOptions);
 
     const embeddingsResource = documentsResource.addResource('embeddings');
+    addCorsOptions(embeddingsResource);
+    
     const generateResource = embeddingsResource.addResource('generate');
-    generateResource.addMethod('POST', new apigateway.LambdaIntegration(embeddingsGenerateFunction, {
-      proxy: true,
-    }), methodOptions);
+    addCorsOptions(generateResource);
+    generateResource.addMethod('POST', new apigateway.LambdaIntegration(embeddingsGenerateFunction, { proxy: true }), methodOptions);
 
     // Insurance Claim Portal endpoints
     const patientsResource = api.root.addResource('patients');
-    patientsResource.addMethod('GET', new apigateway.LambdaIntegration(patientListFunction), methodOptions);
+    addCorsOptions(patientsResource);
+    patientsResource.addMethod('GET', new apigateway.LambdaIntegration(patientListFunction, { proxy: true }), methodOptions);
 
     const patientResource = patientsResource.addResource('{patientId}');
-    patientResource.addMethod('GET', new apigateway.LambdaIntegration(patientDetailFunction), methodOptions);
+    addCorsOptions(patientResource);
+    patientResource.addMethod('GET', new apigateway.LambdaIntegration(patientDetailFunction, { proxy: true }), methodOptions);
 
     const claimsResource = api.root.addResource('claims');
+    addCorsOptions(claimsResource);
+    
     const claimLoadResource = claimsResource.addResource('load');
-    claimLoadResource.addMethod('POST', new apigateway.LambdaIntegration(claimLoaderFunction), methodOptions);
+    addCorsOptions(claimLoadResource);
+    claimLoadResource.addMethod('POST', new apigateway.LambdaIntegration(claimLoaderFunction, { proxy: true }), methodOptions);
 
     const claimResource = claimsResource.addResource('{claimId}');
+    addCorsOptions(claimResource);
+    
     const claimStatusResource = claimResource.addResource('status');
-    claimStatusResource.addMethod('GET', new apigateway.LambdaIntegration(claimStatusFunction), methodOptions);
+    addCorsOptions(claimStatusResource);
+    claimStatusResource.addMethod('GET', new apigateway.LambdaIntegration(claimStatusFunction, { proxy: true }), methodOptions);
 
     // Create a deployment to register our new methods
-    // Note: We create the deployment but the platform team manages the stage
     const deployment = new apigateway.Deployment(this, 'ApiDeployment', {
       api: api,
       description: `Deployment for ${environment} environment - ${new Date().toISOString()}`,
@@ -580,6 +634,50 @@ export class RAGApplicationStack extends cdk.Stack {
     deployment.node.addDependency(chunkingMethodsResource);
     deployment.node.addDependency(patientsResource);
     deployment.node.addDependency(claimsResource);
+
+    // Update the existing stage to use the new deployment
+    // Note: The stage is managed by platform team, but we need to update it to point to our deployment
+    const stageUpdate = new cr.AwsCustomResource(this, 'UpdateStage', {
+      onCreate: {
+        service: 'APIGateway',
+        action: 'updateStage',
+        parameters: {
+          restApiId: apiGatewayId,
+          stageName: environment,
+          patchOperations: [
+            {
+              op: 'replace',
+              path: '/deploymentId',
+              value: deployment.deploymentId,
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`stage-update-${environment}`),
+      },
+      onUpdate: {
+        service: 'APIGateway',
+        action: 'updateStage',
+        parameters: {
+          restApiId: apiGatewayId,
+          stageName: environment,
+          patchOperations: [
+            {
+              op: 'replace',
+              path: '/deploymentId',
+              value: deployment.deploymentId,
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`stage-update-${environment}`),
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
+      installLatestAwsSdk: false,
+    });
+
+    // Ensure stage update happens after deployment is created
+    stageUpdate.node.addDependency(deployment);
 
     // 7. Configure S3 event notifications
     documentsBucket.addEventNotification(

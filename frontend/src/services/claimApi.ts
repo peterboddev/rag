@@ -1,11 +1,19 @@
 // API client for insurance claim portal endpoints
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || '';
 const API_TIMEOUT = 30000; // 30 seconds
 
-// Helper to get auth token from localStorage
-const getAuthToken = (): string | null => {
-  return localStorage.getItem('authToken');
+// Helper to get auth token from Amplify
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const session = await fetchAuthSession();
+    const idToken = session.tokens?.idToken?.toString();
+    return idToken || null;
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+    return null;
+  }
 };
 
 // Helper for API requests with authentication
@@ -13,7 +21,7 @@ async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getAuthToken();
+  const token = await getAuthToken();
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -145,7 +153,7 @@ export async function listPatients(
   }
 
   return withRetry(() =>
-    apiRequest<PatientListResponse>(`/api/patients?${params.toString()}`)
+    apiRequest<PatientListResponse>(`/patients?${params.toString()}`)
   );
 }
 
@@ -154,7 +162,7 @@ export async function listPatients(
  */
 export async function getPatientDetail(patientId: string): Promise<PatientDetail> {
   return withRetry(() =>
-    apiRequest<PatientDetail>(`/api/patients/${encodeURIComponent(patientId)}`)
+    apiRequest<PatientDetail>(`/patients/${encodeURIComponent(patientId)}`)
   );
 }
 
@@ -163,7 +171,7 @@ export async function getPatientDetail(patientId: string): Promise<PatientDetail
  */
 export async function loadClaim(claimId: string): Promise<LoadClaimResponse> {
   return withRetry(() =>
-    apiRequest<LoadClaimResponse>(`/api/claims/${encodeURIComponent(claimId)}/load`, {
+    apiRequest<LoadClaimResponse>(`/claims/load`, {
       method: 'POST',
     })
   );
@@ -174,6 +182,6 @@ export async function loadClaim(claimId: string): Promise<LoadClaimResponse> {
  */
 export async function getClaimStatus(claimId: string): Promise<ClaimStatusResponse> {
   return withRetry(() =>
-    apiRequest<ClaimStatusResponse>(`/api/claims/${encodeURIComponent(claimId)}/status`)
+    apiRequest<ClaimStatusResponse>(`/claims/${encodeURIComponent(claimId)}/status`)
   );
 }
