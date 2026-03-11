@@ -25,6 +25,13 @@ interface PatientMapping {
   };
 }
 
+interface MappingFile {
+  patient_mappings: Array<{
+    synthea_id: string;
+    tcia_id: string;
+  }>;
+}
+
 /**
  * Lambda handler for GET /patients/{patientId}
  * Retrieves patient details and associated claims from S3
@@ -119,7 +126,19 @@ async function loadPatientMapping(): Promise<PatientMapping> {
       throw new Error('Empty mapping file');
     }
 
-    return JSON.parse(mappingData);
+    const mappingFile: MappingFile = JSON.parse(mappingData);
+    
+    // Convert array format to object format expected by the handler
+    const mapping: PatientMapping = {};
+    for (const entry of mappingFile.patient_mappings) {
+      mapping[entry.tcia_id] = {
+        synthea_patient_id: entry.synthea_id,
+        tcia_collection_id: entry.tcia_id,
+        patient_name: 'Unknown Patient', // Not available in mapping file
+      };
+    }
+    
+    return mapping;
   } catch (error) {
     console.error('Error loading patient mapping:', error);
     throw new Error('Failed to load patient mapping');
