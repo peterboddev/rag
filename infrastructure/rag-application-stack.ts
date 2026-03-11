@@ -635,49 +635,13 @@ export class RAGApplicationStack extends cdk.Stack {
     deployment.node.addDependency(patientsResource);
     deployment.node.addDependency(claimsResource);
 
-    // Update the existing stage to use the new deployment
-    // Note: The stage is managed by platform team, but we need to update it to point to our deployment
-    const stageUpdate = new cr.AwsCustomResource(this, 'UpdateStage', {
-      onCreate: {
-        service: 'APIGateway',
-        action: 'updateStage',
-        parameters: {
-          restApiId: apiGatewayId,
-          stageName: environment,
-          patchOperations: [
-            {
-              op: 'replace',
-              path: '/deploymentId',
-              value: deployment.deploymentId,
-            },
-          ],
-        },
-        physicalResourceId: cr.PhysicalResourceId.of(`stage-update-${environment}`),
-      },
-      onUpdate: {
-        service: 'APIGateway',
-        action: 'updateStage',
-        parameters: {
-          restApiId: apiGatewayId,
-          stageName: environment,
-          patchOperations: [
-            {
-              op: 'replace',
-              path: '/deploymentId',
-              value: deployment.deploymentId,
-            },
-          ],
-        },
-        physicalResourceId: cr.PhysicalResourceId.of(`stage-update-${environment}`),
-      },
-      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
-      installLatestAwsSdk: false,
-    });
-
-    // Ensure stage update happens after deployment is created
-    stageUpdate.node.addDependency(deployment);
+    // Note: The API Gateway stage needs to be updated to use this deployment
+    // Platform team should either:
+    // 1. Add apigateway:PATCH permission to CloudFormation execution role, OR
+    // 2. Manually update the stage after deployment using:
+    //    aws apigateway update-stage --rest-api-id wvbm6ooz1j --stage-name dev --patch-operations op=replace,path=/deploymentId,value=<deployment-id>
+    //
+    // The deployment ID is output below for manual updates if needed
 
     // 7. Configure S3 event notifications
     documentsBucket.addEventNotification(
