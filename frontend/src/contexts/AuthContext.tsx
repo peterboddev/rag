@@ -9,7 +9,12 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  // Initialize state from localStorage immediately to avoid flicker
+  const [tenantId, setTenantId] = useState<string | null>(() => {
+    const stored = localStorage.getItem('tenantId');
+    console.log('Initial tenant from localStorage:', stored);
+    return stored;
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +30,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const session = await fetchAuthSession();
       
       if (user && session.tokens) {
+        console.log('User authenticated:', user.username);
         setIsAuthenticated(true);
-        // Use user's email or sub as tenant identifier
-        const storedTenantId = localStorage.getItem('tenantId') || user.username;
-        setTenantId(storedTenantId);
+        // Re-check localStorage for tenant (in case it was set before auth check)
+        const storedTenantId = localStorage.getItem('tenantId');
+        if (storedTenantId) {
+          console.log('Confirmed stored tenant:', storedTenantId);
+          setTenantId(storedTenantId);
+        } else {
+          console.log('No stored tenant found after auth check');
+        }
       }
     } catch (err) {
       // User not authenticated
+      console.log('User not authenticated:', err);
       setIsAuthenticated(false);
       setTenantId(null);
     } finally {
