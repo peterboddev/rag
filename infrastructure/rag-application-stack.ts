@@ -567,8 +567,19 @@ export class RAGApplicationStack extends cdk.Stack {
     const claimStatusResource = claimResource.addResource('status');
     claimStatusResource.addMethod('GET', new apigateway.LambdaIntegration(claimStatusFunction), methodOptions);
 
-    // Note: API Gateway deployment and stage are managed by the platform team
-    // We only add methods to the existing API Gateway
+    // Create a deployment to register our new methods
+    // Note: We create the deployment but the platform team manages the stage
+    const deployment = new apigateway.Deployment(this, 'ApiDeployment', {
+      api: api,
+      description: `Deployment for ${environment} environment - ${new Date().toISOString()}`,
+    });
+
+    // Ensure deployment happens after all methods are added
+    deployment.node.addDependency(customersResource);
+    deployment.node.addDependency(documentsResource);
+    deployment.node.addDependency(chunkingMethodsResource);
+    deployment.node.addDependency(patientsResource);
+    deployment.node.addDependency(claimsResource);
 
     // 7. Configure S3 event notifications
     documentsBucket.addEventNotification(
