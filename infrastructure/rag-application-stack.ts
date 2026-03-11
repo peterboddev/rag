@@ -474,6 +474,11 @@ export class RAGApplicationStack extends cdk.Stack {
       }
     );
 
+    // Grant S3 permissions to patient list and detail functions
+    const sourceBucket = s3.Bucket.fromBucketName(this, 'SourceBucket', 'medical-claims-synthetic-data-dev');
+    sourceBucket.grantRead(patientListFunction);
+    sourceBucket.grantRead(patientDetailFunction);
+
     const claimLoaderFunction = createLambdaFunction(
       'ClaimLoaderFunction',
       'dist/src/lambda/claim-loader.handler',
@@ -486,6 +491,9 @@ export class RAGApplicationStack extends cdk.Stack {
       cdk.Duration.minutes(5),
       512
     );
+
+    // Grant S3 permissions to claim loader function
+    sourceBucket.grantRead(claimLoaderFunction);
 
     const claimStatusFunction = createLambdaFunction(
       'ClaimStatusFunction',
