@@ -1,0 +1,71 @@
+# Example buildspec.yml for CDK Applications
+# Place this file at the root of your application repository
+# 
+# This buildspec has been tested and works with the RAG platform pipeline
+# Last updated: 2026-03-09
+
+version: 0.2
+
+# Environment variables (optional)
+# CRITICAL: Do NOT set NODE_ENV=production - it breaks devDependencies installation
+env:
+  variables:
+    # Add your custom environment variables here
+    # Example:
+    # API_ENDPOINT: "https://api.example.com"
+  
+  # Parameter store values (optional)
+  # parameter-store:
+  #   DATABASE_URL: /myapp/database/url
+
+phases:
+  install:
+    # Specify runtime versions
+    runtime-versions:
+      nodejs: 20  # Use Node.js 20 (compatible with npm 11+)
+    
+    commands:
+      - echo "Installing dependencies..."
+      - echo "Node.js version: $(node --version)"
+      - echo "NPM version: $(npm --version)"
+      - npm ci  # Use npm ci for reproducible builds (not npm install)
+
+  pre_build:
+    commands:
+      - echo "Running pre-build checks..."
+      - echo "Running tests..."
+      - npm run test  # Run your test suite
+      # Add other pre-build commands here (linting, type checking, etc.)
+
+  build:
+    commands:
+      - echo "Building application..."
+      - npm run build  # Build your application
+      - echo "Synthesizing CDK stack..."
+      - npx cdk synth  # Generate CloudFormation templates
+      - echo "Listing generated templates..."
+      - ls -la cdk.out/*.template.json
+
+  post_build:
+    commands:
+      - echo "Build completed successfully on $(date)"
+      - echo "Artifacts ready for deployment"
+
+# Artifacts configuration
+# CRITICAL: Do NOT use base-directory for CDK apps - it causes double-nested paths
+artifacts:
+  files:
+    - '**/*'  # Include all files
+  # Do NOT add base-directory here - the platform expects templates at cdk.out/<StackName>.template.json
+
+# Cache configuration (speeds up builds)
+cache:
+  paths:
+    - 'node_modules/**/*'  # Cache npm dependencies
+
+# Reports (optional - for test results and code coverage)
+# reports:
+#   jest_reports:
+#     files:
+#       - 'coverage/clover.xml'
+#     file-format: 'CLOVERXML'
