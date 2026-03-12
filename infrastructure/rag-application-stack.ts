@@ -518,7 +518,7 @@ export class RAGApplicationStack extends cdk.Stack {
       integrationResponses: [{
         statusCode: '200',
         responseParameters: {
-          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+          'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
           'method.response.header.Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
           'method.response.header.Access-Control-Allow-Origin': "'*'",
         },
@@ -650,6 +650,17 @@ export class RAGApplicationStack extends cdk.Stack {
     //    aws apigateway update-stage --rest-api-id wvbm6ooz1j --stage-name dev --patch-operations op=replace,path=/deploymentId,value=<deployment-id>
     //
     // The deployment ID is output below for manual updates if needed
+    
+    // Note: Gateway Responses for error cases (401, 403) also need CORS headers
+    // This requires manual configuration or a Custom Resource with apigateway:PUT permission:
+    //
+    // aws apigateway put-gateway-response --rest-api-id wvbm6ooz1j --response-type UNAUTHORIZED \
+    //   --region us-east-1 --response-parameters \
+    //   '{"gatewayresponse.header.Access-Control-Allow-Origin":"'"'"'*'"'"'","gatewayresponse.header.Access-Control-Allow-Headers":"'"'"'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'"'"'","gatewayresponse.header.Access-Control-Allow-Methods":"'"'"'*'"'"'"}'
+    //
+    // aws apigateway put-gateway-response --rest-api-id wvbm6ooz1j --response-type ACCESS_DENIED \
+    //   --region us-east-1 --response-parameters \
+    //   '{"gatewayresponse.header.Access-Control-Allow-Origin":"'"'"'*'"'"'","gatewayresponse.header.Access-Control-Allow-Headers":"'"'"'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'"'"'","gatewayresponse.header.Access-Control-Allow-Methods":"'"'"'*'"'"'"}'
 
     // 7. Configure S3 event notifications
     documentsBucket.addEventNotification(
