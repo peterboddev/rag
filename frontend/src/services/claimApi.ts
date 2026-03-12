@@ -15,21 +15,18 @@ const getAuthToken = async (): Promise<string | null> => {
     
     // Extract the ID token (JWT) for API Gateway authentication
     const idToken = session.tokens?.idToken?.toString();
-    return idToken || null;
-  } catch (error: any) {
-    // Log the error but don't fail - the Identity Pool error is expected
-    if (error.name !== 'InvalidIdentityPoolConfigurationException' && 
-        !error.message?.includes('Invalid identity pool configuration')) {
-      console.error('Error getting auth token:', error);
-    }
     
-    // Try one more time to get just the tokens
-    try {
-      const session = await fetchAuthSession({ forceRefresh: false });
-      return session.tokens?.idToken?.toString() || null;
-    } catch {
+    if (!idToken) {
+      console.error('No ID token found in session');
       return null;
     }
+    
+    console.log('Successfully retrieved auth token');
+    return idToken;
+  } catch (error: any) {
+    // Log all errors for debugging
+    console.error('Error getting auth token:', error);
+    return null;
   }
 };
 
@@ -40,6 +37,11 @@ async function apiRequest<T>(
 ): Promise<T> {
   const token = await getAuthToken();
   
+  if (!token) {
+    console.error('No auth token available - user may not be authenticated');
+    throw new Error('Authentication required - please sign in again');
+  }
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -48,9 +50,8 @@ async function apiRequest<T>(
     Object.assign(headers, options.headers);
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  headers['Authorization'] = `Bearer ${token}`;
+  console.log('Making API request with Authorization header to:', endpoint);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
