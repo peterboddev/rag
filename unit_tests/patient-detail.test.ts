@@ -27,10 +27,12 @@ describe('Patient Detail Lambda', () => {
       {
         synthea_id: 'synthea-123',
         tcia_id: 'TCIA-001',
+        patient_name: 'John Doe',
       },
       {
         synthea_id: 'synthea-456',
         tcia_id: 'TCIA-002',
+        patient_name: 'Jane Smith',
       },
     ],
   });
@@ -70,7 +72,7 @@ describe('Patient Detail Lambda', () => {
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.patientId).toBe('TCIA-001');
-    expect(body.patientName).toBe('Unknown Patient'); // Not available in mapping file
+    expect(body.patientName).toBe('John Doe');
     expect(body.tciaCollectionId).toBe('TCIA-001');
     expect(body.claims).toHaveLength(1);
     expect(body.claims[0].claimId).toBe('123');

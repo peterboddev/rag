@@ -227,12 +227,20 @@ async function loadPatientMapping(): Promise<Map<string, PatientMapping>> {
       throw new Error('Empty mapping.json file');
     }
 
-    const mappings: PatientMapping[] = JSON.parse(mappingData);
+    const mappingFile = JSON.parse(mappingData);
     const mappingMap = new Map<string, PatientMapping>();
 
-    mappings.forEach(mapping => {
-      mappingMap.set(mapping.tciaId, mapping);
-    });
+    // Handle new format with patient_mappings array
+    if (mappingFile.patient_mappings && Array.isArray(mappingFile.patient_mappings)) {
+      mappingFile.patient_mappings.forEach((entry: any) => {
+        mappingMap.set(entry.tcia_id, {
+          syntheaId: entry.synthea_id,
+          tciaId: entry.tcia_id,
+          patientName: entry.patient_name || 'Unknown Patient',
+          tciaCollectionId: entry.tcia_id
+        });
+      });
+    }
 
     console.log('Loaded patient mapping', {
       mappingCount: mappingMap.size
