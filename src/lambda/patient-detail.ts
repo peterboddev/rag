@@ -29,6 +29,7 @@ interface MappingFile {
   patient_mappings: Array<{
     synthea_id: string;
     tcia_id: string;
+    patient_name: string;
   }>;
 }
 
@@ -134,7 +135,7 @@ async function loadPatientMapping(): Promise<PatientMapping> {
       mapping[entry.tcia_id] = {
         synthea_patient_id: entry.synthea_id,
         tcia_collection_id: entry.tcia_id,
-        patient_name: 'Unknown Patient', // Not available in mapping file
+        patient_name: entry.patient_name || 'Unknown Patient',
       };
     }
     
