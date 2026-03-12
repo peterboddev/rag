@@ -23,16 +23,16 @@ describe('Patient Detail Lambda', () => {
   });
 
   const createMockMapping = () => ({
-    'TCIA-001': {
-      synthea_patient_id: 'synthea-123',
-      tcia_collection_id: 'TCGA-BRCA',
-      patient_name: 'John Doe',
-    },
-    'TCIA-002': {
-      synthea_patient_id: 'synthea-456',
-      tcia_collection_id: 'TCGA-LUAD',
-      patient_name: 'Jane Smith',
-    },
+    patient_mappings: [
+      {
+        synthea_id: 'synthea-123',
+        tcia_id: 'TCIA-001',
+      },
+      {
+        synthea_id: 'synthea-456',
+        tcia_id: 'TCIA-002',
+      },
+    ],
   });
 
   const createMockBody = (str: string) => ({
@@ -70,8 +70,8 @@ describe('Patient Detail Lambda', () => {
     expect(result.statusCode).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.patientId).toBe('TCIA-001');
-    expect(body.patientName).toBe('John Doe');
-    expect(body.tciaCollectionId).toBe('TCGA-BRCA');
+    expect(body.patientName).toBe('Unknown Patient'); // Not available in mapping file
+    expect(body.tciaCollectionId).toBe('TCIA-001');
     expect(body.claims).toHaveLength(1);
     expect(body.claims[0].claimId).toBe('123');
     expect(body.claims[0].documentTypes).toContain('CMS1500');
