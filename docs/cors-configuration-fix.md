@@ -54,12 +54,24 @@ aws apigateway put-gateway-response --rest-api-id wvbm6ooz1j --response-type ACC
     "gatewayresponse.header.Access-Control-Allow-Methods":"'"'"'*'"'"'"}'
 ```
 
-### 3. Created New Deployment
-Created deployment `6vsru7` to activate the changes:
+### 3. Updated All Existing Endpoints
+Since the CDK stack creates new endpoints with the correct CORS configuration, we needed to update all existing endpoints that were created before the fix:
+
+```bash
+# Updated integration responses for all 24 endpoints with OPTIONS methods
+# 22 succeeded, 2 failed (platform-managed endpoints)
+aws apigateway put-integration-response --rest-api-id wvbm6ooz1j \
+  --resource-id <resource-id> --http-method OPTIONS --status-code 200 \
+  --region us-east-1 --response-parameters file://cors-params.json
+```
+
+### 4. Created New Deployment
+Created deployment `rbqris` to activate all the changes:
 
 ```bash
 aws apigateway create-deployment --rest-api-id wvbm6ooz1j --stage-name dev \
-  --region us-east-1 --description "Updated CORS to include X-Tenant-Id header"
+  --region us-east-1 --description "Apply X-Tenant-Id CORS fix to all 22 application endpoints"
+# Result: Deployment ID rbqris
 ```
 
 ## What This Fixes
