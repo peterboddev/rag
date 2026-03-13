@@ -2,12 +2,14 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 import { mockClient } from 'aws-sdk-client-mock';
 import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import { handler } from '../src/lambda/claim-loader';
 import { Readable } from 'stream';
 
 // Mock AWS SDK clients
 const s3Mock = mockClient(S3Client);
 const dynamoMock = mockClient(DynamoDBDocumentClient);
+const cloudWatchMock = mockClient(CloudWatchClient);
 
 // Helper to create mock API Gateway event
 function createMockEvent(body: any, tenantId: string = 'test-tenant'): APIGatewayProxyEvent {
@@ -49,6 +51,10 @@ describe('Claim Loader Lambda', () => {
     // Reset all mocks before each test
     s3Mock.reset();
     dynamoMock.reset();
+    cloudWatchMock.reset();
+    
+    // Mock CloudWatch to prevent dynamic import errors
+    cloudWatchMock.on(PutMetricDataCommand).resolves({});
     
     // Set environment variables
     process.env.REGION = 'us-east-1';
