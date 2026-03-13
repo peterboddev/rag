@@ -13,14 +13,21 @@ import { handler as claimLoaderHandler } from '../src/lambda/claim-loader';
 import { mockClient } from 'aws-sdk-client-mock';
 import { S3Client, GetObjectCommand, ListObjectsV2Command, CopyObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 
 const s3Mock = mockClient(S3Client);
 const dynamoMock = mockClient(DynamoDBDocumentClient);
+const cloudWatchMock = mockClient(CloudWatchClient);
 
 describe('Preservation Property Tests', () => {
   beforeEach(() => {
     s3Mock.reset();
     dynamoMock.reset();
+    cloudWatchMock.reset();
+    
+    // Mock CloudWatch to prevent dynamic import errors
+    cloudWatchMock.on(PutMetricDataCommand).resolves({});
+    
     process.env.SOURCE_BUCKET = 'medical-claims-synthetic-data-dev';
     process.env.DOCUMENTS_TABLE_NAME = 'test-documents-table';
     process.env.PLATFORM_DOCUMENTS_BUCKET = 'test-platform-bucket';
@@ -30,6 +37,7 @@ describe('Preservation Property Tests', () => {
   afterEach(() => {
     s3Mock.reset();
     dynamoMock.reset();
+    cloudWatchMock.reset();
   });
 
   describe('Claim Count Preservation', () => {
