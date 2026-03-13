@@ -1,0 +1,4 @@
+# file: C:\local_drive\rag\medical-claims-generator\src\medical_claims_generator\patient_mapper.py
+# hypothesis_version: 6.151.9
+
+['%Y%m%d', 'CT', 'ISO8601', 'Modality', 'PatientID', 'SeriesDescription', 'StudyDate', 'StudyInstanceUID', 'abdomen', 'abdominal', 'brain', 'cervical', 'chest', 'cranial', 'head', 'kidney', 'liver', 'lung', 'neck', 'pelvic', 'pelvis', 'pulmonary', 'spinal', 'spine', 'thorax', 'unknown', 'vertebral']

@@ -1,0 +1,4 @@
+# file: C:\local_drive\rag\medical-claims-generator\src\medical_claims_generator\models.py
+# hypothesis_version: 6.151.9
+
+[0.001, 0.2, 0.6, 1.0, 71250, 71275, '\nErrors:\n', '\nWarnings:\n', './synthea', 'Unknown Patient', 'approved', 'claims_by_status', 'colorectal_cancer', 'denied', 'documents_by_type', 'generation_timestamp', 'lung_cancer', 'modality', 'patient_mappings', 'patient_name', 'pending', 'random_seed', 'study_date', 'study_uid', 'synthea_id', 'tcia_id', 'tcia_patient_ids', 'total_claims', 'total_patients', '✓ Validation PASSED\n', '✗ Validation FAILED\n']

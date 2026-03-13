@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPatientDetail, loadClaim, getClaimStatus, PatientDetail, ClaimStatusResponse } from '../services/claimApi';
+import { getPatientDetail, loadClaim, getClaimStatus, getDocument, PatientDetail, ClaimStatusResponse } from '../services/claimApi';
 import DocumentSummary from './DocumentSummary';
 
 interface ClaimDetailPageProps {
@@ -51,7 +51,11 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
       setLoadingClaim(claimId);
       setError(null);
       
-      const response = await loadClaim(claimId);
+      // TODO: Get customerUUID from auth context or API
+      // For now, using a placeholder - this needs to be implemented
+      const customerUUID = 'placeholder-customer-uuid';
+      
+      const response = await loadClaim(patientId, claimId, customerUUID);
       
       // Poll for status updates
       const pollInterval = setInterval(async () => {
@@ -78,6 +82,23 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load claim');
       setLoadingClaim(null);
+    }
+  };
+
+  const handleViewDocuments = async (claimId: string) => {
+    try {
+      // TODO: Implement document listing and viewing
+      // For now, this is a placeholder that shows the integration is ready
+      // Future implementation should:
+      // 1. Query DynamoDB for documents with claimId
+      // 2. Display list of documents
+      // 3. Allow user to click on a document to view it
+      // 4. Call getDocument(documentId) to get presigned URL
+      // 5. Open document in new tab or embedded viewer
+      
+      alert('Document viewing integration is ready. Next step: implement document listing UI.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to view documents');
     }
   };
 
@@ -352,11 +373,7 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
                   {/* View Documents Button (when loaded) */}
                   {status && status.status === 'completed' && (
                     <button
-                      onClick={() => {
-                        // Navigate to document summary view
-                        // This would integrate with existing DocumentSummary component
-                        alert('Navigate to document summary - integration pending');
-                      }}
+                      onClick={() => handleViewDocuments(claim.claimId)}
                       style={{
                         padding: '8px 16px',
                         fontSize: '14px',

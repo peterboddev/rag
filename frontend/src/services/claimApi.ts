@@ -155,6 +155,12 @@ export interface ClaimStatusResponse {
   errors?: string[];
 }
 
+export interface DocumentRetrievalResponse {
+  documentUrl: string;
+  contentType: string;
+  fileName: string;
+}
+
 // API Functions
 
 /**
@@ -187,10 +193,15 @@ export async function getPatientDetail(patientId: string): Promise<PatientDetail
 /**
  * Loads claim documents from S3 source to platform bucket
  */
-export async function loadClaim(claimId: string): Promise<LoadClaimResponse> {
+export async function loadClaim(
+  patientId: string,
+  claimId: string,
+  customerUUID: string
+): Promise<LoadClaimResponse> {
   return withRetry(() =>
     apiRequest<LoadClaimResponse>(`/claims/load`, {
       method: 'POST',
+      body: JSON.stringify({ patientId, claimId, customerUUID })
     })
   );
 }
@@ -201,5 +212,14 @@ export async function loadClaim(claimId: string): Promise<LoadClaimResponse> {
 export async function getClaimStatus(claimId: string): Promise<ClaimStatusResponse> {
   return withRetry(() =>
     apiRequest<ClaimStatusResponse>(`/claims/${encodeURIComponent(claimId)}/status`)
+  );
+}
+
+/**
+ * Retrieves document presigned URL for viewing
+ */
+export async function getDocument(documentId: string): Promise<DocumentRetrievalResponse> {
+  return withRetry(() =>
+    apiRequest<DocumentRetrievalResponse>(`/documents/${encodeURIComponent(documentId)}`)
   );
 }

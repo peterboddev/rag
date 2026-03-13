@@ -504,6 +504,22 @@ export class RAGApplicationStack extends cdk.Stack {
       }
     );
 
+    const documentRetrievalFunction = createLambdaFunction(
+      'DocumentRetrievalFunction',
+      'dist/src/lambda/document-retrieval.handler',
+      {
+        DOCUMENTS_TABLE_NAME: documentsTable.tableName,
+        DOCUMENTS_BUCKET: documentsBucket.bucketName,
+        REGION: this.region,
+      }
+    );
+
+    // Grant S3 read permissions to document retrieval function
+    documentsBucket.grantRead(documentRetrievalFunction);
+    
+    // Grant DynamoDB read permissions to document retrieval function
+    documentsTable.grantReadData(documentRetrievalFunction);
+
     // 6. Add API routes to imported API Gateway
     // Create resource hierarchy with Cognito authorization
     const methodOptions: apigateway.MethodOptions = {
@@ -572,6 +588,10 @@ export class RAGApplicationStack extends cdk.Stack {
     const documentsResource = api.root.addResource('documents');
     addCorsOptions(documentsResource);
     documentsResource.addMethod('POST', new apigateway.LambdaIntegration(documentUploadFunction, { proxy: true }), methodOptions);
+
+    const documentResource = documentsResource.addResource('{documentId}');
+    addCorsOptions(documentResource);
+    documentResource.addMethod('GET', new apigateway.LambdaIntegration(documentRetrievalFunction, { proxy: true }), methodOptions);
 
     const processResource = documentsResource.addResource('process');
     addCorsOptions(processResource);
