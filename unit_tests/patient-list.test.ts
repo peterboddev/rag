@@ -144,20 +144,22 @@ describe('Patient List Lambda', () => {
 
   describe('Patient Listing', () => {
     it('should list patients from S3 bucket', async () => {
-      const mockMapping = [
-        {
-          syntheaId: 'synthea-001',
-          tciaId: 'TCIA-001',
-          patientName: 'John Doe',
-          tciaCollectionId: 'TCGA-BRCA'
-        },
-        {
-          syntheaId: 'synthea-002',
-          tciaId: 'TCIA-002',
-          patientName: 'Jane Smith',
-          tciaCollectionId: 'TCGA-LUAD'
-        }
-      ];
+      const mockMapping = {
+        patient_mappings: [
+          {
+            synthea_id: 'synthea-001',
+            tcia_id: 'TCIA-001',
+            patient_name: 'John Doe',
+            tcia_collection_id: 'TCGA-BRCA'
+          },
+          {
+            synthea_id: 'synthea-002',
+            tcia_id: 'TCIA-002',
+            patient_name: 'Jane Smith',
+            tcia_collection_id: 'TCGA-LUAD'
+          }
+        ]
+      };
 
       s3Mock.on(ListObjectsV2Command).resolves({
         CommonPrefixes: [
@@ -167,7 +169,10 @@ describe('Patient List Lambda', () => {
         IsTruncated: false
       });
 
-      s3Mock.on(GetObjectCommand).resolves({
+      s3Mock.on(GetObjectCommand, {
+        Bucket: 'medical-claims-synthetic-data-dev',
+        Key: 'mapping.json'
+      }).resolves({
         Body: {
           transformToString: async () => JSON.stringify(mockMapping)
         } as any
@@ -293,14 +298,16 @@ describe('Patient List Lambda', () => {
 
   describe('Claim Counting', () => {
     it('should count claims for each patient', async () => {
-      const mockMapping = [
-        {
-          syntheaId: 'synthea-001',
-          tciaId: 'TCIA-001',
-          patientName: 'John Doe',
-          tciaCollectionId: 'TCGA-BRCA'
-        }
-      ];
+      const mockMapping = {
+        patient_mappings: [
+          {
+            synthea_id: 'synthea-001',
+            tcia_id: 'TCIA-001',
+            patient_name: 'John Doe',
+            tcia_collection_id: 'TCGA-BRCA'
+          }
+        ]
+      };
 
       // Mock patient listing
       s3Mock.on(ListObjectsV2Command, {
@@ -326,7 +333,10 @@ describe('Patient List Lambda', () => {
         IsTruncated: false
       });
 
-      s3Mock.on(GetObjectCommand).resolves({
+      s3Mock.on(GetObjectCommand, {
+        Bucket: 'medical-claims-synthetic-data-dev',
+        Key: 'mapping.json'
+      }).resolves({
         Body: {
           transformToString: async () => JSON.stringify(mockMapping)
         } as any
