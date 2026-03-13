@@ -201,6 +201,17 @@ const TenantSetup: React.FC = () => {
       {error && (
         <div className="alert alert-error">
           {error}
+          {error.includes('already a signed in user') && (
+            <div style={{ marginTop: '10px' }}>
+              <button
+                onClick={() => window.location.reload()}
+                className="btn"
+                style={{ fontSize: '12px', padding: '5px 10px' }}
+              >
+                Refresh Page
+              </button>
+            </div>
+          )}
         </div>
       )}
 
