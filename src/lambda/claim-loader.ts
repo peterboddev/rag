@@ -54,6 +54,72 @@ function logStructured(level: 'INFO' | 'WARN' | 'ERROR', message: string, metada
 }
 
 /**
+ * Serialize Error objects for logging
+ * 
+ * JavaScript Error objects have non-enumerable properties (message, name, stack, code)
+ * that don't serialize with JSON.stringify(). This utility extracts all relevant
+ * properties from Error objects to ensure complete error information is logged.
+ * 
+ * @param error - The error to serialize (can be Error, AWS SDK error, or any value)
+ * @returns Serialized error object with all properties, or the original value if not an Error
+ */
+function serializeError(error: any): any {
+  // Handle null and undefined
+  if (error === null || error === undefined) {
+    return error;
+  }
+
+  // If not an Error object, return as-is
+  if (!(error instanceof Error)) {
+    return error;
+  }
+
+  // Extract standard Error properties
+  const serialized: Record<string, any> = {
+    message: error.message,
+    name: error.name,
+    stack: error.stack
+  };
+
+  // Extract AWS SDK specific properties (if present)
+  // These are typically enumerable but we explicitly extract them for clarity
+  if ('code' in error && error.code !== undefined) {
+    serialized.code = error.code;
+  }
+
+  if ('statusCode' in error && error.statusCode !== undefined) {
+    serialized.statusCode = error.statusCode;
+  }
+
+  if ('requestId' in error && error.requestId !== undefined) {
+    serialized.requestId = error.requestId;
+  }
+
+  if ('retryable' in error && error.retryable !== undefined) {
+    serialized.retryable = error.retryable;
+  }
+
+  // Extract any other enumerable properties that might be useful
+  // This catches custom properties added by AWS SDK or application code
+  try {
+    for (const key in error) {
+      if (error.hasOwnProperty(key) && !(key in serialized)) {
+        // Avoid circular references by checking if value is an object
+        const value = (error as any)[key];
+        if (typeof value !== 'object' || value === null) {
+          serialized[key] = value;
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore errors from property enumeration (e.g., circular references)
+    serialized._serializationError = 'Failed to enumerate all properties';
+  }
+
+  return serialized;
+}
+
+/**
  * Publish CloudWatch metric
  */
 async function publishMetric(metricName: string, value: number, unit: StandardUnit = StandardUnit.Count, dimensions: Record<string, string> = {}) {
@@ -151,13 +217,13 @@ async function withRetry<T>(
 
       // Don't retry if error is not retryable
       if (!isRetryableError(error)) {
-        console.error(`Non-retryable error in ${operationName}:`, error);
+        console.error(`Non-retryable error in ${operationName}:`, serializeError(error));
         throw error;
       }
 
       // Don't retry on last attempt
       if (attempt === config.maxRetries - 1) {
-        console.error(`Max retries reached for ${operationName}:`, error);
+        console.error(`Max retries reached for ${operationName}:`, serializeError(error));
         throw error;
       }
 
@@ -269,7 +335,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         } else {
           const docKey = batch[index];
           errors.push(`Failed to process ${docKey}: ${result.reason}`);
-          logStructured('ERROR', 'Document processing failed', { docKey, error: result.reason });
+          logStructured('ERROR', 'Document processing failed', { docKey, error: serializeError(result.reason) });
         }
       });
 
@@ -328,8 +394,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const duration = Date.now() - startTime;
     
     logStructured('ERROR', 'Error in claim loader', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
+      error: serializeError(error),
       duration
     });
 
@@ -387,7 +452,7 @@ async function loadPatientMapping(patientId: string): Promise<PatientMapping> {
       tciaCollectionId: patientEntry.tciaCollectionId || 'unknown'
     };
   }, DEFAULT_RETRY_CONFIG, 'loadPatientMapping').catch(error => {
-    console.error('Error loading patient mapping after retries:', error);
+    console.error('Error loading patient mapping after retries:', serializeError(error));
     // Return default mapping on error
     return {
       syntheaId: 'unknown',

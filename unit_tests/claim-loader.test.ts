@@ -687,6 +687,7 @@ describe('Claim Loader Lambda', () => {
 
     it('should return 500 on unexpected errors', async () => {
       s3Mock.on(GetObjectCommand).rejects(new Error('Unexpected error'));
+      s3Mock.on(ListObjectsV2Command).rejects(new Error('Unexpected error'));
 
       const event = createMockEvent({
         patientId: 'TCIA-001',
