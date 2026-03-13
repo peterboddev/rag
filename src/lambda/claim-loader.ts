@@ -14,7 +14,15 @@ const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({
   region: process.env.REGION,
   maxAttempts: 3 // Enable automatic retries for DynamoDB operations
 }));
-const cloudWatchClient = new CloudWatchClient({ region: process.env.REGION });
+
+// Lazy-load CloudWatch client to avoid dynamic import issues in tests
+let cloudWatchClient: CloudWatchClient | null = null;
+function getCloudWatchClient(): CloudWatchClient {
+  if (!cloudWatchClient) {
+    cloudWatchClient = new CloudWatchClient({ region: process.env.REGION });
+  }
+  return cloudWatchClient;
+}
 
 // Retry configuration
 interface RetryConfig {
@@ -50,7 +58,8 @@ function logStructured(level: 'INFO' | 'WARN' | 'ERROR', message: string, metada
  */
 async function publishMetric(metricName: string, value: number, unit: StandardUnit = StandardUnit.Count, dimensions: Record<string, string> = {}) {
   try {
-    await cloudWatchClient.send(new PutMetricDataCommand({
+    const client = getCloudWatchClient();
+    await client.send(new PutMetricDataCommand({
       Namespace: 'InsuranceClaimPortal',
       MetricData: [
         {
