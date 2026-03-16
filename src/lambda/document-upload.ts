@@ -188,7 +188,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Create document record in DynamoDB
     const documentRecord: DocumentRecord = {
-      id: documentId,
+      documentId,
       customerUuid: customerUUID,
       tenantId,
       fileName,

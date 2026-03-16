@@ -57,7 +57,7 @@ export class ContentPrioritizationService {
     
     if (!text || text.trim().length === 0) {
       return {
-        documentId: document.id,
+        documentId: document.documentId,
         fileName: document.fileName,
         keyContent: '',
         metadata: this.extractDocumentMetadata(document),
@@ -71,7 +71,7 @@ export class ContentPrioritizationService {
     // If document fits within limit, return full content
     if (estimatedTokens <= tokenLimit) {
       return {
-        documentId: document.id,
+        documentId: document.documentId,
         fileName: document.fileName,
         keyContent: text,
         metadata: this.extractDocumentMetadata(document),
@@ -89,7 +89,7 @@ export class ContentPrioritizationService {
     const keyContent = this.extractKeyExcerpts(text, tokenLimit);
     
     return {
-      documentId: document.id,
+      documentId: document.documentId,
       fileName: document.fileName,
       keyContent,
       metadata: this.extractDocumentMetadata(document),
@@ -142,7 +142,7 @@ export class ContentPrioritizationService {
     const recommendedTokens = Math.floor(baseTokens * priorityMultiplier);
     
     return {
-      documentId: document.id,
+      documentId: document.documentId,
       priority: Math.round(score * 1000) / 1000, // Use 3 decimal places for better precision
       reasoning: reasoning.join(', ') || 'standard priority',
       recommendedTokens
@@ -252,7 +252,7 @@ export class ContentPrioritizationService {
     }
     
     return {
-      documentId: document.id,
+      documentId: document.documentId,
       fileName: document.fileName,
       keyContent: content,
       metadata,

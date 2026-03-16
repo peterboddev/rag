@@ -70,7 +70,7 @@ describe('ClaimMetadata Validation', () => {
       };
 
       const documentRecord: DocumentRecord = {
-        id: 'doc-123',
+        documentId: 'doc-123',
         customerUuid: 'cust-456',
         tenantId: 'tenant-789',
         fileName: 'clinical_note_001.pdf',
@@ -90,7 +90,7 @@ describe('ClaimMetadata Validation', () => {
 
     it('should allow document record without claim metadata', () => {
       const documentRecord: DocumentRecord = {
-        id: 'doc-456',
+        documentId: 'doc-456',
         customerUuid: 'cust-789',
         tenantId: 'tenant-123',
         fileName: 'regular_document.pdf',
@@ -249,7 +249,7 @@ describe('ClaimMetadata Validation', () => {
 
       // Simulate document creation
       const document: DocumentRecord = {
-        id: 'doc-789',
+        documentId: 'doc-789',
         customerUuid: 'cust-012',
         tenantId: 'tenant-456',
         fileName: 'cms1500_claim_012.pdf',
@@ -278,7 +278,7 @@ describe('ClaimMetadata Validation', () => {
     it('should support querying documents by claim metadata', () => {
       const documents: DocumentRecord[] = [
         {
-          id: 'doc-001',
+          documentId: 'doc-001',
           customerUuid: 'cust-013',
           tenantId: 'tenant-789',
           fileName: 'cms1500.pdf',
@@ -296,7 +296,7 @@ describe('ClaimMetadata Validation', () => {
           }
         },
         {
-          id: 'doc-002',
+          documentId: 'doc-002',
           customerUuid: 'cust-013',
           tenantId: 'tenant-789',
           fileName: 'eob.pdf',
@@ -328,7 +328,7 @@ describe('ClaimMetadata Validation', () => {
     it('should support grouping documents by patient', () => {
       const documents: DocumentRecord[] = [
         {
-          id: 'doc-003',
+          documentId: 'doc-003',
           customerUuid: 'cust-014',
           tenantId: 'tenant-012',
           fileName: 'clinical_note.pdf',
@@ -346,7 +346,7 @@ describe('ClaimMetadata Validation', () => {
           }
         },
         {
-          id: 'doc-004',
+          documentId: 'doc-004',
           customerUuid: 'cust-014',
           tenantId: 'tenant-012',
           fileName: 'radiology_report.pdf',

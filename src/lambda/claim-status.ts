@@ -95,7 +95,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       documentsProcessed: completedDocuments,
       totalDocuments,
       documents: documents.map(doc => ({
-        documentId: doc.id,
+        documentId: doc.documentId,
         fileName: doc.fileName,
         processingStatus: doc.processingStatus,
         documentType: doc.claimMetadata?.documentType,

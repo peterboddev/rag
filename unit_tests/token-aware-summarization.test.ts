@@ -25,7 +25,7 @@ describe('TokenAwareSummarizationService', () => {
     extractedText: string = 'Sample document content for testing purposes.',
     processingStatus: 'completed' | 'failed' | 'processing' = 'completed'
   ): DocumentRecord => ({
-    id,
+    documentId: id,
     customerUuid: 'test-customer',
     tenantId: 'test-tenant',
     fileName: `doc-${id}.pdf`,

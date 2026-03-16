@@ -18,7 +18,7 @@ export interface CustomerRecord {
 }
 
 export interface DocumentRecord {
-  id: string; // Document ID (partition key)
+  documentId: string; // Document ID (DynamoDB partition key)
   customerUuid: string; // Sort key for DynamoDB
   tenantId: string; // For ABAC enforcement
   fileName: string;

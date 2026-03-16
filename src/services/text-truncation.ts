@@ -90,7 +90,7 @@ export class TextTruncationService {
     const results = new Map<string, TruncatedText>();
     
     for (const doc of documents) {
-      const allocatedTokens = tokenDistribution.get(doc.id) || 0;
+      const allocatedTokens = tokenDistribution.get(doc.documentId) || 0;
       const text = doc.extractedText || '';
       
       if (allocatedTokens > 0 && text.length > 0) {
@@ -99,10 +99,10 @@ export class TextTruncationService {
           allocatedTokens, 
           TruncationStrategy.BEGINNING_AND_END
         );
-        results.set(doc.id, truncated);
+        results.set(doc.documentId, truncated);
       } else {
         // Document gets no tokens or has no content
-        results.set(doc.id, {
+        results.set(doc.documentId, {
           content: '',
           originalLength: text.length,
           truncatedLength: 0,

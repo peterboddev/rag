@@ -66,7 +66,7 @@ export class TokenEstimationService {
     
     for (const doc of documents) {
       const textLength = doc.extractedText?.length || 0;
-      documentLengths.set(doc.id, textLength);
+      documentLengths.set(doc.documentId, textLength);
       totalLength += textLength;
     }
     
@@ -74,7 +74,7 @@ export class TokenEstimationService {
     if (totalLength === 0) {
       const tokensPerDoc = Math.floor(totalTokens / documents.length);
       for (const doc of documents) {
-        distribution.set(doc.id, tokensPerDoc);
+        distribution.set(doc.documentId, tokensPerDoc);
       }
       return distribution;
     }
@@ -86,12 +86,12 @@ export class TokenEstimationService {
     for (const doc of documents) {
       if (processedDocs.size === documents.length - 1) {
         // Give remaining tokens to last document
-        distribution.set(doc.id, remainingTokens);
+        distribution.set(doc.documentId, remainingTokens);
         break;
       }
       
-      const baseWeight = documentLengths.get(doc.id)! / totalLength;
-      const customWeight = weights?.get(doc.id) || 1.0;
+      const baseWeight = documentLengths.get(doc.documentId)! / totalLength;
+      const customWeight = weights?.get(doc.documentId) || 1.0;
       const finalWeight = baseWeight * customWeight;
       
       const allocatedTokens = Math.max(
@@ -99,9 +99,9 @@ export class TokenEstimationService {
         Math.floor(totalTokens * finalWeight)
       );
       
-      distribution.set(doc.id, allocatedTokens);
+      distribution.set(doc.documentId, allocatedTokens);
       remainingTokens -= allocatedTokens;
-      processedDocs.add(doc.id);
+      processedDocs.add(doc.documentId);
     }
     
     console.log('Token distribution completed', {

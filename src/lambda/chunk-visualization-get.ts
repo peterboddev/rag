@@ -571,7 +571,7 @@ async function generateDocumentChunks(
     
     if (chunkText.trim()) {
       chunks.push({
-        id: `${document.id}-chunk-${localChunkIndex}`,
+        id: `${document.documentId}-chunk-${localChunkIndex}`,
         text: chunkText,
         metadata: {
           chunkIndex: startingChunkIndex + localChunkIndex, // Will be updated later with correct global index
@@ -585,7 +585,7 @@ async function generateDocumentChunks(
         tokenCount: Math.ceil(chunkText.length / 4),
         characterCount: chunkText.length,
         sourceDocument: {
-          documentId: document.id,
+          documentId: document.documentId,
           fileName: document.fileName || 'Unknown',
           pageNumber: 1
         }

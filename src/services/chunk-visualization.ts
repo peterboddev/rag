@@ -202,7 +202,7 @@ export class ChunkVisualizationService {
       
       if (chunkText.trim()) {
         chunks.push({
-          id: `${document.id}-chunk-${chunkIndex}`,
+          id: `${document.documentId}-chunk-${chunkIndex}`,
           text: chunkText,
           metadata: {
             chunkIndex,
@@ -216,7 +216,7 @@ export class ChunkVisualizationService {
           tokenCount: Math.ceil(chunkText.length / 4),
           characterCount: chunkText.length,
           sourceDocument: {
-            documentId: document.id,
+            documentId: document.documentId,
             fileName: document.fileName || 'Unknown',
             pageNumber: 1
           }

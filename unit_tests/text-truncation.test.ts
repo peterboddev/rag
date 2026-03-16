@@ -66,7 +66,7 @@ describe('TextTruncationService', () => {
 
   describe('truncateMultipleDocuments', () => {
     const createMockDocument = (id: string, text: string): DocumentRecord => ({
-      id,
+      documentId: id,
       customerUuid: 'test-customer',
       tenantId: 'test-tenant',
       fileName: `doc-${id}.pdf`,

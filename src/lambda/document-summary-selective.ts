@@ -170,7 +170,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // Create document references for included documents
     const includedDocuments: DocumentReference[] = processedDocuments.map(doc => ({
-      documentId: doc.id,
+      documentId: doc.documentId,
       fileName: doc.fileName,
       textLength: doc.textLength || 0
     }));
@@ -179,7 +179,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const excludedDocuments: DocumentReference[] = selectedDocuments
       .filter(doc => !processedDocuments.includes(doc))
       .map(doc => ({
-        documentId: doc.id,
+        documentId: doc.documentId,
         fileName: doc.fileName,
         textLength: doc.textLength || 0
       }));
@@ -270,7 +270,7 @@ async function getSelectedDocuments(customerUUID: string, documentIds: string[],
         const result = await dynamoClient.send(new GetCommand({
           TableName: DOCUMENTS_TABLE,
           Key: {
-            id: documentId,
+            documentId: documentId,
             customerUuid: customerUUID,
           },
         }));

@@ -17,7 +17,7 @@ describe('ContentPrioritizationService', () => {
     processingStatus: 'completed' | 'failed' | 'processing' = 'completed',
     confidence?: number
   ): DocumentRecord => ({
-    id,
+    documentId: id,
     customerUuid: 'test-customer',
     tenantId: 'test-tenant',
     fileName,
@@ -215,7 +215,7 @@ describe('ContentPrioritizationService', () => {
 
     it('should handle documents with undefined metadata', () => {
       const doc: DocumentRecord = {
-        id: '1',
+        documentId: '1',
         customerUuid: 'test-customer',
         tenantId: 'test-tenant',
         fileName: 'test.pdf',

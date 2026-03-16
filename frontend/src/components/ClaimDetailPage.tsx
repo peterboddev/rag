@@ -351,7 +351,7 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
                   )}
 
                   {/* Load Claim Button */}
-                  {!status && (
+                  {(!status || status.status === 'not_loaded') && (
                     <button
                       onClick={() => handleLoadClaim(claim.claimId)}
                       disabled={isLoadingThisClaim}

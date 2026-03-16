@@ -388,13 +388,13 @@ async function processEmbeddingsAsync(
     // Process each document
     for (const document of documents) {
       try {
-        console.log(`Processing document ${document.id} with ${chunkingMethod.id}`, { jobId });
+        console.log(`Processing document ${document.documentId} with ${chunkingMethod.id}`, { jobId });
         
         const result = await embeddingService.generateDocumentEmbeddings(document, chunkingMethod);
         
         if (result.success) {
           successCount++;
-          console.log(`Successfully generated embeddings for document ${document.id}`, {
+          console.log(`Successfully generated embeddings for document ${document.documentId}`, {
             jobId,
             embeddingCount: result.embeddingIds.length,
             chunksProcessed: result.chunksProcessed
@@ -402,7 +402,7 @@ async function processEmbeddingsAsync(
         } else {
           errorCount++;
           errors.push(`Document ${document.fileName}: ${result.errors.join(', ')}`);
-          console.error(`Failed to generate embeddings for document ${document.id}`, {
+          console.error(`Failed to generate embeddings for document ${document.documentId}`, {
             jobId,
             errors: result.errors
           });
@@ -411,7 +411,7 @@ async function processEmbeddingsAsync(
         errorCount++;
         const errorMsg = `Document ${document.fileName}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
-        console.error(`Error processing document ${document.id}:`, error, { jobId });
+        console.error(`Error processing document ${document.documentId}:`, error, { jobId });
       }
     }
 

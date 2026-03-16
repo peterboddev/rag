@@ -251,7 +251,7 @@ export class TokenAwareSummarizationService {
     let documentsTruncated = 0;
 
     for (const doc of documents) {
-      const truncated = truncatedTexts.get(doc.id);
+      const truncated = truncatedTexts.get(doc.documentId);
       if (truncated) {
         const originalTokens = this.tokenEstimator.estimateTokens(doc.extractedText || '');
         const processedTokens = this.tokenEstimator.estimateTokens(truncated.content);
@@ -264,7 +264,7 @@ export class TokenAwareSummarizationService {
         }
 
         truncationDetails.push({
-          documentId: doc.id,
+          documentId: doc.documentId,
           fileName: doc.fileName,
           originalTokens,
           processedTokens,
@@ -294,7 +294,7 @@ export class TokenAwareSummarizationService {
     const contentParts = [];
     
     for (const doc of documents) {
-      const truncated = truncatedTexts.get(doc.id);
+      const truncated = truncatedTexts.get(doc.documentId);
       if (truncated && truncated.content.trim().length > 0) {
         contentParts.push(`Document: ${doc.fileName}\nContent: ${truncated.content}`);
       }

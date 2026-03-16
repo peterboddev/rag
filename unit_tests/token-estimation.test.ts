@@ -54,7 +54,7 @@ describe('TokenEstimationService', () => {
 
   describe('distributeTokens', () => {
     const createMockDocument = (id: string, textLength: number): DocumentRecord => ({
-      id,
+      documentId: id,
       customerUuid: 'test-customer',
       tenantId: 'test-tenant',
       fileName: `doc-${id}.pdf`,

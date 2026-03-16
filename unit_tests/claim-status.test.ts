@@ -36,7 +36,7 @@ describe('Claim Status Lambda', () => {
     claimId: string,
     documentType: string
   ) => ({
-    id: documentId,
+    documentId: documentId,
     fileName,
     processingStatus,
     claimMetadata: {

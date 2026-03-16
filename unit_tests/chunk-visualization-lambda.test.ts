@@ -69,8 +69,8 @@ describe('Chunk Visualization Lambda Handler', () => {
       // Mock DynamoDB responses - QueryCommand returns Items array
       const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
       const mockSend = jest.fn()
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-1', fileName: 'document1.pdf', extractedText: 'Sample text content for document 1.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text content for document 2.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-1', fileName: 'document1.pdf', extractedText: 'Sample text content for document 1.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text content for document 2.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
       
       DynamoDBDocumentClient.from.mockReturnValue({ send: mockSend });
 
@@ -93,7 +93,7 @@ describe('Chunk Visualization Lambda Handler', () => {
       const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
       const mockSend = jest.fn()
         .mockResolvedValueOnce({ Items: [] }) // doc-1 not found
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
       
       DynamoDBDocumentClient.from.mockReturnValue({ send: mockSend });
 
@@ -178,8 +178,8 @@ describe('Chunk Visualization Lambda Handler', () => {
       // Mock DynamoDB to return documents with no text
       const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
       const mockSend = jest.fn()
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-1', fileName: 'document1.pdf', extractedText: '', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-2', fileName: 'document2.pdf', extractedText: '', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-1', fileName: 'document1.pdf', extractedText: '', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-2', fileName: 'document2.pdf', extractedText: '', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
       
       DynamoDBDocumentClient.from.mockReturnValue({ send: mockSend });
 
@@ -221,8 +221,8 @@ describe('Chunk Visualization Lambda Handler', () => {
       // Mock DynamoDB response
       const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
       const mockSend = jest.fn()
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-1', fileName: 'document1.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
-        .mockResolvedValueOnce({ Items: [{ id: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-1', fileName: 'document1.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] })
+        .mockResolvedValueOnce({ Items: [{ documentId: 'doc-2', fileName: 'document2.pdf', extractedText: 'Sample text.', customerUuid: 'test-customer-uuid', tenantId: 'test-tenant-123' }] });
       
       DynamoDBDocumentClient.from.mockReturnValue({ send: mockSend });
 

@@ -94,7 +94,7 @@ export class EmbeddingGenerationService {
 
     try {
       console.log('Starting embedding generation', {
-        documentId: document.id,
+        documentId: document.documentId,
         customerUUID: document.customerUuid,
         chunkingMethod: chunkingMethod.id,
         textLength: document.extractedText?.length || 0
@@ -102,7 +102,7 @@ export class EmbeddingGenerationService {
 
       // Update document status to indicate embedding generation in progress
       await this.updateDocumentEmbeddingStatus(
-        document.id, 
+        document.documentId, 
         document.customerUuid, 
         'pending'
       );
@@ -114,7 +114,7 @@ export class EmbeddingGenerationService {
       // Step 1: Chunk the document text
       const chunks = await this.chunkText(document.extractedText, document, chunkingMethod);
       console.log(`Created ${chunks.length} chunks for document`, {
-        documentId: document.id,
+        documentId: document.documentId,
         chunkingMethod: chunkingMethod.id
       });
 
@@ -128,7 +128,7 @@ export class EmbeddingGenerationService {
       if (embeddingIds.length > 0) {
         await this.storeEmbeddingsInVectorDB(chunks, embeddingResults.embeddings);
         console.log('Successfully stored embeddings in vector database', {
-          documentId: document.id,
+          documentId: document.documentId,
           embeddingCount: embeddingIds.length
         });
       }
@@ -136,7 +136,7 @@ export class EmbeddingGenerationService {
       // Step 4: Update document record with embedding IDs
       const finalStatus = errors.length === 0 ? 'completed' : 'failed';
       await this.updateDocumentWithEmbeddings(
-        document.id,
+        document.documentId,
         document.customerUuid,
         embeddingIds,
         finalStatus,
@@ -153,7 +153,7 @@ export class EmbeddingGenerationService {
       };
 
       console.log('Embedding generation completed', {
-        documentId: document.id,
+        documentId: document.documentId,
         success: result.success,
         embeddingCount: result.embeddingIds.length,
         chunksProcessed: result.chunksProcessed,
@@ -169,7 +169,7 @@ export class EmbeddingGenerationService {
       // Update status to failed
       try {
         await this.updateDocumentEmbeddingStatus(
-          document.id, 
+          document.documentId, 
           document.customerUuid, 
           'failed'
         );
@@ -238,7 +238,7 @@ export class EmbeddingGenerationService {
           id: randomUUID(),
           text: chunkText.trim(),
           metadata: {
-            documentId: document.id,
+            documentId: document.documentId,
             customerUUID: document.customerUuid,
             tenantId: document.tenantId,
             chunkIndex,
@@ -277,7 +277,7 @@ export class EmbeddingGenerationService {
           id: randomUUID(),
           text: paragraph.trim(),
           metadata: {
-            documentId: document.id,
+            documentId: document.documentId,
             customerUUID: document.customerUuid,
             tenantId: document.tenantId,
             chunkIndex: index,
@@ -320,7 +320,7 @@ export class EmbeddingGenerationService {
           id: randomUUID(),
           text: currentChunk.trim(),
           metadata: {
-            documentId: document.id,
+            documentId: document.documentId,
             customerUUID: document.customerUuid,
             tenantId: document.tenantId,
             chunkIndex,
@@ -341,7 +341,7 @@ export class EmbeddingGenerationService {
         id: randomUUID(),
         text: currentChunk.trim(),
         metadata: {
-          documentId: document.id,
+          documentId: document.documentId,
           customerUUID: document.customerUuid,
           tenantId: document.tenantId,
           chunkIndex,

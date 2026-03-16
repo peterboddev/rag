@@ -579,7 +579,7 @@ async function processDocument(
 
     // Create document record in DynamoDB with retry
     const documentRecord: DocumentRecord = {
-      id: documentId,
+      documentId,
       customerUuid: customerUUID,
       tenantId,
       fileName,

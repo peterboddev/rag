@@ -239,7 +239,7 @@ async function regenerateCustomerEmbeddings(
     for (const document of documentsWithText) {
       try {
         console.log('Regenerating embeddings for document', {
-          documentId: document.id,
+          documentId: document.documentId,
           fileName: document.fileName,
           textLength: document.extractedText?.length
         });
@@ -253,11 +253,11 @@ async function regenerateCustomerEmbeddings(
           documentsProcessed++;
           totalEmbeddings += embeddingResult.embeddingIds.length;
           console.log('Successfully regenerated embeddings for document', {
-            documentId: document.id,
+            documentId: document.documentId,
             embeddingCount: embeddingResult.embeddingIds.length
           });
         } else {
-          const errorMsg = `Failed to regenerate embeddings for document ${document.id}: ${embeddingResult.errors.join(', ')}`;
+          const errorMsg = `Failed to regenerate embeddings for document ${document.documentId}: ${embeddingResult.errors.join(', ')}`;
           console.error(errorMsg);
           errors.push(errorMsg);
         }
@@ -266,7 +266,7 @@ async function regenerateCustomerEmbeddings(
         await new Promise(resolve => setTimeout(resolve, 500));
 
       } catch (docError) {
-        const errorMsg = `Error processing document ${document.id}: ${docError instanceof Error ? docError.message : 'Unknown error'}`;
+        const errorMsg = `Error processing document ${document.documentId}: ${docError instanceof Error ? docError.message : 'Unknown error'}`;
         console.error(errorMsg);
         errors.push(errorMsg);
       }

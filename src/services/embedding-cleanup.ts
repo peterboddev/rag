@@ -242,7 +242,7 @@ export class EmbeddingCleanupService {
     console.log('Analyzing documents for embeddings:', {
       documentCount: documents.length,
       documents: documents.map(doc => ({
-        id: doc.id,
+        id: doc.documentId,
         fileName: doc.fileName,
         embeddingIds: doc.embeddingIds,
         embeddingStatus: doc.embeddingStatus,
@@ -254,10 +254,10 @@ export class EmbeddingCleanupService {
 
     for (const document of documents) {
       if (document.embeddingIds && document.embeddingIds.length > 0) {
-        console.log(`Document ${document.id} has ${document.embeddingIds.length} embeddings:`, document.embeddingIds);
+        console.log(`Document ${document.documentId} has ${document.embeddingIds.length} embeddings:`, document.embeddingIds);
         embeddingIds.push(...document.embeddingIds);
       } else {
-        console.log(`Document ${document.id} has no embeddings - embeddingIds:`, document.embeddingIds);
+        console.log(`Document ${document.documentId} has no embeddings - embeddingIds:`, document.embeddingIds);
       }
     }
 
@@ -430,7 +430,7 @@ export class EmbeddingCleanupService {
         // Only reprocess completed documents
         if (document.processingStatus === 'completed' && document.extractedText) {
           const message = {
-            documentId: document.id,
+            documentId: document.documentId,
             customerUUID: customerUUID,
             tenantId: tenantId,
             fileName: document.fileName,

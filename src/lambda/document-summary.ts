@@ -468,7 +468,7 @@ function mapToSummaryItem(doc: DocumentRecord): DocumentSummaryItem {
   }
 
   return {
-    documentId: doc.id,
+    documentId: doc.documentId,
     fileName: doc.fileName,
     contentType: doc.contentType,
     createdAt: doc.createdAt,
