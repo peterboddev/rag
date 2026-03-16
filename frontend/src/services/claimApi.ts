@@ -66,13 +66,13 @@ async function apiRequest<T>(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData: any = await response.json().catch(() => ({}));
       throw new Error(
         errorData.message || `API request failed: ${response.status} ${response.statusText}`
       );
     }
 
-    return await response.json();
+    return (await response.json()) as T;
   } catch (error) {
     clearTimeout(timeoutId);
     
@@ -148,11 +148,28 @@ export interface LoadClaimResponse {
   message: string;
 }
 
+export interface ClaimDocument {
+  documentId: string;
+  fileName: string;
+  documentType?: string;
+  processingStatus: 'completed' | 'processing' | 'queued' | 'failed';
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface ClaimStatusResponse {
   status: string;
   documentsProcessed: number;
   totalDocuments: number;
+  documents?: ClaimDocument[];
   errors?: string[];
+}
+
+export interface DocumentActionState {
+  [documentId: string]: {
+    isViewLoading: boolean;
+    isDownloadLoading: boolean;
+  };
 }
 
 export interface DocumentRetrievalResponse {
@@ -222,4 +239,106 @@ export async function getDocument(documentId: string): Promise<DocumentRetrieval
   return withRetry(() =>
     apiRequest<DocumentRetrievalResponse>(`/documents/${encodeURIComponent(documentId)}`)
   );
+}
+
+// Claim Summary Types
+
+export interface DataAnomaly {
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+  sourceDocument: string;
+  dataValues: Record<string, string>;
+}
+
+export interface EvaluationScores {
+  helpfulness: number;
+  faithfulness: number;
+  completeness: number;
+  anomalyAccuracy?: number;
+  evaluatedAt: string;
+}
+
+export interface ClaimSummaryResponse {
+  summary: string;
+  anomalies: DataAnomaly[];
+  strategy: string;
+  chunkingMethod?: string;
+  documentCount: number;
+  processingTime: number;
+  generatedAt: string;
+  cached: boolean;
+  cachedAt?: string;
+  evaluation?: EvaluationScores;
+}
+
+export interface ClaimEvaluationsResponse {
+  claimId: string;
+  evaluations: Array<{
+    strategy: string;
+    chunkingMethod?: string;
+    evaluation: EvaluationScores;
+  }>;
+}
+
+// Pure functions for request construction and response parsing (exported for testing)
+
+/**
+ * Builds the request configuration for a claim summary API call.
+ */
+export function buildSummaryRequest(
+  claimId: string,
+  strategy: string,
+  chunkingMethod?: string,
+  forceRegenerate?: boolean,
+  includeEvaluation?: boolean
+) {
+  return {
+    endpoint: `/claims/${encodeURIComponent(claimId)}/summary`,
+    method: 'POST' as const,
+    body: {
+      strategy,
+      ...(chunkingMethod && { chunkingMethod }),
+      ...(forceRegenerate !== undefined && { forceRegenerate }),
+      ...(includeEvaluation !== undefined && { includeEvaluation }),
+    },
+  };
+}
+
+/**
+ * Validates and parses a claim summary API response, returning errors for any missing/invalid fields.
+ */
+export function parseClaimSummaryResponse(data: any): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (typeof data.summary !== 'string') errors.push('summary must be string');
+  if (!Array.isArray(data.anomalies)) errors.push('anomalies must be array');
+  if (typeof data.strategy !== 'string') errors.push('strategy must be string');
+  if (typeof data.documentCount !== 'number') errors.push('documentCount must be number');
+  if (typeof data.processingTime !== 'number') errors.push('processingTime must be number');
+  if (typeof data.generatedAt !== 'string') errors.push('generatedAt must be string');
+  if (typeof data.cached !== 'boolean') errors.push('cached must be boolean');
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Fetches evaluation scores for all strategies that have been run on a claim.
+ */
+export async function getClaimEvaluations(claimId: string): Promise<ClaimEvaluationsResponse> {
+  return apiRequest<ClaimEvaluationsResponse>(`/claims/${encodeURIComponent(claimId)}/evaluations`);
+}
+
+/**
+ * Generates an AI-powered claim summary using the specified strategy.
+ */
+export async function getClaimSummary(
+  claimId: string,
+  strategy: string,
+  chunkingMethod?: string,
+  forceRegenerate?: boolean,
+  includeEvaluation?: boolean
+): Promise<ClaimSummaryResponse> {
+  const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation);
+  return apiRequest<ClaimSummaryResponse>(req.endpoint, {
+    method: req.method,
+    body: JSON.stringify(req.body),
+  });
 }

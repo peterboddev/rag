@@ -745,5 +745,191 @@ export class RAGApplicationStack extends cdk.Stack {
       value: claimStatusFunction.functionArn,
       description: 'Claim Status Lambda Function ARN',
     });
+
+    // ============================================================
+    // Claim Summary Feature Infrastructure
+    // ============================================================
+
+    // Summary Cache Table - stores cache metadata for claim summaries
+    // Partition key: cacheKey = {claimId}#{strategy}#{chunkingMethod}
+    const summaryCacheTable = new dynamodb.Table(this, 'SummaryCacheTable', {
+      tableName: `${applicationName}-summary-cache-${environment}`,
+      partitionKey: {
+        name: 'cacheKey',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+      timeToLiveAttribute: 'ttl',
+    });
+
+    // Add GSI for querying summaries by claimId
+    summaryCacheTable.addGlobalSecondaryIndex({
+      indexName: 'claimId-index',
+      partitionKey: {
+        name: 'claimId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Export Summary Cache Table name
+    new cdk.CfnOutput(this, 'SummaryCacheTableName', {
+      value: summaryCacheTable.tableName,
+      description: 'Summary Cache DynamoDB Table Name',
+      exportName: `${applicationName}-${environment}-summary-cache-table`,
+    });
+
+    // Summary Content Bucket - stores full summary text content
+    // Path structure: summaries/{claimId}/{strategy}/{chunkingMethod}.json
+    const summaryContentBucket = new s3.Bucket(this, 'SummaryContentBucket', {
+      bucketName: `${applicationName}-summary-content-${environment}`,
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: environment !== 'prod',
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [
+        {
+          transitions: [
+            {
+              storageClass: s3.StorageClass.INFREQUENT_ACCESS,
+              transitionAfter: cdk.Duration.days(90),
+            },
+          ],
+        },
+      ],
+    });
+
+    // Export Summary Content Bucket name
+    new cdk.CfnOutput(this, 'SummaryContentBucketName', {
+      value: summaryContentBucket.bucketName,
+      description: 'Summary Content S3 Bucket Name',
+      exportName: `${applicationName}-${environment}-summary-content-bucket`,
+    });
+
+    // Evaluation Results Table - stores evaluation scores per claim per strategy
+    // Partition key: claimId, Sort key: strategyKey = {strategy}#{chunkingMethod}
+    const evaluationResultsTable = new dynamodb.Table(this, 'EvaluationResultsTable', {
+      tableName: `${applicationName}-evaluation-results-${environment}`,
+      partitionKey: {
+        name: 'claimId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'strategyKey',
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Export Evaluation Results Table name
+    new cdk.CfnOutput(this, 'EvaluationResultsTableName', {
+      value: evaluationResultsTable.tableName,
+      description: 'Evaluation Results DynamoDB Table Name',
+      exportName: `${applicationName}-${environment}-evaluation-results-table`,
+    });
+
+    // ============================================================
+    // Claim Summary Orchestrator Lambda
+    // ============================================================
+
+    // Import Documents Table reference for granting read permissions
+    const documentsTableRef = dynamodb.Table.fromTableName(
+      this,
+      'DocumentsTableRef',
+      documentsTableName
+    );
+
+    // Claim Summary Orchestrator Lambda function
+    const claimSummaryOrchestratorFunction = new lambda.Function(this, 'ClaimSummaryOrchestratorFunction', {
+      functionName: `${applicationName}-claim-summary-orchestrator-${environment}`,
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'claim-summary-orchestrator.handler',
+      code: lambda.Code.fromAsset('dist/claim-summary-orchestrator'),
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 512,
+      role: lambdaExecutionRole,
+      environment: {
+        DOCUMENTS_TABLE: documentsTableName,
+        SUMMARY_CACHE_TABLE: summaryCacheTable.tableName,
+        SUMMARY_CONTENT_BUCKET: summaryContentBucket.bucketName,
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        BEDROCK_REGION: 'us-east-1',
+        KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
+        REGION: this.region,
+      },
+    });
+
+    // Grant DynamoDB permissions
+    documentsTableRef.grantReadData(claimSummaryOrchestratorFunction);
+    summaryCacheTable.grantReadWriteData(claimSummaryOrchestratorFunction);
+    evaluationResultsTable.grantReadWriteData(claimSummaryOrchestratorFunction);
+
+    // Grant S3 permissions
+    summaryContentBucket.grantReadWrite(claimSummaryOrchestratorFunction);
+
+    // Grant Bedrock and AgentCore permissions
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock:InvokeModel',
+      ],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
+      ],
+    }));
+
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock:InvokeAgent',
+        'bedrock-agentcore:*',
+      ],
+      resources: ['*'],
+    }));
+
+    // Export Claim Summary Orchestrator Lambda function name
+    new cdk.CfnOutput(this, 'ClaimSummaryOrchestratorFunctionName', {
+      value: claimSummaryOrchestratorFunction.functionName,
+      description: 'Claim Summary Orchestrator Lambda Function Name',
+    });
+
+    new cdk.CfnOutput(this, 'ClaimSummaryOrchestratorFunctionArn', {
+      value: claimSummaryOrchestratorFunction.functionArn,
+      description: 'Claim Summary Orchestrator Lambda Function ARN',
+    });
+
+    // ============================================================
+    // Claim Summary API Gateway Endpoints
+    // ============================================================
+
+    // POST /claims/{claimId}/summary - Generate or retrieve cached claim summary
+    const claimSummaryResource = claimResource.addResource('summary');
+    addCorsOptions(claimSummaryResource);
+    claimSummaryResource.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(claimSummaryOrchestratorFunction, { proxy: true }),
+      methodOptions
+    );
+
+    // GET /claims/{claimId}/evaluations - Retrieve evaluation scores for all strategies
+    const claimEvaluationsResource = claimResource.addResource('evaluations');
+    addCorsOptions(claimEvaluationsResource);
+    claimEvaluationsResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(claimSummaryOrchestratorFunction, { proxy: true }),
+      methodOptions
+    );
+
+    // Ensure deployment depends on new claim summary resources
+    deployment.node.addDependency(claimSummaryResource);
+    deployment.node.addDependency(claimEvaluationsResource);
   }
 }

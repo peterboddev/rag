@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getPatientDetail, loadClaim, getClaimStatus, getDocument, PatientDetail, ClaimStatusResponse } from '../services/claimApi';
+import { getPatientDetail, loadClaim, getClaimStatus, getDocument, PatientDetail, ClaimStatusResponse, ClaimDocument } from '../services/claimApi';
 import DocumentSummary from './DocumentSummary';
+import DocumentListModal from './DocumentListModal';
+import ClaimSummaryModal from './ClaimSummaryModal';
 
 interface ClaimDetailPageProps {
   patientId: string;
@@ -13,6 +15,9 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
   const [error, setError] = useState<string | null>(null);
   const [loadingClaim, setLoadingClaim] = useState<string | null>(null);
   const [claimStatuses, setClaimStatuses] = useState<Record<string, ClaimStatusResponse>>({});
+  const [documentModalClaimId, setDocumentModalClaimId] = useState<string | null>(null);
+  const [documentModalDocuments, setDocumentModalDocuments] = useState<ClaimDocument[]>([]);
+  const [summaryModalClaimId, setSummaryModalClaimId] = useState<string | null>(null);
   const pollIntervalsRef = React.useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
@@ -113,19 +118,18 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
 
   const handleViewDocuments = async (claimId: string) => {
     try {
-      // TODO: Implement document listing and viewing
-      // For now, this is a placeholder that shows the integration is ready
-      // Future implementation should:
-      // 1. Query DynamoDB for documents with claimId
-      // 2. Display list of documents
-      // 3. Allow user to click on a document to view it
-      // 4. Call getDocument(documentId) to get presigned URL
-      // 5. Open document in new tab or embedded viewer
-      
-      alert('Document viewing integration is ready. Next step: implement document listing UI.');
+      setError(null);
+      const status = await getClaimStatus(claimId);
+      setClaimStatuses((prev) => ({ ...prev, [claimId]: status }));
+      setDocumentModalDocuments(status.documents || []);
+      setDocumentModalClaimId(claimId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to view documents');
+      setError(err instanceof Error ? err.message : 'Failed to load documents');
     }
+  };
+
+  const handleSummarizeClaim = (claimId: string) => {
+    setSummaryModalClaimId(claimId);
   };
 
   const getStatusColor = (status: string): string => {
@@ -396,22 +400,38 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
                     </button>
                   )}
 
-                  {/* View Documents Button (when loaded) */}
+                  {/* View Documents and Summarize Claim Buttons (when loaded) */}
                   {status && status.status === 'completed' && (
-                    <button
-                      onClick={() => handleViewDocuments(claim.claimId)}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📄 View Documents & Summary
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => handleViewDocuments(claim.claimId)}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        📄 View Documents
+                      </button>
+                      <button
+                        onClick={() => handleSummarizeClaim(claim.claimId)}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: '#6f42c1',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        📝 Summarize Claim
+                      </button>
+                    </div>
                   )}
                 </div>
               );
@@ -420,21 +440,26 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
         )}
       </div>
 
-      {/* Document Summary Section (placeholder for integration) */}
-      {patientDetail.claims.some(claim => claimStatuses[claim.claimId]?.status === 'completed') && (
-        <div style={{ marginTop: '32px' }}>
-          <h3 style={{ marginBottom: '16px' }}>📊 Claim Summary</h3>
-          <div style={{
-            padding: '20px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0'
-          }}>
-            <p style={{ margin: 0, color: '#666' }}>
-              Integration with DocumentSummary component will display AI-generated claim summaries here.
-            </p>
-          </div>
-        </div>
+      {/* Document List Modal */}
+      {documentModalClaimId && (
+        <DocumentListModal
+          isOpen={!!documentModalClaimId}
+          onClose={() => {
+            setDocumentModalClaimId(null);
+            setDocumentModalDocuments([]);
+          }}
+          claimId={documentModalClaimId}
+          documents={documentModalDocuments}
+        />
+      )}
+
+      {/* Claim Summary Modal */}
+      {summaryModalClaimId && (
+        <ClaimSummaryModal
+          isOpen={!!summaryModalClaimId}
+          onClose={() => setSummaryModalClaimId(null)}
+          claimId={summaryModalClaimId}
+        />
       )}
     </div>
   );
