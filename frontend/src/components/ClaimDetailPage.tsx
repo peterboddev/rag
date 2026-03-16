@@ -13,9 +13,15 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
   const [error, setError] = useState<string | null>(null);
   const [loadingClaim, setLoadingClaim] = useState<string | null>(null);
   const [claimStatuses, setClaimStatuses] = useState<Record<string, ClaimStatusResponse>>({});
+  const pollIntervalsRef = React.useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
     loadPatientDetail();
+    return () => {
+      // Cleanup all polling intervals on unmount
+      pollIntervalsRef.current.forEach(clearInterval);
+      pollIntervalsRef.current = [];
+    };
   }, [patientId]);
 
   const loadPatientDetail = async () => {
@@ -57,7 +63,11 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
       
       const response = await loadClaim(patientId, claimId, customerUUID);
       
-      // Poll for status updates
+      // Poll for status updates with stale-detection
+      let lastProcessed = -1;
+      let staleCount = 0;
+      const maxStalePolls = 5; // Stop after 5 polls with no progress
+
       const pollInterval = setInterval(async () => {
         try {
           const status = await getClaimStatus(claimId);
@@ -67,17 +77,33 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
           if (status.status === 'completed' || status.status === 'failed') {
             clearInterval(pollInterval);
             setLoadingClaim(null);
+            return;
+          }
+
+          // Detect stale progress — stop polling if no documents are advancing
+          if (status.documentsProcessed === lastProcessed) {
+            staleCount++;
+          } else {
+            staleCount = 0;
+            lastProcessed = status.documentsProcessed;
+          }
+
+          if (staleCount >= maxStalePolls) {
+            clearInterval(pollInterval);
+            setLoadingClaim(null);
           }
         } catch (err) {
           console.error('Failed to poll claim status:', err);
         }
-      }, 3000); // Poll every 3 seconds
+      }, 5000); // Poll every 5 seconds (was 3)
+
+      pollIntervalsRef.current.push(pollInterval);
       
-      // Stop polling after 5 minutes
+      // Stop polling after 2 minutes max
       setTimeout(() => {
         clearInterval(pollInterval);
         setLoadingClaim(null);
-      }, 300000);
+      }, 120000);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load claim');
