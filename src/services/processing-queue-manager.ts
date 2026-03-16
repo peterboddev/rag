@@ -237,8 +237,7 @@ export class ProcessingQueueManager {
       await this.dynamoClient.send(new UpdateCommand({
         TableName: this.documentsTable,
         Key: {
-          id: documentId,
-          customerUuid: customerUUID,
+          documentId: documentId,
         },
         UpdateExpression: updateExpression,
         ExpressionAttributeValues: expressionAttributeValues,

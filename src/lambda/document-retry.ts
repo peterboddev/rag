@@ -64,8 +64,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const getResponse = await dynamoClient.send(new GetCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
     }));
 
@@ -343,8 +342,7 @@ async function updateDocumentStatus(
     await dynamoClient.send(new UpdateCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionAttributeValues,
@@ -382,8 +380,7 @@ async function updateDocumentWithText(
     await dynamoClient.send(new UpdateCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
       UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview, retryCount = :retryCount',
       ExpressionAttributeValues: {

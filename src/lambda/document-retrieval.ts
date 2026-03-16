@@ -68,7 +68,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Query DynamoDB to get document metadata
     const documentRecord = await dynamoClient.send(new GetCommand({
       TableName: DOCUMENTS_TABLE,
-      Key: { id: documentId }
+      Key: { documentId: documentId }
     }));
 
     if (!documentRecord.Item) {

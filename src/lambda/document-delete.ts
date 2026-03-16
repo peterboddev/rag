@@ -61,8 +61,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const getResponse = await dynamoClient.send(new GetCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
     }));
 
@@ -131,8 +130,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     await dynamoClient.send(new DeleteCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
     }));
 

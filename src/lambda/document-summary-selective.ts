@@ -271,7 +271,6 @@ async function getSelectedDocuments(customerUUID: string, documentIds: string[],
           TableName: DOCUMENTS_TABLE,
           Key: {
             documentId: documentId,
-            customerUuid: customerUUID,
           },
         }));
 

@@ -547,6 +547,7 @@ async function processDocument(
       CopySource: `${SOURCE_BUCKET}/${sourceKey}`,
       Key: destKey,
       ContentType: contentType,
+      MetadataDirective: 'REPLACE',
       Metadata: {
         customeruuid: customerUUID,
         tenantid: tenantId,

@@ -507,8 +507,7 @@ export class EmbeddingGenerationService {
       await this.dynamoClient.send(new UpdateCommand({
         TableName: this.documentsTable,
         Key: {
-          id: documentId,
-          customerUuid: customerUUID,
+          documentId: documentId,
         },
         UpdateExpression: 'SET embeddingIds = :embeddingIds, embeddingStatus = :status, lastEmbeddingUpdate = :timestamp, chunkingMethod = :chunkingMethod, updatedAt = :updatedAt',
         ExpressionAttributeValues: {
@@ -547,8 +546,7 @@ export class EmbeddingGenerationService {
       await this.dynamoClient.send(new UpdateCommand({
         TableName: this.documentsTable,
         Key: {
-          id: documentId,
-          customerUuid: customerUUID,
+          documentId: documentId,
         },
         UpdateExpression: 'SET embeddingStatus = :status, updatedAt = :updatedAt',
         ExpressionAttributeValues: {

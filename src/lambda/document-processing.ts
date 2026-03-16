@@ -14,7 +14,7 @@ const embeddingService = new EmbeddingGenerationService();
 const chunkingService = new ChunkingConfigurationService();
 
 const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE_NAME!;
-const PLATFORM_DOCUMENTS_BUCKET = process.env.PLATFORM_DOCUMENTS_BUCKET!;
+const PLATFORM_DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET!;
 
 export const handler = async (event: S3Event): Promise<void> => {
   console.log('Document Processing Lambda invoked', { 
@@ -247,8 +247,7 @@ async function updateDocumentStatus(
     await dynamoClient.send(new UpdateCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionAttributeValues,
@@ -286,8 +285,7 @@ async function updateDocumentWithText(
     await dynamoClient.send(new UpdateCommand({
       TableName: DOCUMENTS_TABLE,
       Key: {
-        id: documentId,
-        customerUuid: customerUUID,
+        documentId: documentId,
       },
       UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview',
       ExpressionAttributeValues: {
