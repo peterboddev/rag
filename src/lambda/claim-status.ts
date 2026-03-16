@@ -141,7 +141,7 @@ async function queryClaimDocuments(claimId: string): Promise<any[]> {
       KeyConditionExpression: 'tenantId = :tenantId',
       FilterExpression: 'claimMetadata.claimId = :claimId',
       ExpressionAttributeValues: {
-        ':tenantId': 'default', // For now, use default tenant
+        ':tenantId': 'local-dev-tenant', // Matches claim-loader's default tenant
         ':claimId': claimId,
       },
     });
@@ -159,7 +159,7 @@ async function queryClaimDocuments(claimId: string): Promise<any[]> {
         IndexName: 'tenant-documents-index',
         KeyConditionExpression: 'tenantId = :tenantId',
         ExpressionAttributeValues: {
-          ':tenantId': 'default',
+          ':tenantId': 'local-dev-tenant',
         },
       });
 
