@@ -494,6 +494,7 @@ export class RAGApplicationStack extends cdk.Stack {
 
     // Grant S3 permissions to claim loader function
     sourceBucket.grantRead(claimLoaderFunction);
+    documentsBucket.grantWrite(claimLoaderFunction);
 
     const claimStatusFunction = createLambdaFunction(
       'ClaimStatusFunction',

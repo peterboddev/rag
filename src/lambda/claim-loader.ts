@@ -145,7 +145,7 @@ async function publishMetric(metricName: string, value: number, unit: StandardUn
 
 const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE_NAME!;
 const SOURCE_BUCKET = process.env.SOURCE_BUCKET || 'medical-claims-synthetic-data-dev';
-const PLATFORM_BUCKET = process.env.PLATFORM_DOCUMENTS_BUCKET || 'rag-app-v2-documents-dev';
+const PLATFORM_BUCKET = process.env.DOCUMENTS_BUCKET || 'rag-app-v2-documents-dev';
 
 interface ClaimLoaderRequest {
   patientId: string;
