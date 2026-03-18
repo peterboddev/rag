@@ -10,6 +10,10 @@ interface DocumentItemProps {
   isRetrying: boolean;
   isDeleting: boolean;
   customerUUID: string;
+  /** Index within the document list for aria-posinset */
+  index?: number;
+  /** Total count of documents for aria-setsize */
+  totalCount?: number;
 }
 
 const DocumentItem: React.FC<DocumentItemProps> = ({
@@ -20,7 +24,9 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
   onDelete,
   isRetrying,
   isDeleting,
-  customerUUID
+  customerUUID,
+  index,
+  totalCount
 }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -29,6 +35,16 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
       case 'processing': return '⏳';
       case 'queued': return '⏸️';
       default: return '❓';
+    }
+  };
+
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case 'completed': return 'Completed';
+      case 'failed': return 'Failed';
+      case 'processing': return 'Processing';
+      case 'queued': return 'Queued';
+      default: return 'Unknown';
     }
   };
 
@@ -78,10 +94,27 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
 
   const canBeSelected = document.processingStatus === 'completed' && document.textLength && document.textLength > 0;
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === ' ' || e.key === 'Enter') && canBeSelected) {
+      e.preventDefault();
+      onSelect(document.documentId);
+    }
+  };
+
+  const statusLabel = `${getStatusText(document.processingStatus)}`;
+  const itemLabel = `${document.fileName}, ${statusLabel}${isSelected ? ', selected' : ''}`;
+
   return (
     <div 
       className={`document-item ${isSelected ? 'selected' : ''} ${document.processingStatus}`}
+      role="option"
+      aria-selected={isSelected}
+      aria-label={itemLabel}
+      aria-posinset={index !== undefined ? index + 1 : undefined}
+      aria-setsize={totalCount}
+      tabIndex={canBeSelected ? 0 : -1}
       onClick={canBeSelected ? handleCheckboxChange : undefined}
+      onKeyDown={handleKeyDown}
       style={{
         display: 'flex',
         alignItems: 'flex-start',
@@ -105,6 +138,8 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
           checked={isSelected}
           onChange={handleCheckboxChange}
           disabled={!canBeSelected || isDeleting}
+          aria-label={`Select ${document.fileName}`}
+          tabIndex={-1}
           style={{
             width: '16px',
             height: '16px',
@@ -144,8 +179,8 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
                 gap: '4px',
                 color: getStatusColor(document.processingStatus)
               }}>
-                {getStatusIcon(document.processingStatus)}
-                {document.processingStatus}
+                <span aria-hidden="true">{getStatusIcon(document.processingStatus)}</span>
+                <span>{getStatusText(document.processingStatus)}</span>
               </span>
               <span>•</span>
               <span>{formatDate(document.createdAt)}</span>
@@ -234,6 +269,7 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
           <button
             onClick={handleRetryClick}
             disabled={isRetrying || isDeleting}
+            aria-label={`Retry processing ${document.fileName}`}
             style={{
               padding: '4px 8px',
               fontSize: '11px',
@@ -253,6 +289,7 @@ const DocumentItem: React.FC<DocumentItemProps> = ({
         <button
           onClick={handleDeleteClick}
           disabled={isDeleting || isRetrying}
+          aria-label={`Delete ${document.fileName}`}
           style={{
             padding: '4px 8px',
             fontSize: '11px',

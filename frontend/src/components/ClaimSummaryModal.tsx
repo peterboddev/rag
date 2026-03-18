@@ -189,13 +189,13 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
             ? `${entry.strategy}#${entry.chunkingMethod}`
             : entry.strategy;
           map.set(key, {
-            summary: entry.summary ?? '',
-            anomalies: entry.anomalies ?? [],
+            summary: '',
+            anomalies: [],
             strategy: entry.strategy,
             chunkingMethod: entry.chunkingMethod ?? undefined,
-            documentCount: entry.documentCount ?? 0,
-            processingTime: entry.processingTime ?? 0,
-            generatedAt: entry.generatedAt ?? '',
+            documentCount: 0,
+            processingTime: 0,
+            generatedAt: '',
             cached: false,
             evaluation: entry.evaluation,
           });

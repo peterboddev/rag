@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentSummaryRequest, DocumentSummaryResponse, SelectiveSummaryRequest, SelectiveSummaryResponse, ChunkingMethod } from '../types';
 import DocumentSelectionPanel from './DocumentSelectionPanel';
 import SummaryDisplayPanel from './SummaryDisplayPanel';
 import ChunkVisualizationPanel from './ChunkVisualizationPanel';
+import NotificationContainer from './NotificationContainer';
+import { Notification } from './NotificationToast';
+
+let notificationIdCounter = 0;
 
 const DocumentSummary: React.FC = () => {
   const { tenantId } = useAuth();
@@ -18,16 +22,26 @@ const DocumentSummary: React.FC = () => {
   const [deletingDocuments, setDeletingDocuments] = useState<Set<string>>(new Set());
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [currentChunkingMethod, setCurrentChunkingMethod] = useState<ChunkingMethod | undefined>();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || 'https://0128pkytnc.execute-api.us-east-1.amazonaws.com/prod';
 
+  const addNotification = useCallback((type: Notification['type'], message: string, details?: string, actions?: Notification['actions']) => {
+    const id = `notif-${++notificationIdCounter}`;
+    setNotifications(prev => [...prev, { id, type, message, details, actions }]);
+    return id;
+  }, []);
+
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
   const handleDeleteDocument = async (documentId: string, customerUUID: string, fileName: string) => {
     if (!tenantId) {
-      setError('Missing tenant information');
+      addNotification('error', 'Missing tenant information', 'Please sign in again to continue.');
       return;
     }
 
-    // Confirm deletion
     if (!window.confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
       return;
     }
@@ -41,10 +55,7 @@ const DocumentSummary: React.FC = () => {
           'Content-Type': 'application/json',
           'X-Tenant-Id': tenantId
         },
-        body: JSON.stringify({
-          documentId,
-          customerUUID
-        })
+        body: JSON.stringify({ documentId, customerUUID })
       });
 
       const result = await response.json();
@@ -53,24 +64,24 @@ const DocumentSummary: React.FC = () => {
         throw new Error(result.error || `Delete failed: ${response.statusText}`);
       }
 
-      // Refresh the document list
       if (summaryData) {
         await refreshDocumentList();
       }
 
-      // Remove from selection if it was selected
       setSelectedDocuments(prev => {
         const newSet = new Set(prev);
         newSet.delete(documentId);
         return newSet;
       });
 
-      // Show success message
-      alert(`Document "${fileName}" deleted successfully!`);
+      addNotification('success', `Document "${fileName}" deleted successfully`);
 
     } catch (err) {
       console.error('Delete error:', err);
-      alert(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      addNotification('error', `Failed to delete "${fileName}"`, errorMsg, [
+        { label: 'Retry Delete', onClick: () => handleDeleteDocument(documentId, customerUUID, fileName) }
+      ]);
     } finally {
       setDeletingDocuments(prev => {
         const newSet = new Set(prev);
@@ -82,7 +93,7 @@ const DocumentSummary: React.FC = () => {
 
   const handleRetryDocument = async (documentId: string, customerUUID: string) => {
     if (!tenantId) {
-      setError('Missing tenant information');
+      addNotification('error', 'Missing tenant information', 'Please sign in again to continue.');
       return;
     }
 
@@ -95,10 +106,7 @@ const DocumentSummary: React.FC = () => {
           'Content-Type': 'application/json',
           'X-Tenant-Id': tenantId
         },
-        body: JSON.stringify({
-          documentId,
-          customerUUID
-        })
+        body: JSON.stringify({ documentId, customerUUID })
       });
 
       const result = await response.json();
@@ -107,17 +115,18 @@ const DocumentSummary: React.FC = () => {
         throw new Error(result.error || `Retry failed: ${response.statusText}`);
       }
 
-      // Refresh the document list
       if (summaryData) {
         await refreshDocumentList();
       }
 
-      // Show success message
-      alert(`Document retry successful! Text extracted: ${result.textLength} characters`);
+      addNotification('success', 'Document retry successful', `Text extracted: ${result.textLength} characters`);
 
     } catch (err) {
       console.error('Retry error:', err);
-      alert(`Retry failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      addNotification('error', 'Document retry failed', errorMsg, [
+        { label: 'Try Again', onClick: () => handleRetryDocument(documentId, customerUUID) }
+      ]);
     } finally {
       setRetryingDocuments(prev => {
         const newSet = new Set(prev);
@@ -222,8 +231,6 @@ const DocumentSummary: React.FC = () => {
   const handleChunkingMethodChange = (method: ChunkingMethod) => {
     console.log('Chunking method changed:', method);
     setCurrentChunkingMethod(method);
-    
-    // Clear current selections since embeddings will be regenerated
     setSelectedDocuments(new Set());
     setSelectiveSummaryData(null);
   };
@@ -231,6 +238,20 @@ const DocumentSummary: React.FC = () => {
   const handleSummarize = async () => {
     if (!summaryData || !tenantId || selectedDocuments.size === 0) {
       setSummaryError('No documents selected for summarization');
+      return;
+    }
+
+    // Req 7.4: Warn when all selected documents have no extractable text
+    const selectedDocs = summaryData.documents.filter(doc => selectedDocuments.has(doc.documentId));
+    const docsWithText = selectedDocs.filter(doc => doc.textLength && doc.textLength > 0);
+    
+    if (docsWithText.length === 0) {
+      addNotification(
+        'warning',
+        'No extractable text in selected documents',
+        'The selected documents have no text content that can be summarized. Try selecting documents with completed processing status.',
+      );
+      setSummaryError('All selected documents have no extractable text. Please select documents with available text content.');
       return;
     }
 
@@ -260,6 +281,7 @@ const DocumentSummary: React.FC = () => {
 
       const data: SelectiveSummaryResponse = await response.json();
       setSelectiveSummaryData(data);
+      addNotification('success', 'Summary generated successfully', `Processed ${data.documentCount} document(s)`);
 
     } catch (err) {
       console.error('Summarization error:', err);
@@ -269,8 +291,19 @@ const DocumentSummary: React.FC = () => {
     }
   };
 
+  const handleSummaryRetry = () => {
+    handleSummarize();
+  };
+
+  const handleClearSummaryError = () => {
+    setSummaryError(null);
+  };
+
   return (
     <div className="container">
+      {/* Notification Toast Container */}
+      <NotificationContainer notifications={notifications} onDismiss={dismissNotification} />
+
       <h2>Document Summary</h2>
       <p>Select and summarize documents for a specific customer using AI.</p>
 
@@ -294,18 +327,43 @@ const DocumentSummary: React.FC = () => {
           className="btn btn-primary"
           disabled={isLoading || !customerEmail.trim()}
         >
-          {isLoading ? 'Loading Documents...' : 'Load Documents'}
+          {isLoading ? (
+            <><span aria-hidden="true">⏳</span> Loading Documents...</>
+          ) : (
+            'Load Documents'
+          )}
         </button>
       </form>
 
+      {/* Req 7.1: Error display for document loading failures */}
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" role="alert">
           {error}
         </div>
       )}
 
+      {/* Req 7.1: No documents found message */}
+      {summaryData && summaryData.documents.length === 0 && (
+        <div style={{
+          textAlign: 'center',
+          padding: '40px 20px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '8px',
+          border: '1px solid #dee2e6',
+          marginTop: '20px'
+        }} role="status">
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+          <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: '#495057' }}>
+            No documents found for this customer
+          </div>
+          <div style={{ fontSize: '14px', color: '#6c757d', maxWidth: '400px', margin: '0 auto' }}>
+            This customer does not have any uploaded documents yet. Documents need to be uploaded and processed before they can be summarized.
+          </div>
+        </div>
+      )}
+
       {/* Three-Column Panel Layout */}
-      {summaryData && (
+      {summaryData && summaryData.documents.length > 0 && (
         <div className="three-column-layout">
           {/* Left Panel - Document Selection */}
           <div className="column column-left">
@@ -346,6 +404,8 @@ const DocumentSummary: React.FC = () => {
               summaryData={selectiveSummaryData}
               isSummarizing={isSummarizing}
               error={summaryError}
+              onRetry={handleSummaryRetry}
+              onClearError={handleClearSummaryError}
             />
           </div>
         </div>

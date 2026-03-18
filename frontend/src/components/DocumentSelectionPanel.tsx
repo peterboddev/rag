@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { DocumentSummaryItem, ChunkingMethod } from '../types';
 import DocumentItem from './DocumentItem';
 import ChunkingMethodSelector from './ChunkingMethodSelector';
@@ -57,6 +57,35 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
 
   const stats = getDocumentStats();
 
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const handleListKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!listRef.current) return;
+    const items = listRef.current.querySelectorAll<HTMLElement>('[role="option"]');
+    if (items.length === 0) return;
+
+    const currentIndex = Array.from(items).findIndex(item => item === document.activeElement);
+
+    let nextIndex = -1;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      nextIndex = items.length - 1;
+    }
+
+    if (nextIndex >= 0 && items[nextIndex]) {
+      items[nextIndex].focus();
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div style={{ 
@@ -108,25 +137,28 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
           gap: '12px', 
           fontSize: '12px',
           marginBottom: '15px'
-        }}>
+        }}
+        role="status"
+        aria-label="Document processing status summary"
+        >
           {stats.completed > 0 && (
             <span style={{ color: '#28a745' }}>
-              ✅ {stats.completed} completed
+              <span aria-hidden="true">✅</span> {stats.completed} completed
             </span>
           )}
           {stats.failed > 0 && (
             <span style={{ color: '#dc3545' }}>
-              ❌ {stats.failed} failed
+              <span aria-hidden="true">❌</span> {stats.failed} failed
             </span>
           )}
           {stats.processing > 0 && (
             <span style={{ color: '#ffc107' }}>
-              ⏳ {stats.processing} processing
+              <span aria-hidden="true">⏳</span> {stats.processing} processing
             </span>
           )}
           {stats.queued > 0 && (
             <span style={{ color: '#17a2b8' }}>
-              ⏸️ {stats.queued} queued
+              <span aria-hidden="true">⏸️</span> {stats.queued} queued
             </span>
           )}
         </div>
@@ -142,6 +174,7 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
             <button
               onClick={onSelectAll}
               disabled={allSelectableSelected || isSummarizing}
+              aria-label={`Select all ${selectableDocuments.length} documents`}
               style={{
                 padding: '6px 12px',
                 fontSize: '12px',
@@ -159,6 +192,7 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
             <button
               onClick={onSelectNone}
               disabled={!someSelected || isSummarizing}
+              aria-label="Clear document selection"
               style={{
                 padding: '6px 12px',
                 fontSize: '12px',
@@ -189,6 +223,7 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
         <button
           onClick={onSummarize}
           disabled={!someSelected || isSummarizing}
+          aria-label={someSelected ? `Summarize ${selectedDocuments.size} selected documents` : 'Select documents to summarize'}
           style={{
             width: '100%',
             padding: '12px',
@@ -235,27 +270,55 @@ const DocumentSelectionPanel: React.FC<DocumentSelectionPanelProps> = ({
             textAlign: 'center', 
             padding: '40px 20px',
             color: '#6c757d'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📄</div>
+          }}
+          role="status"
+          >
+            <div style={{ fontSize: '48px', marginBottom: '16px' }} aria-hidden="true">📄</div>
             <div style={{ fontSize: '16px', marginBottom: '8px' }}>No documents found</div>
             <div style={{ fontSize: '14px' }}>Upload some documents to get started</div>
           </div>
         ) : (
-          <div>
-            {documents.map((document) => (
-              <DocumentItem
-                key={document.documentId}
-                document={document}
-                isSelected={selectedDocuments.has(document.documentId)}
-                onSelect={onDocumentSelect}
-                onRetry={onRetry}
-                onDelete={onDelete}
-                isRetrying={retryingDocuments.has(document.documentId)}
-                isDeleting={deletingDocuments.has(document.documentId)}
-                customerUUID={customerUUID}
-              />
-            ))}
-          </div>
+          <>
+            {/* Live region for selection count announcements */}
+            <div aria-live="polite" aria-atomic="true" className="sr-only" style={{
+              position: 'absolute',
+              width: '1px',
+              height: '1px',
+              padding: 0,
+              margin: '-1px',
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0
+            }}>
+              {selectedDocuments.size > 0
+                ? `${selectedDocuments.size} of ${selectableDocuments.length} documents selected`
+                : 'No documents selected'}
+            </div>
+            <div
+              ref={listRef}
+              role="listbox"
+              aria-label="Document list"
+              aria-multiselectable="true"
+              onKeyDown={handleListKeyDown}
+            >
+              {documents.map((document, idx) => (
+                <DocumentItem
+                  key={document.documentId}
+                  document={document}
+                  isSelected={selectedDocuments.has(document.documentId)}
+                  onSelect={onDocumentSelect}
+                  onRetry={onRetry}
+                  onDelete={onDelete}
+                  isRetrying={retryingDocuments.has(document.documentId)}
+                  isDeleting={deletingDocuments.has(document.documentId)}
+                  customerUUID={customerUUID}
+                  index={idx}
+                  totalCount={documents.length}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

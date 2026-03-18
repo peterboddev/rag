@@ -190,6 +190,8 @@ code {
 }
 
 /* Responsive Design */
+
+/* Desktop - wide screens */
 @media (max-width: 1200px) {
   .three-column-layout {
     grid-template-columns: 1fr 1fr 1fr;
@@ -197,32 +199,173 @@ code {
   }
 }
 
+/* Tablet - two-column layout with summary below */
+@media (max-width: 1024px) {
+  .three-column-layout {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr auto;
+    height: auto;
+    min-height: 60vh;
+  }
+
+  .column-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .column-middle {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .column-right {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    border-right: none;
+    border-top: 1px solid #ddd;
+    min-height: 250px;
+  }
+
+  .column {
+    min-height: 300px;
+  }
+
+  .container {
+    padding: 16px;
+  }
+
+  .upload-form {
+    padding: 20px;
+  }
+
+  .form-group input,
+  .form-group select {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+}
+
+/* Mobile - single column vertical stack */
 @media (max-width: 768px) {
   .three-column-layout {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     height: auto;
     min-height: 60vh;
+    margin-top: 16px;
   }
-  
+
   .column {
     border-right: none;
     border-bottom: 1px solid #ddd;
     min-height: 200px;
   }
-  
+
   .column:last-child {
     border-bottom: none;
   }
+
+  .column-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .column-middle {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .column-right {
+    grid-column: 1;
+    grid-row: 3;
+    border-top: none;
+    min-height: 200px;
+  }
+
+  .container {
+    padding: 12px;
+  }
+
+  .upload-form {
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  /* Touch-friendly tap targets: min 44px height (WCAG 2.5.5) */
+  .btn {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 15px;
+  }
+
+  .document-item {
+    padding: 14px 12px;
+    min-height: 44px;
+  }
+
+  .document-item button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Responsive font sizes */
+  h2 {
+    font-size: 1.4rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  /* Stack document item action buttons horizontally on mobile */
+  .document-item {
+    flex-wrap: wrap;
+  }
 }
 
+/* Small mobile */
 @media (max-width: 480px) {
   .container {
-    padding: 10px;
+    padding: 8px;
   }
-  
+
   .three-column-layout {
-    margin-top: 20px;
+    margin-top: 12px;
+    border-radius: 4px;
+  }
+
+  .upload-form {
+    padding: 12px;
+    border-radius: 6px;
+  }
+
+  .btn {
+    width: 100%;
+    font-size: 14px;
+  }
+
+  .form-group label {
+    font-size: 14px;
+  }
+
+  .form-group input,
+  .form-group select {
+    padding: 12px 10px;
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  h2 {
+    font-size: 1.25rem;
+  }
+
+  /* Ensure document items don't overflow */
+  .document-item {
+    padding: 10px;
   }
 }
 /* Chunk Visualization Panel Styles */
@@ -453,9 +596,23 @@ code {
 }
 
 /* Responsive Design for Chunk Panel */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .chunk-panel-header {
     padding: 16px;
+  }
+
+  .chunk-item {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chunk-panel-header {
+    padding: 12px;
+  }
+
+  .chunk-panel-header h3 {
+    font-size: 16px;
   }
   
   .chunk-list-header {
@@ -471,6 +628,7 @@ code {
   
   .chunk-item {
     padding: 12px;
+    min-height: 44px; /* Touch-friendly tap target */
   }
   
   .chunk-header {
@@ -481,6 +639,23 @@ code {
   
   .chunk-metadata {
     gap: 8px;
+  }
+
+  .chunk-expand-btn {
+    min-height: 44px;
+    padding: 10px 0;
+    font-size: 14px;
+  }
+
+  .chunk-empty-state,
+  .chunk-loading-state,
+  .chunk-error-state {
+    padding: 24px 16px;
+  }
+
+  .empty-state-icon,
+  .error-icon {
+    font-size: 36px;
   }
 }
 /* Enhanced Chunk Item Styles */
@@ -632,6 +807,12 @@ div[style*="overflow-y: auto"] {
 }
 
 /* Responsive adjustments for metadata */
+@media (max-width: 1024px) {
+  .metadata-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .metadata-grid {
     grid-template-columns: 1fr;
@@ -645,5 +826,84 @@ div[style*="overflow-y: auto"] {
   
   .metadata-value {
     text-align: left;
+  }
+
+  .chunk-metadata-detailed {
+    padding: 12px;
+  }
+}
+
+/* Accessibility: Focus indicators (Requirement 8.4) */
+.document-item:focus-visible {
+  outline: 3px solid #005fcc;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 95, 204, 0.25);
+}
+
+.document-item:focus {
+  outline: 3px solid #005fcc;
+  outline-offset: 2px;
+}
+
+/* Accessibility: Screen reader only utility class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Accessibility: Focus indicators for buttons */
+button:focus-visible {
+  outline: 3px solid #005fcc;
+  outline-offset: 2px;
+}
+
+[role="listbox"]:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 1px;
+}
+
+/* Touch-friendly: Increase tap targets on touch devices */
+@media (pointer: coarse) {
+  .document-item {
+    padding: 14px 12px;
+    min-height: 48px;
+  }
+
+  .document-item button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 12px;
+  }
+
+  .btn {
+    min-height: 48px;
+  }
+
+  .chunk-item {
+    min-height: 48px;
+    padding: 14px;
+  }
+
+  .chunk-expand-btn {
+    min-height: 44px;
+    padding: 10px 0;
+  }
+
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  .form-group input,
+  .form-group select {
+    min-height: 44px;
+    font-size: 16px;
   }
 }

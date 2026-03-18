@@ -19,12 +19,16 @@ interface SummaryDisplayPanelProps {
   summaryData: SummaryData | null;
   isSummarizing: boolean;
   error: string | null;
+  onRetry?: () => void;
+  onClearError?: () => void;
 }
 
 const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
   summaryData,
   isSummarizing,
-  error
+  error,
+  onRetry,
+  onClearError
 }) => {
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -75,7 +79,10 @@ const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
       display: 'flex',
       flexDirection: 'column',
       height: '100%'
-    }}>
+    }}
+    role="region"
+    aria-label="AI Summary"
+    >
       {/* Header */}
       <div style={{ 
         padding: '20px',
@@ -101,7 +108,11 @@ const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
             textAlign: 'center', 
             padding: '60px 20px',
             color: '#6c757d'
-          }}>
+          }}
+          role="status"
+          aria-live="polite"
+          aria-label="Generating AI summary"
+          >
             <div style={{ 
               fontSize: '48px', 
               marginBottom: '20px',
@@ -137,9 +148,11 @@ const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
         {error && !isSummarizing && (
           <div style={{ 
             textAlign: 'center', 
-            padding: '60px 20px',
+            padding: '40px 20px',
             color: '#dc3545'
-          }}>
+          }}
+          role="alert"
+          >
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>❌</div>
             <div style={{ fontSize: '18px', marginBottom: '10px' }}>
               Summary Generation Failed
@@ -151,9 +164,65 @@ const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
               borderRadius: '6px',
               border: '1px solid #f5c6cb',
               maxWidth: '400px',
-              margin: '0 auto'
+              margin: '0 auto',
+              marginBottom: '16px'
             }}>
               {error}
+            </div>
+            <div style={{
+              fontSize: '13px',
+              color: '#6c757d',
+              maxWidth: '400px',
+              margin: '0 auto 16px',
+              textAlign: 'left',
+              backgroundColor: '#f8f9fa',
+              padding: '12px',
+              borderRadius: '6px',
+              border: '1px solid #dee2e6'
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: '8px' }}>Suggested actions:</div>
+              <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.8' }}>
+                <li>Check that selected documents have extractable text</li>
+                <li>Retry any failed documents before summarizing</li>
+                <li>Try selecting fewer documents</li>
+                <li>If the issue persists, try again in a few moments</li>
+              </ul>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  aria-label="Retry summarization"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Retry Summarization
+                </button>
+              )}
+              {onClearError && (
+                <button
+                  onClick={onClearError}
+                  aria-label="Dismiss error"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -201,6 +270,7 @@ const SummaryDisplayPanel: React.FC<SummaryDisplayPanelProps> = ({
                 </h4>
                 <button
                   onClick={handleCopyToClipboard}
+                  aria-label={copySuccess ? 'Summary copied to clipboard' : 'Copy summary to clipboard'}
                   style={{
                     padding: '6px 12px',
                     fontSize: '12px',
