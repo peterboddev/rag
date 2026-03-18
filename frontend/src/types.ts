@@ -75,6 +75,57 @@ export interface DocumentReference {
   textLength: number;
 }
 
+// Token-aware summarization types
+export interface TokenUsageInfo {
+  maxTokensAllowed: number;
+  tokensUsed: number;
+  promptOverhead: number;
+  contentTokens: number;
+  utilizationPercentage: number;
+}
+
+export interface TruncationInfo {
+  documentsProcessed: number;
+  documentsTruncated: number;
+  totalOriginalTokens: number;
+  totalProcessedTokens: number;
+  truncationStrategy: string;
+  truncationDetails: DocumentTruncationDetail[];
+}
+
+export interface DocumentTruncationDetail {
+  documentId: string;
+  fileName: string;
+  originalTokens: number;
+  processedTokens: number;
+  truncationPercentage: number;
+  contentPreserved: string[];
+}
+
+export interface SummaryProcessingMetadata {
+  chunkingConfigRetrievalTime: number;
+  tokenEstimationTime: number;
+  textProcessingTime: number;
+  summaryGenerationTime: number;
+  totalProcessingTime: number;
+  fallbacksUsed: string[];
+  cacheHits: number;
+}
+
+export interface TokenAwareSummaryResponse extends DocumentSummaryResponse {
+  tokenUsage: TokenUsageInfo;
+  truncationInfo: TruncationInfo;
+  chunkingMethod: ChunkingMethod;
+  processingMetadata: SummaryProcessingMetadata;
+}
+
+export interface TokenAwareSelectiveSummaryResponse extends SelectiveSummaryResponse {
+  tokenUsage: TokenUsageInfo;
+  truncationInfo: TruncationInfo;
+  chunkingMethod: ChunkingMethod;
+  excludedDocuments?: DocumentReference[];
+}
+
 // Knowledge Base Chunking Configuration Types
 export interface ChunkingMethod {
   id: string;
