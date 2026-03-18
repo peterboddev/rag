@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChunkItemProps } from '../types';
 
-const ChunkItem: React.FC<ChunkItemProps> = ({
+const ChunkItem: React.FC<ChunkItemProps> = React.memo(({
   chunk,
   isSelected,
   isExpanded,
@@ -87,6 +87,8 @@ const ChunkItem: React.FC<ChunkItemProps> = ({
       )}
     </div>
   );
-};
+});
+
+ChunkItem.displayName = 'ChunkItem';
 
 export default ChunkItem;

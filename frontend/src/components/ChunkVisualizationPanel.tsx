@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ChunkVisualizationPanelProps, ChunkVisualizationState, DocumentChunk, ChunkVisualizationResponse, ChunkVisualizationError } from '../types';
 import ChunkItem from './ChunkItem';
+import { useChunkLazyLoading } from '../hooks/useChunkLazyLoading';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 
 const ChunkVisualizationPanel: React.FC<ChunkVisualizationPanelProps> = ({
   selectedDocuments,
@@ -214,6 +216,11 @@ const ChunkVisualizationPanel: React.FC<ChunkVisualizationPanelProps> = ({
     </div>
   );
 
+  const { visibleChunks, hasMore, isLoadingMore, sentinelRef, loadedCount, totalCount } = useChunkLazyLoading(state.chunks);
+
+  // Performance monitoring (Req 7.1, 7.3, 7.4)
+  const performanceMetrics = usePerformanceMonitor(state.chunks.length);
+
   const renderChunkList = () => (
     <div>
       <div style={{ 
@@ -234,12 +241,15 @@ const ChunkVisualizationPanel: React.FC<ChunkVisualizationPanelProps> = ({
           <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#666' }}>
             <span>Selected: {state.selectedChunks.size}</span>
             <span>Expanded: {state.expandedChunks.size}</span>
+            {totalCount > loadedCount && (
+              <span>Showing: {loadedCount} of {totalCount}</span>
+            )}
           </div>
         )}
       </div>
       
       <div>
-        {state.chunks.map((chunk) => (
+        {visibleChunks.map((chunk) => (
           <ChunkItem
             key={chunk.id}
             chunk={chunk}
@@ -249,6 +259,24 @@ const ChunkVisualizationPanel: React.FC<ChunkVisualizationPanelProps> = ({
             onToggleExpand={handleToggleExpand}
           />
         ))}
+
+        {/* Sentinel element for IntersectionObserver */}
+        {hasMore && (
+          <div ref={sentinelRef} data-testid="chunk-lazy-sentinel">
+            {isLoadingMore && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '16px',
+                color: '#666',
+                fontSize: '14px'
+              }}>
+                <span>Loading more chunks...</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

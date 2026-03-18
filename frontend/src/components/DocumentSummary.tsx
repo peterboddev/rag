@@ -4,6 +4,7 @@ import { DocumentSummaryRequest, DocumentSummaryResponse, SelectiveSummaryReques
 import DocumentSelectionPanel from './DocumentSelectionPanel';
 import SummaryDisplayPanel from './SummaryDisplayPanel';
 import ChunkVisualizationPanel from './ChunkVisualizationPanel';
+import ChunkVisualizationErrorBoundary from './ChunkVisualizationErrorBoundary';
 import NotificationContainer from './NotificationContainer';
 import { Notification } from './NotificationToast';
 
@@ -387,15 +388,17 @@ const DocumentSummary: React.FC = () => {
 
           {/* Middle Panel - Chunk Visualization */}
           <div className="column column-middle">
-            <ChunkVisualizationPanel
-              selectedDocuments={selectedDocuments}
-              documents={summaryData.documents}
-              chunkingMethod={currentChunkingMethod}
-              customerUUID={summaryData.customerUUID}
-              tenantId={tenantId || ''}
-              isLoading={isLoading}
-              onChunkSelect={(chunkId) => console.log('Chunk selected:', chunkId)}
-            />
+            <ChunkVisualizationErrorBoundary>
+              <ChunkVisualizationPanel
+                selectedDocuments={selectedDocuments}
+                documents={summaryData.documents}
+                chunkingMethod={currentChunkingMethod}
+                customerUUID={summaryData.customerUUID}
+                tenantId={tenantId || ''}
+                isLoading={isLoading}
+                onChunkSelect={(chunkId) => console.log('Chunk selected:', chunkId)}
+              />
+            </ChunkVisualizationErrorBoundary>
           </div>
 
           {/* Right Panel - Summary Display */}

@@ -2,6 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react",
     "paths": {
       "aws-amplify/auth": ["./unit_tests/__mocks__/aws-amplify-auth"]
     }
