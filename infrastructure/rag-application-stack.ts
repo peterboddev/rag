@@ -848,15 +848,10 @@ export class RAGApplicationStack extends cdk.Stack {
     );
 
     // Claim Summary Orchestrator Lambda function
-    const claimSummaryOrchestratorFunction = new lambda.Function(this, 'ClaimSummaryOrchestratorFunction', {
-      functionName: `${applicationName}-claim-summary-orchestrator-${environment}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'claim-summary-orchestrator.handler',
-      code: lambda.Code.fromAsset('dist/claim-summary-orchestrator'),
-      timeout: cdk.Duration.seconds(120),
-      memorySize: 512,
-      role: lambdaExecutionRole,
-      environment: {
+    const claimSummaryOrchestratorFunction = createLambdaFunction(
+      'ClaimSummaryOrchestratorFunction',
+      'dist/src/lambda/claim-summary-orchestrator.handler',
+      {
         DOCUMENTS_TABLE: documentsTableName,
         SUMMARY_CACHE_TABLE: summaryCacheTable.tableName,
         SUMMARY_CONTENT_BUCKET: summaryContentBucket.bucketName,
@@ -865,7 +860,9 @@ export class RAGApplicationStack extends cdk.Stack {
         KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
         REGION: this.region,
       },
-    });
+      cdk.Duration.seconds(120),
+      512
+    );
 
     // Grant DynamoDB permissions
     documentsTableRef.grantReadData(claimSummaryOrchestratorFunction);
