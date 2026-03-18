@@ -18,6 +18,7 @@
   },
   "context": {
     "environment": "dev",
+    "applicationName": "rag-app",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

@@ -11,13 +11,17 @@ import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 
+export interface RAGApplicationStackProps extends cdk.StackProps {
+  applicationName?: string;
+}
+
 export class RAGApplicationStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props?: RAGApplicationStackProps) {
     super(scope, id, props);
 
     // 1. Retrieve environment from context
     const environment = this.node.tryGetContext('environment') || 'dev';
-    const applicationName = 'rag-app';
+    const applicationName = props?.applicationName || this.node.tryGetContext('applicationName') || 'rag-app';
 
     // Parameters for platform integration with fallback for local development
     const userPoolIdParam = new cdk.CfnParameter(this, 'UserPoolId', {
@@ -36,6 +40,12 @@ export class RAGApplicationStack extends cdk.Stack {
       type: 'String',
       description: 'OpenSearch Serverless endpoint',
       default: 'https://placeholder.us-east-1.aoss.amazonaws.com'
+    });
+
+    const sourceBucketParam = new cdk.CfnParameter(this, 'SourceBucket', {
+      type: 'String',
+      description: 'Source S3 bucket for medical claims synthetic data',
+      default: `medical-claims-synthetic-data-${environment}`
     });
 
     // 2. Import platform resources via SSM
@@ -471,7 +481,7 @@ export class RAGApplicationStack extends cdk.Stack {
       'PatientListFunction',
       'dist/src/lambda/patient-list.handler',
       {
-        SOURCE_BUCKET: 'medical-claims-synthetic-data-dev',
+        SOURCE_BUCKET: sourceBucketParam.valueAsString,
         REGION: this.region,
       }
     );
@@ -480,13 +490,13 @@ export class RAGApplicationStack extends cdk.Stack {
       'PatientDetailFunction',
       'dist/src/lambda/patient-detail.handler',
       {
-        SOURCE_BUCKET: 'medical-claims-synthetic-data-dev',
+        SOURCE_BUCKET: sourceBucketParam.valueAsString,
         REGION: this.region,
       }
     );
 
     // Grant S3 permissions to patient list and detail functions
-    const sourceBucket = s3.Bucket.fromBucketName(this, 'SourceBucket', 'medical-claims-synthetic-data-dev');
+    const sourceBucket = s3.Bucket.fromBucketName(this, 'SourceBucketRef', sourceBucketParam.valueAsString);
     sourceBucket.grantRead(patientListFunction);
     sourceBucket.grantRead(patientDetailFunction);
 
@@ -494,7 +504,7 @@ export class RAGApplicationStack extends cdk.Stack {
       'ClaimLoaderFunction',
       'dist/src/lambda/claim-loader.handler',
       {
-        SOURCE_BUCKET: 'medical-claims-synthetic-data-dev',
+        SOURCE_BUCKET: sourceBucketParam.valueAsString,
         DOCUMENTS_BUCKET: documentsBucket.bucketName,
         DOCUMENTS_TABLE_NAME: documentsTable.tableName,
         REGION: this.region,
