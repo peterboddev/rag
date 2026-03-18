@@ -1,6 +1,10 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { ChunkingConfigurationService } from '../services/chunking-configuration';
 import { ChunkingConfigurationResponse } from '../types';
+import {
+  buildErrorResponse,
+  structuredLog,
+} from '../services/chunking-errors';
 
 const chunkingService = new ChunkingConfigurationService();
 
@@ -83,21 +87,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
 
   } catch (error) {
-    console.error('Error in get chunking configuration:', error);
-    
-    const statusCode = error instanceof Error && error.message.includes('not found') ? 404 : 500;
-    
-    return {
-      statusCode,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({ 
-        error: statusCode === 404 ? 'Customer not found' : 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }),
-    };
+    const tenantId = extractTenantFromToken(event);
+    const customerUUID = event.pathParameters?.customerUUID;
+    structuredLog('error', 'Error in get chunking configuration', {
+      operation: 'chunking-config-get',
+      customerUUID: customerUUID || 'unknown',
+      tenantId: tenantId || 'unknown',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
+
+    return buildErrorResponse(500, error);
   }
 };
 

@@ -3,6 +3,13 @@ import { ChunkingConfigurationService } from '../services/chunking-configuration
 import { EmbeddingCleanupService } from '../services/embedding-cleanup';
 import { EmbeddingGenerationService } from '../services/embedding-generation';
 import { ChunkingConfigurationRequest } from '../types';
+import {
+  ChunkingValidationError,
+  CleanupError,
+  ServiceUnavailableError,
+  buildErrorResponse,
+  structuredLog,
+} from '../services/chunking-errors';
 
 const chunkingService = new ChunkingConfigurationService();
 const cleanupService = new EmbeddingCleanupService();
@@ -56,26 +63,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Parse request body
     const request: ChunkingConfigurationRequest = JSON.parse(event.body || '{}');
     if (!request.chunkingMethod) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'Missing chunkingMethod in request body' }),
-      };
+      return buildErrorResponse(400, new ChunkingValidationError(
+        'Missing chunkingMethod in request body',
+        { field: 'chunkingMethod' }
+      ));
     }
 
     // Validate the chunking method
     if (!chunkingService.validateChunkingMethod(request.chunkingMethod)) {
-      return {
-        statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({ error: 'Invalid chunking method configuration' }),
-      };
+      return buildErrorResponse(400, new ChunkingValidationError(
+        'Invalid chunking method configuration',
+        { methodId: request.chunkingMethod.id, strategy: request.chunkingMethod.parameters?.strategy }
+      ));
     }
 
     // Get current configuration to check if cleanup is needed
@@ -172,21 +171,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     };
 
   } catch (error) {
-    console.error('Error in update chunking configuration:', error);
-    
-    const statusCode = error instanceof Error && error.message.includes('not found') ? 404 : 500;
-    
-    return {
-      statusCode,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: JSON.stringify({ 
-        error: statusCode === 404 ? 'Customer not found' : 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      }),
-    };
+    const tenantId = extractTenantFromToken(event);
+    const customerUUID = event.pathParameters?.customerUUID;
+    structuredLog('error', 'Error in update chunking configuration', {
+      operation: 'chunking-config-update',
+      customerUUID: customerUUID || 'unknown',
+      tenantId: tenantId || 'unknown',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+    });
+
+    return buildErrorResponse(500, error);
   }
 };
 

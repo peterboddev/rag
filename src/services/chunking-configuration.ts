@@ -1,6 +1,12 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { ChunkingMethod, CustomerRecord, SUPPORTED_CHUNKING_METHODS } from '../types';
+import {
+  ChunkingValidationError,
+  ServiceUnavailableError,
+  retryWithBackoff,
+  structuredLog,
+} from './chunking-errors';
 
 export class ChunkingConfigurationService {
   private dynamoClient: DynamoDBDocumentClient;
@@ -12,70 +18,83 @@ export class ChunkingConfigurationService {
   }
 
   /**
-   * Get the current chunking configuration for a customer
+   * Get the current chunking configuration for a customer.
+   * Retries DynamoDB reads with exponential backoff (Req 7.2).
    */
   async getCustomerChunkingConfig(customerUUID: string, tenantId: string): Promise<ChunkingMethod> {
-    try {
-      console.log('Getting chunking config for customer', { customerUUID, tenantId });
+    const logCtx = { customerUUID, tenantId, operation: 'getCustomerChunkingConfig' };
 
-      const result = await this.dynamoClient.send(new GetCommand({
-        TableName: this.customersTable,
-        Key: {
-          uuid: customerUUID
-        }
-      }));
+    try {
+      structuredLog('info', 'Getting chunking config for customer', logCtx);
+
+      const result = await retryWithBackoff(
+        () => this.dynamoClient.send(new GetCommand({
+          TableName: this.customersTable,
+          Key: { uuid: customerUUID }
+        })),
+        { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 5000 }
+      );
 
       if (!result.Item) {
         throw new Error(`Customer not found: ${customerUUID}`);
       }
 
       const customer = result.Item as CustomerRecord;
-      
-      // Verify tenant access (ABAC enforcement)
+
       if (customer.tenantId !== tenantId) {
         throw new Error(`Access denied: Customer belongs to different tenant`);
       }
-      
-      // Return configured method or default
-      const chunkingMethod = customer.chunkingMethod || this.getDefaultChunkingMethod();
-      
-      console.log('Retrieved chunking config', { 
-        customerUUID, 
-        method: chunkingMethod.id,
-        lastUpdate: customer.lastChunkingUpdate 
-      });
 
+      const chunkingMethod = customer.chunkingMethod || this.getDefaultChunkingMethod();
+
+      structuredLog('info', 'Retrieved chunking config', { ...logCtx, method: chunkingMethod.id });
       return chunkingMethod;
 
     } catch (error) {
-      console.error('Error getting customer chunking config:', error);
+      structuredLog('error', 'Error getting customer chunking config', {
+        ...logCtx,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   }
 
   /**
-   * Update the chunking configuration for a customer
+   * Update the chunking configuration for a customer.
+   * Includes rollback on failure (Req 7.4) and validation (Req 7.3).
    */
   async updateCustomerChunkingConfig(
     customerUUID: string, 
     tenantId: string, 
     method: ChunkingMethod
   ): Promise<void> {
-    try {
-      console.log('Updating chunking config for customer', { 
-        customerUUID, 
-        tenantId, 
-        newMethod: method.id 
+    const logCtx = { customerUUID, tenantId, operation: 'updateCustomerChunkingConfig', newMethod: method.id };
+
+    // Req 7.3: Validate before saving
+    if (!this.validateChunkingMethod(method)) {
+      throw new ChunkingValidationError(`Invalid chunking method: ${method.id}`, {
+        methodId: method.id,
+        strategy: method.parameters?.strategy,
       });
+    }
 
-      // Validate the chunking method
-      if (!this.validateChunkingMethod(method)) {
-        throw new Error(`Invalid chunking method: ${method.id}`);
-      }
+    // Capture previous config for rollback
+    let previousConfig: ChunkingMethod | undefined;
+    try {
+      previousConfig = await this.getCustomerChunkingConfig(customerUUID, tenantId);
+    } catch (error) {
+      // If customer not found, let the update fail naturally
+      structuredLog('warn', 'Could not retrieve previous config for rollback', {
+        ...logCtx,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
-      // Get current customer record to check for changes and verify tenant access
-      const currentConfig = await this.getCustomerChunkingConfig(customerUUID, tenantId);
-      const configChanged = currentConfig.id !== method.id;
+    const configChanged = previousConfig.id !== method.id;
+
+    try {
+      structuredLog('info', 'Updating chunking config', logCtx);
 
       const now = new Date().toISOString();
       const updateExpression = [
@@ -92,43 +111,72 @@ export class ChunkingConfigurationService {
         ':now': now
       };
 
-      // If config changed, set cleanup status to indicate cleanup needed
       if (configChanged) {
         updateExpression.push('chunkingCleanupStatus = :cleanupStatus');
         expressionAttributeValues[':cleanupStatus'] = 'none';
-        
-        console.log('Chunking method changed, cleanup will be required', {
-          customerUUID,
-          oldMethod: currentConfig.id,
-          newMethod: method.id
+
+        structuredLog('info', 'Chunking method changed, cleanup will be required', {
+          ...logCtx,
+          oldMethod: previousConfig.id,
         });
       }
 
-      await this.dynamoClient.send(new UpdateCommand({
-        TableName: this.customersTable,
-        Key: {
-          uuid: customerUUID
-        },
-        UpdateExpression: updateExpression.join(', '),
-        ExpressionAttributeValues: {
-          ...expressionAttributeValues,
-          ':tenantId': tenantId
-        },
-        ExpressionAttributeNames: {
-          '#uuid': 'uuid',
-          '#tenantId': 'tenantId'
-        },
-        ConditionExpression: 'attribute_exists(#uuid) AND #tenantId = :tenantId' // Ensure customer exists and belongs to tenant
-      }));
+      await retryWithBackoff(
+        () => this.dynamoClient.send(new UpdateCommand({
+          TableName: this.customersTable,
+          Key: { uuid: customerUUID },
+          UpdateExpression: updateExpression.join(', '),
+          ExpressionAttributeValues: {
+            ...expressionAttributeValues,
+            ':tenantId': tenantId
+          },
+          ExpressionAttributeNames: {
+            '#uuid': 'uuid',
+            '#tenantId': 'tenantId'
+          },
+          ConditionExpression: 'attribute_exists(#uuid) AND #tenantId = :tenantId'
+        })),
+        { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 5000 }
+      );
 
-      console.log('Successfully updated chunking config', { 
-        customerUUID, 
-        method: method.id,
-        configChanged 
-      });
+      structuredLog('info', 'Successfully updated chunking config', { ...logCtx, configChanged });
 
     } catch (error) {
-      console.error('Error updating customer chunking config:', error);
+      structuredLog('error', 'Failed to update chunking config, attempting rollback', {
+        ...logCtx,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+
+      // Rollback: restore previous configuration (Req 7.4)
+      if (previousConfig) {
+        try {
+          await this.dynamoClient.send(new UpdateCommand({
+            TableName: this.customersTable,
+            Key: { uuid: customerUUID },
+            UpdateExpression: 'SET chunkingMethod = :method, updatedAt = :now',
+            ExpressionAttributeValues: {
+              ':method': previousConfig,
+              ':now': new Date().toISOString(),
+              ':tenantId': tenantId,
+            },
+            ExpressionAttributeNames: {
+              '#uuid': 'uuid',
+              '#tenantId': 'tenantId',
+            },
+            ConditionExpression: 'attribute_exists(#uuid) AND #tenantId = :tenantId',
+          }));
+          structuredLog('info', 'Rollback successful, restored previous config', {
+            ...logCtx,
+            restoredMethod: previousConfig.id,
+          });
+        } catch (rollbackError) {
+          structuredLog('error', 'Rollback failed — manual intervention may be required', {
+            ...logCtx,
+            rollbackError: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          });
+        }
+      }
+
       throw error;
     }
   }

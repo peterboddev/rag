@@ -15,6 +15,7 @@ export interface CustomerRecord {
   lastChunkingUpdate?: string;
   chunkingCleanupStatus?: 'none' | 'in_progress' | 'completed' | 'failed';
   lastCleanupAt?: string;
+  currentCleanupJob?: CleanupJobInfo;
 }
 
 export interface DocumentRecord {

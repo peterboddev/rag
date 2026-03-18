@@ -6,6 +6,12 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { DocumentRecord, CleanupJobInfo } from '../types';
 import { randomUUID } from 'crypto';
+import {
+  CleanupError,
+  ServiceUnavailableError,
+  retryWithBackoff,
+  structuredLog,
+} from './chunking-errors';
 
 export interface CleanupResult {
   success: boolean;
@@ -14,6 +20,8 @@ export interface CleanupResult {
   errors: string[];
   duration: number;
   jobId: string;
+  cancelled?: boolean;
+  timedOut?: boolean;
   diagnostics?: {
     vectorDbConfigured: boolean;
     vectorDbIssue?: string;
@@ -25,6 +33,67 @@ export interface CleanupResult {
   };
 }
 
+export interface CleanupOptions {
+  timeoutMs?: number;
+  onProgress?: (progress: CleanupProgress) => void;
+}
+
+export interface CleanupProgress {
+  jobId: string;
+  phase: 'identifying' | 'removing_kb' | 'removing_vectordb' | 'clearing_refs' | 'reprocessing' | 'completed' | 'failed';
+  percentage: number;
+  embeddingsProcessed: number;
+  embeddingsTotal: number;
+  documentsProcessed: number;
+  documentsTotal: number;
+  elapsedMs: number;
+}
+
+const DEFAULT_CLEANUP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Tracks progress for a cleanup operation and supports querying current state.
+ * Requirement 8.5: real-time progress updates.
+ */
+export class CleanupProgressTracker {
+  private _progress: CleanupProgress;
+  private _onProgress?: (progress: CleanupProgress) => void;
+  private _startTime: number;
+
+  constructor(jobId: string, onProgress?: (progress: CleanupProgress) => void) {
+    this._startTime = Date.now();
+    this._onProgress = onProgress;
+    this._progress = {
+      jobId,
+      phase: 'identifying',
+      percentage: 0,
+      embeddingsProcessed: 0,
+      embeddingsTotal: 0,
+      documentsProcessed: 0,
+      documentsTotal: 0,
+      elapsedMs: 0,
+    };
+  }
+
+  get progress(): CleanupProgress {
+    return { ...this._progress, elapsedMs: Date.now() - this._startTime };
+  }
+
+  update(partial: Partial<Omit<CleanupProgress, 'jobId' | 'elapsedMs'>>): void {
+    Object.assign(this._progress, partial);
+    this._progress.elapsedMs = Date.now() - this._startTime;
+    this._onProgress?.({ ...this._progress });
+  }
+}
+
+interface QueuedCleanupItem {
+  customerUUID: string;
+  tenantId: string;
+  options?: CleanupOptions;
+  resolve: (result: CleanupResult) => void;
+  reject: (error: Error) => void;
+}
+
 export class EmbeddingCleanupService {
   private dynamoClient: DynamoDBDocumentClient;
   private bedrockClient: BedrockAgentRuntimeClient;
@@ -34,6 +103,12 @@ export class EmbeddingCleanupService {
   private customersTable: string;
   private knowledgeBaseId: string;
   private processingQueueUrl: string;
+
+  // Cleanup queue: 1 concurrent cleanup per service instance (Req 8.2)
+  private _cleanupQueue: QueuedCleanupItem[] = [];
+  private _isProcessingQueue = false;
+  // Cancellation flags keyed by jobId
+  private _cancellationFlags: Map<string, boolean> = new Map();
 
   constructor() {
     this.dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.REGION }));
@@ -55,103 +130,224 @@ export class EmbeddingCleanupService {
     this.processingQueueUrl = process.env.PROCESSING_QUEUE_URL!;
   }
 
+  /** Expose queue length for testing / monitoring */
+  get queueLength(): number {
+    return this._cleanupQueue.length;
+  }
+
   /**
-   * Clean up all embeddings for a customer
+   * Cancel a running cleanup operation by jobId.
+   * The operation will stop at the next cancellation checkpoint.
    */
-  async cleanupCustomerEmbeddings(customerUUID: string, tenantId: string): Promise<CleanupResult> {
+  cancelCleanup(jobId: string): boolean {
+    if (this._cancellationFlags.has(jobId)) {
+      this._cancellationFlags.set(jobId, true);
+      structuredLog('info', 'Cleanup cancellation requested', { operation: 'cancelCleanup', jobId });
+      return true;
+    }
+    return false;
+  }
+
+  /** Check whether a job has been cancelled */
+  private isCancelled(jobId: string): boolean {
+    return this._cancellationFlags.get(jobId) === true;
+  }
+
+  /**
+   * Enqueue a cleanup operation. Only one cleanup runs at a time per service
+   * instance to prevent resource conflicts (Req 8.2).
+   * Returns a promise that resolves when the cleanup completes.
+   */
+  enqueueCleanup(customerUUID: string, tenantId: string, options?: CleanupOptions): Promise<CleanupResult> {
+    return new Promise<CleanupResult>((resolve, reject) => {
+      this._cleanupQueue.push({ customerUUID, tenantId, options, resolve, reject });
+      structuredLog('info', 'Cleanup enqueued', {
+        operation: 'enqueueCleanup',
+        customerUUID,
+        queueLength: this._cleanupQueue.length,
+      });
+      this.processQueue();
+    });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this._isProcessingQueue) return;
+    this._isProcessingQueue = true;
+
+    while (this._cleanupQueue.length > 0) {
+      const item = this._cleanupQueue.shift()!;
+      try {
+        const result = await this.cleanupCustomerEmbeddings(item.customerUUID, item.tenantId, item.options);
+        item.resolve(result);
+      } catch (error) {
+        item.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+
+    this._isProcessingQueue = false;
+  }
+
+  /**
+   * Clean up all embeddings for a customer.
+   * Supports timeout (default 5 min), cancellation, and progress callbacks.
+   * Req 8.1: batch processing, Req 8.3: non-blocking, Req 8.5: progress updates.
+   */
+  async cleanupCustomerEmbeddings(
+    customerUUID: string,
+    tenantId: string,
+    options?: CleanupOptions,
+  ): Promise<CleanupResult> {
     const startTime = Date.now();
     const jobId = randomUUID();
     const errors: string[] = [];
     let embeddingsRemoved = 0;
     let documentsQueued = 0;
+    const timeoutMs = options?.timeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
+
+    // Register cancellation flag
+    this._cancellationFlags.set(jobId, false);
+
+    const tracker = new CleanupProgressTracker(jobId, options?.onProgress);
+
+    const checkTimeout = (): boolean => Date.now() - startTime > timeoutMs;
+    const checkCancelOrTimeout = (): { cancelled: boolean; timedOut: boolean } => ({
+      cancelled: this.isCancelled(jobId),
+      timedOut: checkTimeout(),
+    });
 
     try {
-      console.log('Starting embedding cleanup for customer', { customerUUID, tenantId, jobId });
+      structuredLog('info', 'Starting embedding cleanup for customer', {
+        operation: 'cleanupCustomerEmbeddings',
+        customerUUID,
+        tenantId,
+        jobId,
+        timeoutMs,
+      });
 
       // Update cleanup status to in_progress
       await this.updateCustomerCleanupStatus(customerUUID, tenantId, 'in_progress', jobId);
+      await this.updateCleanupJobProgress(customerUUID, tenantId, {
+        jobId,
+        status: 'in_progress',
+        startedAt: new Date(startTime).toISOString(),
+        progress: 0,
+        embeddingsToRemove: 0,
+        embeddingsRemoved: 0,
+        errors: [],
+      });
 
       // Check vector database configuration
       const vectorDbStatus = await this.checkVectorDatabaseStatus();
       if (!vectorDbStatus.isConfigured) {
-        console.warn('Vector database not properly configured', { 
-          customerUUID, 
-          endpoint: this.opensearchClient.connectionPool?.connections?.[0]?.url?.href || 'unknown',
-          issue: vectorDbStatus.issue
-        });
         errors.push(`Vector database not configured: ${vectorDbStatus.issue}`);
       }
 
+      // --- Cancellation / timeout checkpoint ---
+      const c1 = checkCancelOrTimeout();
+      if (c1.cancelled || c1.timedOut) {
+        return this.buildAbortedResult({ jobId, startTime, embeddingsRemoved, documentsQueued, errors, ...c1 });
+      }
+
       // Get all documents for the customer
+      tracker.update({ phase: 'identifying', percentage: 5 });
       const customerDocuments = await this.getCustomerDocuments(customerUUID, tenantId);
-      console.log(`Found ${customerDocuments.length} documents for cleanup`, { customerUUID });
 
       // Analyze document embedding status
       const embeddingAnalysis = this.analyzeDocumentEmbeddings(customerDocuments);
-      console.log('Document embedding analysis:', {
-        customerUUID,
-        totalDocuments: embeddingAnalysis.totalDocuments,
-        documentsWithEmbeddings: embeddingAnalysis.documentsWithEmbeddings,
-        documentsWithFailedEmbeddings: embeddingAnalysis.documentsWithFailedEmbeddings,
-        documentsWithoutEmbeddings: embeddingAnalysis.documentsWithoutEmbeddings,
-        totalEmbeddingIds: embeddingAnalysis.totalEmbeddingIds
-      });
+      tracker.update({ documentsTotal: customerDocuments.length });
 
       // Identify embeddings to remove
       const embeddingIds = await this.identifyCustomerEmbeddings(customerDocuments);
-      console.log(`Found ${embeddingIds.length} embeddings to remove`, { customerUUID });
+      tracker.update({ embeddingsTotal: embeddingIds.length, percentage: 10 });
+
+      await this.updateCleanupJobProgress(customerUUID, tenantId, {
+        jobId,
+        status: 'in_progress',
+        startedAt: new Date(startTime).toISOString(),
+        progress: 10,
+        embeddingsToRemove: embeddingIds.length,
+        embeddingsRemoved: 0,
+        errors: [],
+      });
 
       if (embeddingIds.length > 0) {
-        // Remove embeddings from AWS Bedrock Knowledge Base
-        try {
-          await this.removeEmbeddingsFromKnowledgeBase(embeddingIds);
-          console.log('Successfully removed embeddings from Knowledge Base', { 
-            customerUUID, 
-            count: embeddingIds.length 
-          });
-        } catch (error) {
-          const errorMsg = `Failed to remove embeddings from Knowledge Base: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(errorMsg, { customerUUID, error });
-          errors.push(errorMsg);
+        // --- Remove from Knowledge Base ---
+        const c2 = checkCancelOrTimeout();
+        if (c2.cancelled || c2.timedOut) {
+          return this.buildAbortedResult({ jobId, startTime, embeddingsRemoved, documentsQueued, errors, ...c2 });
         }
 
-        // Remove embeddings from Vector Database
+        tracker.update({ phase: 'removing_kb', percentage: 15 });
         try {
-          await this.removeEmbeddingsFromVectorDB(embeddingIds);
-          console.log('Successfully removed embeddings from Vector DB', { 
-            customerUUID, 
-            count: embeddingIds.length 
-          });
+          await retryWithBackoff(
+            () => this.removeEmbeddingsFromKnowledgeBase(embeddingIds),
+            { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 5000 },
+          );
+        } catch (error) {
+          errors.push(`Failed to remove embeddings from Knowledge Base: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+
+        // --- Remove from Vector DB ---
+        const c3 = checkCancelOrTimeout();
+        if (c3.cancelled || c3.timedOut) {
+          return this.buildAbortedResult({ jobId, startTime, embeddingsRemoved, documentsQueued, errors, ...c3 });
+        }
+
+        tracker.update({ phase: 'removing_vectordb', percentage: 40 });
+        try {
+          await retryWithBackoff(
+            () => this.removeEmbeddingsFromVectorDB(embeddingIds),
+            { maxRetries: 3, baseDelayMs: 100, maxDelayMs: 5000 },
+          );
           embeddingsRemoved = embeddingIds.length;
+          tracker.update({ embeddingsProcessed: embeddingsRemoved, percentage: 60 });
         } catch (error) {
-          const errorMsg = `Failed to remove embeddings from Vector DB: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(errorMsg, { customerUUID, error });
-          errors.push(errorMsg);
+          errors.push(`Failed to remove embeddings from Vector DB: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
 
-        // Clear embedding references from document records
+        // --- Clear document embedding references ---
+        const c4 = checkCancelOrTimeout();
+        if (c4.cancelled || c4.timedOut) {
+          return this.buildAbortedResult({ jobId, startTime, embeddingsRemoved, documentsQueued, errors, ...c4 });
+        }
+
+        tracker.update({ phase: 'clearing_refs', percentage: 70 });
         await this.clearDocumentEmbeddingReferences(customerDocuments);
       }
 
-      // Trigger document re-processing
+      // --- Trigger document re-processing ---
+      const c5 = checkCancelOrTimeout();
+      if (c5.cancelled || c5.timedOut) {
+        return this.buildAbortedResult({ jobId, startTime, embeddingsRemoved, documentsQueued, errors, ...c5 });
+      }
+
+      tracker.update({ phase: 'reprocessing', percentage: 80 });
       try {
         documentsQueued = await this.triggerDocumentReprocessing(customerUUID, tenantId, customerDocuments);
-        console.log('Successfully queued documents for reprocessing', { 
-          customerUUID, 
-          count: documentsQueued 
-        });
+        tracker.update({ documentsProcessed: documentsQueued, percentage: 95 });
       } catch (error) {
-        const errorMsg = `Failed to queue documents for reprocessing: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(errorMsg, { customerUUID, error });
-        errors.push(errorMsg);
+        errors.push(`Failed to queue documents for reprocessing: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
 
       // Update cleanup status
       const finalStatus = errors.length === 0 ? 'completed' : 'failed';
       await this.updateCustomerCleanupStatus(customerUUID, tenantId, finalStatus, jobId);
+      tracker.update({ phase: errors.length === 0 ? 'completed' : 'failed', percentage: 100 });
+
+      await this.updateCleanupJobProgress(customerUUID, tenantId, {
+        jobId,
+        status: finalStatus,
+        startedAt: new Date(startTime).toISOString(),
+        progress: 100,
+        embeddingsToRemove: embeddingIds?.length ?? 0,
+        embeddingsRemoved,
+        errors,
+      });
 
       const duration = Date.now() - startTime;
-      const result: CleanupResult = {
+      this._cancellationFlags.delete(jobId);
+
+      return {
         success: errors.length === 0,
         embeddingsRemoved,
         documentsQueued,
@@ -161,40 +357,25 @@ export class EmbeddingCleanupService {
         diagnostics: {
           vectorDbConfigured: vectorDbStatus.isConfigured,
           vectorDbIssue: vectorDbStatus.issue,
-          ...embeddingAnalysis
-        }
+          ...embeddingAnalysis,
+        },
       };
-
-      console.log('Embedding cleanup completed', { 
-        customerUUID, 
-        result: {
-          success: result.success,
-          embeddingsRemoved: result.embeddingsRemoved,
-          documentsQueued: result.documentsQueued,
-          errorCount: result.errors.length,
-          duration: result.duration
-        }
-      });
-
-      return result;
-
     } catch (error) {
       console.error('Critical error during embedding cleanup:', error);
-      
-      // Update status to failed
+
       try {
         await this.updateCustomerCleanupStatus(customerUUID, tenantId, 'failed', jobId);
-      } catch (statusError) {
-        console.error('Failed to update cleanup status after error:', statusError);
-      }
+      } catch (_) { /* best-effort */ }
 
-      const duration = Date.now() - startTime;
+      this._cancellationFlags.delete(jobId);
+      tracker.update({ phase: 'failed', percentage: 100 });
+
       return {
         success: false,
         embeddingsRemoved,
         documentsQueued,
         errors: [error instanceof Error ? error.message : 'Unknown critical error'],
-        duration,
+        duration: Date.now() - startTime,
         jobId,
         diagnostics: {
           vectorDbConfigured: false,
@@ -203,9 +384,71 @@ export class EmbeddingCleanupService {
           documentsWithEmbeddings: 0,
           documentsWithFailedEmbeddings: 0,
           documentsWithoutEmbeddings: 0,
-          totalEmbeddingIds: 0
-        }
+          totalEmbeddingIds: 0,
+        },
       };
+    }
+  }
+
+  /**
+   * Build a result for an aborted (cancelled / timed-out) cleanup.
+   */
+  private buildAbortedResult(ctx: {
+    jobId: string;
+    startTime: number;
+    embeddingsRemoved: number;
+    documentsQueued: number;
+    errors: string[];
+    cancelled: boolean;
+    timedOut: boolean;
+  }): CleanupResult {
+    const reason = ctx.cancelled ? 'Cleanup was cancelled' : 'Cleanup timed out';
+    this._cancellationFlags.delete(ctx.jobId);
+    return {
+      success: false,
+      embeddingsRemoved: ctx.embeddingsRemoved,
+      documentsQueued: ctx.documentsQueued,
+      errors: [...ctx.errors, reason],
+      duration: Date.now() - ctx.startTime,
+      jobId: ctx.jobId,
+      cancelled: ctx.cancelled,
+      timedOut: ctx.timedOut,
+    };
+  }
+
+  /**
+   * Persist cleanup job progress to the customer record's currentCleanupJob field.
+   * Requirement 8.5: real-time progress updates.
+   */
+  private async updateCleanupJobProgress(
+    customerUUID: string,
+    tenantId: string,
+    job: CleanupJobInfo,
+  ): Promise<void> {
+    try {
+      await this.dynamoClient.send(new UpdateCommand({
+        TableName: this.customersTable,
+        Key: { uuid: customerUUID },
+        UpdateExpression: 'SET currentCleanupJob = :job, updatedAt = :now',
+        ExpressionAttributeValues: {
+          ':job': job,
+          ':now': new Date().toISOString(),
+          ':tenantId': tenantId,
+        },
+        ExpressionAttributeNames: {
+          '#uuid': 'uuid',
+          '#tenantId': 'tenantId',
+        },
+        ConditionExpression: 'attribute_exists(#uuid) AND #tenantId = :tenantId',
+      }));
+    } catch (error) {
+      // Best-effort — don't fail the cleanup because of a progress write failure
+      structuredLog('warn', 'Failed to update cleanup job progress', {
+        operation: 'updateCleanupJobProgress',
+        customerUUID,
+        jobId: job.jobId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -590,5 +833,40 @@ export class EmbeddingCleanupService {
       documentsWithoutEmbeddings,
       totalEmbeddingIds
     };
+  }
+
+  /**
+   * Resume a previously failed or interrupted cleanup operation.
+   * Requirement 7.4: provide options to resume or rollback.
+   */
+  async resumeCleanup(customerUUID: string, tenantId: string): Promise<CleanupResult> {
+    const logCtx = { customerUUID, tenantId, operation: 'resumeCleanup' };
+    structuredLog('info', 'Resuming cleanup for customer', logCtx);
+
+    // Find documents that still have embedding references (incomplete cleanup)
+    const documents = await this.getCustomerDocuments(customerUUID, tenantId);
+    const documentsWithEmbeddings = documents.filter(
+      d => d.embeddingIds && d.embeddingIds.length > 0
+    );
+
+    if (documentsWithEmbeddings.length === 0) {
+      structuredLog('info', 'No remaining embeddings to clean up — cleanup already complete', logCtx);
+      return {
+        success: true,
+        embeddingsRemoved: 0,
+        documentsQueued: 0,
+        errors: [],
+        duration: 0,
+        jobId: randomUUID(),
+      };
+    }
+
+    structuredLog('info', 'Found documents with remaining embeddings', {
+      ...logCtx,
+      count: documentsWithEmbeddings.length,
+    });
+
+    // Re-run the full cleanup which will pick up remaining embeddings
+    return this.cleanupCustomerEmbeddings(customerUUID, tenantId);
   }
 }
