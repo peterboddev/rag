@@ -22,5 +22,6 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^aws-amplify/auth$': '<rootDir>/unit_tests/__mocks__/aws-amplify-auth.ts',
   },
 };
