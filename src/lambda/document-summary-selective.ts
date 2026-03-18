@@ -4,6 +4,7 @@ import { DynamoDBDocumentClient, QueryCommand, GetCommand } from '@aws-sdk/lib-d
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { DocumentRecord, TokenUsageInfo, TruncationInfo } from '../types';
 import { TokenAwareSummarizationService } from '../services/token-aware-summarization';
+import { filterDocumentsForSummary, ExcludedDocument } from '../services/document-summary-filter';
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.REGION }));
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || process.env.REGION });
@@ -28,7 +29,7 @@ interface SelectiveSummaryResponse {
   tokenUsage: TokenUsageInfo;
   truncationInfo: TruncationInfo;
   chunkingMethod: any;
-  excludedDocuments?: DocumentReference[];
+  excludedDocuments?: ExcludedDocument[];
 }
 
 interface DocumentReference {
@@ -128,10 +129,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Filter documents that have been processed and have extracted text
-    const processedDocuments = selectedDocuments.filter(doc => 
-      doc.processingStatus === 'completed' && doc.extractedText && doc.extractedText.trim().length > 0
-    );
+    // Filter documents by processing status and text quality
+    const { includedDocuments: processedDocuments, excludedDocuments } = filterDocumentsForSummary(selectedDocuments);
 
     if (processedDocuments.length === 0) {
       return {
@@ -144,7 +143,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           error: 'No processed documents with text content found in selection',
           message: 'Selected documents are either still processing, failed, or contain no extractable text.',
           totalSelected: selectedDocuments.length,
-          processedCount: 0
+          processedCount: 0,
+          excludedDocuments
         }),
       };
     }
@@ -169,26 +169,17 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const processingTime = Date.now() - startTime;
 
     // Create document references for included documents
-    const includedDocuments: DocumentReference[] = processedDocuments.map(doc => ({
+    const includedDocumentRefs: DocumentReference[] = processedDocuments.map(doc => ({
       documentId: doc.documentId,
       fileName: doc.fileName,
       textLength: doc.textLength || 0
     }));
 
-    // Identify excluded documents (selected but not processed)
-    const excludedDocuments: DocumentReference[] = selectedDocuments
-      .filter(doc => !processedDocuments.includes(doc))
-      .map(doc => ({
-        documentId: doc.documentId,
-        fileName: doc.fileName,
-        textLength: doc.textLength || 0
-      }));
-
     const totalTextLength = processedDocuments.reduce((sum, doc) => sum + (doc.textLength || 0), 0);
 
     const response: SelectiveSummaryResponse = {
       summary,
-      includedDocuments,
+      includedDocuments: includedDocumentRefs,
       documentCount: processedDocuments.length,
       totalTextLength,
       processingTime,

@@ -8,6 +8,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cr from 'aws-cdk-lib/custom-resources';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 
 export class RAGApplicationStack extends cdk.Stack {
@@ -225,11 +226,21 @@ export class RAGApplicationStack extends cdk.Stack {
       ],
     });
 
+    // Dead Letter Queue for failed processing messages
+    const processingDLQ = new sqs.Queue(this, 'ProcessingDLQ', {
+      visibilityTimeout: cdk.Duration.seconds(1800), // 30 min for retry inspection
+      retentionPeriod: cdk.Duration.days(14),
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+    });
+
     const processingQueue = new sqs.Queue(this, 'ProcessingQueue', {
-      // queueName removed - let CDK auto-generate to avoid conflicts
       visibilityTimeout: cdk.Duration.seconds(900),
       retentionPeriod: cdk.Duration.days(14),
       encryption: sqs.QueueEncryption.SQS_MANAGED,
+      deadLetterQueue: {
+        queue: processingDLQ,
+        maxReceiveCount: 3,
+      },
     });
 
     // 5. Create Lambda functions with imported IAM role
@@ -521,6 +532,64 @@ export class RAGApplicationStack extends cdk.Stack {
     // Grant DynamoDB read permissions to document retrieval function
     documentsTable.grantReadData(documentRetrievalFunction);
 
+    // ============================================================
+    // CloudWatch Alarms for Processing Monitoring
+    // ============================================================
+
+    // Alarm: Processing queue depth too high (> 100 messages visible)
+    new cloudwatch.Alarm(this, 'ProcessingQueueDepthAlarm', {
+      alarmDescription: 'Processing queue has more than 100 visible messages',
+      metric: processingQueue.metricApproximateNumberOfMessagesVisible({
+        period: cdk.Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 100,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    });
+
+    // Alarm: Any message in DLQ indicates processing failures
+    new cloudwatch.Alarm(this, 'ProcessingDLQAlarm', {
+      alarmDescription: 'Messages detected in processing dead letter queue - processing failures occurring',
+      metric: processingDLQ.metricApproximateNumberOfMessagesVisible({
+        period: cdk.Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 0,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    });
+
+    // Alarm: Document processing Lambda errors
+    new cloudwatch.Alarm(this, 'DocumentProcessingErrorAlarm', {
+      alarmDescription: 'Document processing Lambda function is producing errors',
+      metric: documentProcessingFunction.metricErrors({
+        period: cdk.Duration.minutes(5),
+        statistic: 'Sum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+    });
+
+    // ============================================================
+    // Textract IAM Permissions for Processing Functions
+    // ============================================================
+
+    const textractPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'textract:DetectDocumentText',
+        'textract:AnalyzeDocument',
+        'textract:GetDocumentTextDetection',
+        'textract:StartDocumentTextDetection',
+      ],
+      resources: ['*'],
+    });
+
+    documentProcessingFunction.addToRolePolicy(textractPolicy);
+    documentRetryFunction.addToRolePolicy(textractPolicy);
+
     // 6. Add API routes to imported API Gateway
     // Create resource hierarchy with Cognito authorization
     const methodOptions: apigateway.MethodOptions = {
@@ -708,6 +777,12 @@ export class RAGApplicationStack extends cdk.Stack {
       value: processingQueue.queueUrl,
       description: 'Document Processing Queue URL',
       exportName: `${applicationName}-${environment}-processing-queue-url`
+    });
+
+    new cdk.CfnOutput(this, 'ProcessingDLQUrl', {
+      value: processingDLQ.queueUrl,
+      description: 'Document Processing Dead Letter Queue URL',
+      exportName: `${applicationName}-${environment}-processing-dlq-url`
     });
 
     // Lambda function ARN outputs

@@ -4,6 +4,7 @@ import { DynamoDBDocumentClient, QueryCommand, PutCommand } from '@aws-sdk/lib-d
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { DocumentSummaryRequest, TokenAwareSummaryResponse, DocumentSummaryItem, CustomerRecord, DocumentRecord } from '../types';
 import { TokenAwareSummarizationService } from '../services/token-aware-summarization';
+import { filterDocumentsForSummary, isCacheStale, ExcludedDocument } from '../services/document-summary-filter';
 
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.REGION }));
 const bedrockClient = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || process.env.REGION });
@@ -112,10 +113,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    // Filter documents that have been processed and have extracted text
-    const processedDocuments = documents.filter(doc => 
-      doc.processingStatus === 'completed' && doc.extractedText
-    );
+    // Filter documents by processing status and text quality
+    const { includedDocuments: processedDocuments, excludedDocuments } = filterDocumentsForSummary(documents);
 
     if (processedDocuments.length === 0) {
       return {
@@ -129,47 +128,60 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           customerEmail: customer.email,
           documentCount: documents.length,
           summary: 'Documents are still being processed or no text content available.',
-          documents: documents.map(mapToSummaryItem)
+          documents: documents.map(mapToSummaryItem),
+          excludedDocuments
         }),
       };
     }
 
-    // Check cache first
+    // Check cache first — invalidate if any document was updated after cache was created
     const cacheKey = `${customer.uuid}-${processedDocuments.length}`;
     const cachedSummary = summaryCache.get(cacheKey);
     
     if (cachedSummary && (Date.now() - cachedSummary.timestamp) < SUMMARY_CACHE_TTL_MS) {
-      console.log('Returning cached summary from memory', { 
-        customerUUID: customer.uuid,
-        cacheAge: Date.now() - cachedSummary.timestamp 
-      });
-      
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'X-Cache': 'HIT-MEMORY'
-        },
-        body: JSON.stringify(cachedSummary.response),
-      };
+      // Invalidate cache if a document was retried and updated after the cache was created
+      if (!isCacheStale(documents, cachedSummary.timestamp)) {
+        console.log('Returning cached summary from memory', { 
+          customerUUID: customer.uuid,
+          cacheAge: Date.now() - cachedSummary.timestamp 
+        });
+        
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'X-Cache': 'HIT-MEMORY'
+          },
+          body: JSON.stringify({ ...cachedSummary.response, excludedDocuments }),
+        };
+      } else {
+        console.log('Memory cache invalidated — document updated after cache creation', {
+          customerUUID: customer.uuid
+        });
+        summaryCache.delete(cacheKey);
+      }
     }
 
     // Check DynamoDB cache if not in memory
     const dbCachedSummary = await getCachedSummaryFromDB(cacheKey, tenantId);
     if (dbCachedSummary) {
-      console.log('Returning cached summary from DynamoDB', { 
-        customerUUID: customer.uuid,
-        cacheAge: Date.now() - new Date(dbCachedSummary.createdAt).getTime()
-      });
+      const dbCacheTimestamp = new Date(dbCachedSummary.createdAt).getTime();
 
-      // Also store in memory cache for faster subsequent access
-      const response = JSON.parse(dbCachedSummary.response) as TokenAwareSummaryResponse;
-      summaryCache.set(cacheKey, {
-        summary: dbCachedSummary.summary,
-        timestamp: new Date(dbCachedSummary.createdAt).getTime(),
-        response
-      });
+      // Invalidate DB cache if a document was updated after it was created
+      if (!isCacheStale(documents, dbCacheTimestamp)) {
+        console.log('Returning cached summary from DynamoDB', { 
+          customerUUID: customer.uuid,
+          cacheAge: Date.now() - dbCacheTimestamp
+        });
+
+        // Also store in memory cache for faster subsequent access
+        const response = JSON.parse(dbCachedSummary.response) as TokenAwareSummaryResponse;
+        summaryCache.set(cacheKey, {
+          summary: dbCachedSummary.summary,
+          timestamp: dbCacheTimestamp,
+          response
+        });
       
       return {
         statusCode: 200,
@@ -178,8 +190,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           'Access-Control-Allow-Origin': '*',
           'X-Cache': 'HIT-DB'
         },
-        body: JSON.stringify(response),
+        body: JSON.stringify({ ...response, excludedDocuments }),
       };
+      } else {
+        console.log('DynamoDB cache invalidated — document updated after cache creation', {
+          customerUUID: customer.uuid
+        });
+      }
     }
 
     // Try to generate AI summary with fallback mechanisms
@@ -256,7 +273,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       ...(usedFallback && { 
         fallbackUsed: true,
         fallbackReason: 'AI summary generation failed, using basic metadata summary'
-      })
+      }),
+      ...(excludedDocuments.length > 0 && { excludedDocuments })
     };
 
     // Cache the successful response
@@ -278,6 +296,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       customerUUID: customer.uuid,
       documentCount: documents.length,
       processedCount: processedDocuments.length,
+      excludedCount: excludedDocuments.length,
       usedFallback,
       tokenUsage: tokenAwareResult.tokenUsage,
       truncationInfo: {
