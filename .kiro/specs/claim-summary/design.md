@@ -13,11 +13,12 @@ The feature introduces:
 
 ### Key Design Decisions
 
-1. **AgentCore Multi-Agent Architecture**: Each summarization strategy is implemented as a separate AgentCore agent, enabling:
-   - Independent scaling and optimization per strategy
-   - Built-in evaluation framework via AgentCore Evaluations
-   - LLM-as-a-Judge scoring for summary quality comparison
-   - Standardized tracing and observability via OpenTelemetry
+1. **Strands Agents SDK on AgentCore**: Each summarization strategy is implemented as a separate agent using the [Strands Agents SDK](https://strandsagents.com/) (`strands-agents`), deployed to AgentCore Runtime. Strands provides:
+   - A declarative `Agent` class with built-in tool calling, conversation management, and the agent loop
+   - Native Amazon Bedrock integration (default provider) — no manual `invoke_model` calls needed
+   - `@tool`-decorated Python functions for structured tool use (e.g., document retrieval, anomaly detection, graph construction)
+   - Built-in OpenTelemetry tracing for AgentCore Evaluations compatibility
+   - Independent scaling and optimization per strategy via AgentCore Runtime deployment
 
 2. **AgentCore Evaluations for Quality Comparison**: Use AgentCore's built-in and custom evaluators to score summaries on:
    - Helpfulness (built-in evaluator)
@@ -105,7 +106,7 @@ A lightweight Lambda function that:
 - Routes requests to the appropriate AgentCore agent based on strategy
 - Collects evaluation results and returns unified response
 
-#### 2. AgentCore Agents (3 agents)
+#### 2. AgentCore Agents (3 agents, built with Strands SDK)
 
 | Agent | Strategy | Description |
 |-------|----------|-------------|
@@ -114,10 +115,19 @@ A lightweight Lambda function that:
 | `graph-rag-summary-agent` | Graph RAG | Builds in-memory knowledge graph, extracts entities and relationships |
 
 Each agent:
+- Is built using the Strands Agents SDK (`from strands import Agent, tool`)
+- Uses `@tool`-decorated functions for document retrieval, anomaly detection, and graph operations
 - Is deployed to AgentCore Runtime
-- Emits OpenTelemetry traces for evaluation
-- Includes anomaly detection in its summarization prompt
+- Uses Bedrock Nova Pro via Strands' native `BedrockModel` provider (no manual `invoke_model` calls)
+- Emits OpenTelemetry traces for evaluation (Strands has built-in tracing support)
 - Returns structured `ClaimSummaryResponse`
+
+**Dependencies:**
+```
+strands-agents>=1.30.0
+strands-agents-tools>=0.2.22
+networkx>=3.0  # Graph RAG agent only
+```
 
 #### 3. AgentCore Evaluations
 
@@ -293,99 +303,113 @@ interface DataAnomaly {
 
 #### 2. AgentCore Agent Implementations
 
-Each agent is a Python application deployed to AgentCore Runtime using the Starter Toolkit.
+Each agent is a Python application built with the Strands Agents SDK and deployed to AgentCore Runtime. Strands handles the agent loop, tool calling, and Bedrock model integration. Each agent's domain logic (document retrieval, anomaly detection, graph construction) is exposed as `@tool`-decorated functions that the Strands agent can invoke.
 
 ```python
 # agents/full_context_agent/agent.py
-from bedrock_agentcore.runtime import Agent
-from opentelemetry import trace
+from strands import Agent, tool
+from strands.models import BedrockModel
 
-class FullContextSummaryAgent(Agent):
-    """Agent that summarizes claims using full document context."""
+@tool
+def get_claim_documents(claim_id: str) -> str:
+    """Retrieve all documents for a claim from DynamoDB.
     
-    async def invoke(self, claim_id: str) -> dict:
-        tracer = trace.get_tracer(__name__)
-        with tracer.start_as_current_span("full_context_summary") as span:
-            # 1. Retrieve all documents for claim
-            documents = await self.get_claim_documents(claim_id)
-            span.set_attribute("document_count", len(documents))
-            
-            # 2. Concatenate extracted text
-            combined_text = self.combine_document_text(documents)
-            
-            # 3. Detect anomalies
-            anomalies = await self.detect_anomalies(documents)
-            span.set_attribute("anomaly_count", len(anomalies))
-            
-            # 4. Generate summary with Bedrock Nova Pro
-            summary = await self.generate_summary(combined_text, anomalies)
-            
-            # 5. Return structured response (trace auto-captured for evaluation)
-            return {
-                "summary": summary,
-                "anomalies": anomalies,
-                "documentCount": len(documents),
-                "strategy": "full-context"
-            }
+    Args:
+        claim_id: The claim identifier to query.
+    """
+    # Query Documents_Table, return concatenated extracted text
+    ...
+
+@tool
+def detect_anomalies(documents_text: str) -> str:
+    """Detect data anomalies in claim documents.
+    
+    Args:
+        documents_text: Combined text from all claim documents.
+    """
+    # Check for chronological impossibilities, conflicting info, etc.
+    ...
+
+model = BedrockModel(
+    model_id="amazon.nova-pro-v1:0",
+    region_name="us-east-1",
+    temperature=0.3,
+    max_tokens=2000,
+)
+
+agent = Agent(
+    model=model,
+    tools=[get_claim_documents, detect_anomalies],
+    system_prompt="You are an insurance claims analyst. Retrieve documents, detect anomalies, and generate a comprehensive summary.",
+)
 ```
 
 ```python
 # agents/rag_agent/agent.py
-from bedrock_agentcore.runtime import Agent
+from strands import Agent, tool
+from strands.models import BedrockModel
 
-class RAGSummaryAgent(Agent):
-    """Agent that summarizes claims using RAG retrieval."""
+@tool
+def retrieve_chunks(claim_id: str, chunking_method: str) -> str:
+    """Query the Knowledge Base for relevant document chunks.
     
-    async def invoke(self, claim_id: str, chunking_method: str = "semantic") -> dict:
-        # 1. Query Knowledge Base for relevant chunks
-        chunks = await self.retrieve_chunks(claim_id, chunking_method)
-        
-        # 2. Detect anomalies in retrieved chunks
-        anomalies = await self.detect_anomalies_from_chunks(chunks)
-        
-        # 3. Generate summary from chunks
-        summary = await self.generate_summary(chunks, anomalies)
-        
-        return {
-            "summary": summary,
-            "anomalies": anomalies,
-            "documentCount": len(set(c.document_id for c in chunks)),
-            "strategy": "rag",
-            "chunkingMethod": chunking_method
-        }
+    Args:
+        claim_id: The claim identifier to query.
+        chunking_method: Either 'full-document' or 'semantic'.
+    """
+    # Query Bedrock Knowledge Base, return ranked chunks
+    ...
+
+@tool
+def detect_chunk_anomalies(chunks_text: str) -> str:
+    """Detect data anomalies in retrieved document chunks.
+    
+    Args:
+        chunks_text: Combined text from retrieved chunks.
+    """
+    ...
+
+model = BedrockModel(model_id="amazon.nova-pro-v1:0", region_name="us-east-1")
+
+agent = Agent(
+    model=model,
+    tools=[retrieve_chunks, detect_chunk_anomalies],
+    system_prompt="You are an insurance claims analyst using RAG retrieval.",
+)
 ```
 
 ```python
 # agents/graph_rag_agent/agent.py
-from bedrock_agentcore.runtime import Agent
-import networkx as nx  # or graphology equivalent
+from strands import Agent, tool
+from strands.models import BedrockModel
+import networkx as nx
 
-class GraphRAGSummaryAgent(Agent):
-    """Agent that summarizes claims using knowledge graph."""
+@tool
+def build_knowledge_graph(claim_id: str) -> str:
+    """Build an in-memory knowledge graph from claim documents.
     
-    async def invoke(self, claim_id: str) -> dict:
-        # 1. Retrieve documents
-        documents = await self.get_claim_documents(claim_id)
-        
-        # 2. Build in-memory knowledge graph
-        graph = self.build_knowledge_graph(documents)
-        
-        # 3. Extract entities and relationships
-        entities = self.extract_entities(graph)
-        
-        # 4. Detect anomalies via graph analysis
-        anomalies = self.detect_graph_anomalies(graph)
-        
-        # 5. Generate summary with graph context
-        summary = await self.generate_summary_with_graph(graph, anomalies)
-        
-        return {
-            "summary": summary,
-            "anomalies": anomalies,
-            "documentCount": len(documents),
-            "strategy": "graph-rag",
-            "entityCount": len(entities)
-        }
+    Args:
+        claim_id: The claim identifier to query.
+    """
+    # Retrieve docs, extract entities, build graph, return graph context
+    ...
+
+@tool
+def detect_graph_anomalies(graph_context: str) -> str:
+    """Detect anomalies via knowledge graph analysis.
+    
+    Args:
+        graph_context: Serialized graph entities and relationships.
+    """
+    ...
+
+model = BedrockModel(model_id="amazon.nova-pro-v1:0", region_name="us-east-1")
+
+agent = Agent(
+    model=model,
+    tools=[build_knowledge_graph, detect_graph_anomalies],
+    system_prompt="You are an insurance claims analyst using knowledge graph analysis.",
+)
 ```
 
 #### 3. Custom Evaluators

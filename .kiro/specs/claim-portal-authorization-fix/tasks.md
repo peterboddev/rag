@@ -61,7 +61,7 @@
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 4. Fix Bug 1 - Patient Names Display Issue
+- [x] 4. Fix Bug 1 - Patient Names Display Issue
 
   - [x] 4.1 Verify Lambda deployment status
     - Check CloudWatch logs for patient-list and patient-detail Lambda functions

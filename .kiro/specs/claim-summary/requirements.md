@@ -4,15 +4,15 @@
 
 The Claim Summary feature adds AI-powered claim summarization to the Insurance Claim Portal with multiple summarization strategies for comparison and automated quality evaluation. Currently, the ClaimDetailPage displays patient claims with a "View Documents & Summary" button that only opens a document list modal. This feature separates the button into a dedicated "View Documents" button and a new "Summarize Claim" button. The "Summarize Claim" button opens a modal where users can select from three summarization strategies: Full Context (all documents), RAG-based (with chunking method selection), and Graph RAG. 
 
-The feature uses Amazon Bedrock AgentCore to implement each strategy as a separate agent, enabling independent optimization and built-in quality evaluation via AgentCore Evaluations. Users can compare summarization quality across different approaches using evaluation scores for helpfulness, faithfulness, and completeness.
+The feature uses the Strands Agents SDK (`strands-agents`) to implement each strategy as a separate agent deployed to Amazon Bedrock AgentCore Runtime. Strands provides a declarative agent framework with built-in Bedrock model integration, tool calling via `@tool`-decorated functions, and OpenTelemetry tracing — enabling independent optimization per strategy and built-in quality evaluation via AgentCore Evaluations. Users can compare summarization quality across different approaches using evaluation scores for helpfulness, faithfulness, and completeness.
 
 ## Glossary
 
 - **ClaimDetailPage**: The React component that displays patient information and their associated insurance claims.
 - **Orchestrator_Lambda**: A lightweight AWS Lambda function that receives API requests, checks cache, and routes to the appropriate AgentCore agent.
-- **Full_Context_Agent**: An AgentCore Runtime agent that summarizes claims by passing all document text directly to the LLM.
-- **RAG_Agent**: An AgentCore Runtime agent that summarizes claims using Knowledge Base retrieval with configurable chunking methods.
-- **Graph_RAG_Agent**: An AgentCore Runtime agent that summarizes claims by building an in-memory knowledge graph of entities and relationships.
+- **Full_Context_Agent**: A Strands SDK agent (`strands.Agent`) deployed to AgentCore Runtime that summarizes claims by passing all document text directly to the LLM via `@tool`-decorated retrieval functions.
+- **RAG_Agent**: A Strands SDK agent deployed to AgentCore Runtime that summarizes claims using Knowledge Base retrieval with configurable chunking methods.
+- **Graph_RAG_Agent**: A Strands SDK agent deployed to AgentCore Runtime that summarizes claims by building an in-memory knowledge graph of entities and relationships using `@tool`-decorated graph construction functions.
 - **Claim_Summary_Modal**: A new React modal component that displays strategy selection, chunking method options, the AI-generated claim summary, evaluation scores, loading state, and error state.
 - **Claim_Summary_API**: The API Gateway endpoint (POST /claims/{claimId}/summary) that invokes the Orchestrator_Lambda.
 - **Documents_Table**: The DynamoDB table (`rag-app-documents-dev`) that stores document records including extracted text.
@@ -27,7 +27,8 @@ The feature uses Amazon Bedrock AgentCore to implement each strategy as a separa
 - **Summary_Cache_Table**: A DynamoDB table that stores summary metadata (strategy, chunkingMethod, documentCount, processingTime, timestamps, S3 key, evaluation scores) for fast cache lookups.
 - **Summary_Content_Bucket**: An S3 bucket that stores the full summary text content at the path `summaries/{claimId}/{strategy}/{chunkingMethod}.json`.
 - **Data_Anomaly_Detection**: The AI-driven analysis that identifies inconsistencies, impossible dates, contradictory information, and other data quality issues across claim documents.
-- **AgentCore_Runtime**: Amazon Bedrock AgentCore Runtime service that hosts the three summarization agents.
+- **AgentCore_Runtime**: Amazon Bedrock AgentCore Runtime service that hosts the three Strands-based summarization agents.
+- **Strands_Agents_SDK**: The Python SDK (`strands-agents`) used to build agents with declarative tool calling, native Bedrock integration, and built-in OpenTelemetry tracing. Agents use `@tool`-decorated functions for domain logic and `BedrockModel` for LLM access.
 - **AgentCore_Evaluations**: Amazon Bedrock AgentCore Evaluations service that scores summary quality using built-in and custom evaluators.
 - **Evaluation_Results_Table**: A DynamoDB table that stores evaluation scores per claim per strategy for comparison.
 - **Faithfulness_Evaluator**: A custom AgentCore evaluator that scores how accurately a summary reflects source documents without hallucinations.

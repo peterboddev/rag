@@ -93,7 +93,7 @@
 ### 1.10 Update CDK App Entry Point
 - [x] Update `infrastructure/app.ts` to instantiate `RAGApplicationStack`
 - [x] Change stack ID to `rag-app-development` (matches platform pipeline expectation)
-- [ ] Add environment context retrieval
+- [x] Add environment context retrieval
 - [x] Update stack tags with environment variable
 - [x] Remove hardcoded `dev` environment tag
 
