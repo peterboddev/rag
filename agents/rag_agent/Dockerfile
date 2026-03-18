@@ -30,4 +30,4 @@ ENV BEDROCK_REGION=us-east-1
 ENV BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 
 # Run the agent
-CMD ["python", "-m", "agent"]
+CMD ["python", "agent.py"]
