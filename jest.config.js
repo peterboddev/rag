@@ -6,6 +6,11 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.test.json',
+      diagnostics: {
+        // Ignore TS2307 (Cannot find module) for frontend files that import
+        // packages only available in frontend/node_modules (e.g. aws-amplify)
+        ignoreDiagnostics: [2307],
+      },
     }],
   },
   collectCoverageFrom: [

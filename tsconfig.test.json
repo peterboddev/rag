@@ -1,7 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "typeRoots": ["./node_modules/@types", "./unit_tests/__mocks__"]
+    "baseUrl": ".",
+    "paths": {
+      "aws-amplify/auth": ["./unit_tests/__mocks__/aws-amplify-auth"]
+    }
   },
   "include": [
     "src/**/*",
