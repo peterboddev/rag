@@ -33,7 +33,7 @@ export class RAGApplicationStack extends cdk.Stack {
     const knowledgeBaseIdParam = new cdk.CfnParameter(this, 'KnowledgeBaseId', {
       type: 'String',
       description: 'Bedrock Knowledge Base ID',
-      default: `${applicationName}-kb-${environment}`
+      default: '1LNVEQZNJD'
     });
 
     const vectorDbEndpointParam = new cdk.CfnParameter(this, 'VectorDbEndpoint', {
@@ -1106,7 +1106,18 @@ export class RAGApplicationStack extends cdk.Stack {
       effect: iam.Effect.ALLOW,
       actions: [
         'bedrock:InvokeAgent',
+        'bedrock:Retrieve',
+        'bedrock:RetrieveAndGenerate',
         'bedrock-agentcore:*',
+      ],
+      resources: ['*'],
+    }));
+
+    // Grant OpenSearch Serverless access for Knowledge Base vector search
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'aoss:APIAccessAll',
       ],
       resources: ['*'],
     }));
