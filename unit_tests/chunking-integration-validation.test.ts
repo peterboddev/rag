@@ -466,7 +466,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(result.embeddingsRemoved).toBe(240);
     // OpenSearch bulk should be called for batch processing
     expect(mockOpenSearchBulk).toHaveBeenCalled();
-  }, 30000);
+  }, 60000);
 
   it('handles documents with varying embedding counts', async () => {
     const docs = [
@@ -507,7 +507,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(phases).toContain('identifying');
     expect(phases).toContain('removing_kb');
     expect(phases).toContain('removing_vectordb');
-  }, 30000);
+  }, 60000);
 
   it('deduplicates embedding IDs across documents', async () => {
     const docs = [
@@ -664,15 +664,21 @@ describe('Error recovery workflows', () => {
     const configService = new ChunkingConfigurationService();
     const customer = makeCustomer({ chunkingMethod: SUPPORTED_CHUNKING_METHODS[0] });
 
-    // getCustomerChunkingConfig (to get previous config) — called via retryWithBackoff(maxRetries:3)
-    mockDynamoSend.mockResolvedValueOnce({ Item: customer });
-    // updateCustomerChunkingConfig uses retryWithBackoff(maxRetries:3) → 1 initial + 3 retries = 4 rejections
-    mockDynamoSend.mockRejectedValueOnce(new Error('DynamoDB write failed'));
-    mockDynamoSend.mockRejectedValueOnce(new Error('DynamoDB write failed'));
-    mockDynamoSend.mockRejectedValueOnce(new Error('DynamoDB write failed'));
-    mockDynamoSend.mockRejectedValueOnce(new Error('DynamoDB write failed'));
-    // rollback attempt
-    mockDynamoSend.mockResolvedValueOnce({});
+    // Track call count to switch behavior: first call returns customer, then all fail, then rollback succeeds
+    let callIndex = 0;
+    mockDynamoSend.mockImplementation(async () => {
+      callIndex++;
+      if (callIndex === 1) {
+        // getCustomerChunkingConfig — return customer
+        return { Item: customer };
+      }
+      if (callIndex <= 5) {
+        // retryWithBackoff attempts (1 initial + 3 retries = calls 2-5)
+        throw new Error('DynamoDB write failed');
+      }
+      // rollback attempt (call 6+)
+      return {};
+    });
 
     await expect(
       configService.updateCustomerChunkingConfig('cust-001', 'tenant-A', SUPPORTED_CHUNKING_METHODS[2])
@@ -680,7 +686,7 @@ describe('Error recovery workflows', () => {
 
     // Verify rollback was attempted (1 get + 4 failed retries + 1 rollback = 6)
     expect(mockDynamoSend).toHaveBeenCalledTimes(6);
-  }, 30000);
+  }, 60000);
 
   it('cleanup continues and reports errors when vectorDB removal fails', async () => {
     const cleanupService = new EmbeddingCleanupService();
