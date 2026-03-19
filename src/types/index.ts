@@ -59,6 +59,23 @@ export interface ClaimMetadata {
   approvedAmount?: number;
 }
 
+// Claim Status History types
+export type ClaimStatusValue = 'Submitted' | 'Under Review' | 'Approved' | 'Denied' | 'Pending Information';
+
+export interface ClaimStatusHistoryEntry {
+  claimId: string;
+  timestamp: string;       // ISO 8601
+  status: ClaimStatusValue;
+  changedBy?: string;      // agent user or system
+  note?: string;           // optional note about the change
+}
+
+export interface ClaimStatusHistoryResponse {
+  claimId: string;
+  currentStatus: ClaimStatusValue;
+  history: ClaimStatusHistoryEntry[];
+}
+
 export type ProcessingStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
 export interface TenantInfo {
