@@ -7,7 +7,7 @@ phases:
     commands:
       - echo "Installing dependencies..."
       - npm ci
-      - cd frontend && npm ci && cd ..
+      - cd frontend && npm install --no-audit --no-fund && cd ..
   
   pre_build:
     commands:
