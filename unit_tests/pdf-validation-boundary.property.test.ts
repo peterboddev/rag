@@ -132,11 +132,13 @@ describe('Feature: pdf-processing-enhancement, Property 11: Validation Boundary 
    * across many generated sizes.
    */
   it('should always produce FILE_TOO_LARGE error for files exceeding 500MB', async () => {
-    // Create one oversized buffer (500MB + 1 byte) with valid PDF content at the start
-    const basePdf = buildValidPDFBuffer('1.7');
+    // Instead of allocating a real 500MB+ buffer (which causes OOM in CI),
+    // create a small valid PDF buffer and spoof its .length to exceed the limit.
+    // The validator checks fileBuffer.length for size, while toString('binary')
+    // uses the real internal ArrayBuffer data — so content checks still work.
+    const oversizedBuffer = buildValidPDFBuffer('1.7');
     const oversizedSize = MAX_FILE_SIZE + 1;
-    const oversizedBuffer = Buffer.alloc(oversizedSize, 0);
-    basePdf.copy(oversizedBuffer, 0);
+    Object.defineProperty(oversizedBuffer, 'length', { value: oversizedSize, configurable: true });
 
     const result = await PDFValidatorService.validatePDF(oversizedBuffer, 'oversized.pdf');
 
@@ -147,7 +149,7 @@ describe('Feature: pdf-processing-enhancement, Property 11: Validation Boundary 
     expect(fileTooLargeErrors.length).toBe(1);
     expect(fileTooLargeErrors[0].severity).toBe('error');
     expect(result.isValid).toBe(false);
-  }, 120000);
+  }, 30000);
 
   /**
    * **Validates: Requirements 4.2**
