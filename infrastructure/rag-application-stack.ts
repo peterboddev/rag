@@ -751,16 +751,37 @@ export class RAGApplicationStack extends cdk.Stack {
     //
     // The deployment ID is output below for manual updates if needed
     
-    // Note: Gateway Responses for error cases (401, 403) also need CORS headers
-    // This requires manual configuration or a Custom Resource with apigateway:PUT permission:
-    //
-    // aws apigateway put-gateway-response --rest-api-id wvbm6ooz1j --response-type UNAUTHORIZED \
-    //   --region us-east-1 --response-parameters \
-    //   '{"gatewayresponse.header.Access-Control-Allow-Origin":"'"'"'*'"'"'","gatewayresponse.header.Access-Control-Allow-Headers":"'"'"'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'"'"'","gatewayresponse.header.Access-Control-Allow-Methods":"'"'"'*'"'"'"}'
-    //
-    // aws apigateway put-gateway-response --rest-api-id wvbm6ooz1j --response-type ACCESS_DENIED \
-    //   --region us-east-1 --response-parameters \
-    //   '{"gatewayresponse.header.Access-Control-Allow-Origin":"'"'"'*'"'"'","gatewayresponse.header.Access-Control-Allow-Headers":"'"'"'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'"'"'","gatewayresponse.header.Access-Control-Allow-Methods":"'"'"'*'"'"'"}'
+    // Gateway Responses — add CORS headers to API Gateway error responses (4xx/5xx)
+    // Without these, the browser blocks error responses due to missing CORS headers
+    const gatewayResponseCorsHeaders = {
+      'gatewayresponse.header.Access-Control-Allow-Origin': "'*'",
+      'gatewayresponse.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+      'gatewayresponse.header.Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
+    };
+
+    new apigateway.CfnGatewayResponse(this, 'GatewayResponseDefault4XX', {
+      restApiId: api.restApiId,
+      responseType: 'DEFAULT_4XX',
+      responseParameters: gatewayResponseCorsHeaders,
+    });
+
+    new apigateway.CfnGatewayResponse(this, 'GatewayResponseDefault5XX', {
+      restApiId: api.restApiId,
+      responseType: 'DEFAULT_5XX',
+      responseParameters: gatewayResponseCorsHeaders,
+    });
+
+    new apigateway.CfnGatewayResponse(this, 'GatewayResponseUnauthorized', {
+      restApiId: api.restApiId,
+      responseType: 'UNAUTHORIZED',
+      responseParameters: gatewayResponseCorsHeaders,
+    });
+
+    new apigateway.CfnGatewayResponse(this, 'GatewayResponseAccessDenied', {
+      restApiId: api.restApiId,
+      responseType: 'ACCESS_DENIED',
+      responseParameters: gatewayResponseCorsHeaders,
+    });
 
     // 7. Configure S3 event notifications
     documentsBucket.addEventNotification(
@@ -830,6 +851,119 @@ export class RAGApplicationStack extends cdk.Stack {
       value: claimStatusFunction.functionArn,
       description: 'Claim Status Lambda Function ARN',
     });
+
+    // ============================================================
+    // Claim Status History Infrastructure
+    // ============================================================
+
+    const statusHistoryTable = new dynamodb.Table(this, 'ClaimStatusHistoryTable', {
+      tableName: `${applicationName}-claim-status-history-${environment}`,
+      partitionKey: { name: 'claimId', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+    });
+
+    new cdk.CfnOutput(this, 'ClaimStatusHistoryTableName', {
+      value: statusHistoryTable.tableName,
+      description: 'Claim Status History DynamoDB Table Name',
+    });
+
+    const claimStatusHistoryFunction = createLambdaFunction(
+      'ClaimStatusHistoryFunction',
+      'dist/src/lambda/claim-status-history.handler',
+      {
+        STATUS_HISTORY_TABLE: statusHistoryTable.tableName,
+        REGION: this.region,
+      },
+      cdk.Duration.seconds(30),
+      256
+    );
+
+    statusHistoryTable.grantReadWriteData(claimStatusHistoryFunction);
+
+    // GET /claims/{claimId}/history
+    const claimHistoryResource = claimResource.addResource('history');
+    addCorsOptions(claimHistoryResource);
+    claimHistoryResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(claimStatusHistoryFunction, { proxy: true }),
+      methodOptions
+    );
+    // POST /claims/{claimId}/history
+    claimHistoryResource.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(claimStatusHistoryFunction, { proxy: true }),
+      methodOptions
+    );
+
+    deployment.node.addDependency(claimHistoryResource);
+
+    // ============================================================
+    // Claim Search Infrastructure
+    // ============================================================
+
+    const claimSearchFunction = createLambdaFunction(
+      'ClaimSearchFunction',
+      'dist/src/lambda/claim-search.handler',
+      {
+        DOCUMENTS_TABLE_NAME: documentsTable.tableName,
+        KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
+        BEDROCK_REGION: this.region,
+        REGION: this.region,
+      },
+      cdk.Duration.seconds(30),
+      512
+    );
+
+    // Grant Bedrock Agent Runtime permissions for Knowledge Base retrieval
+    claimSearchFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:Retrieve'],
+      resources: ['*'],
+    }));
+
+    // POST /claims/search
+    const claimSearchResource = claimsResource.addResource('search');
+    addCorsOptions(claimSearchResource);
+    claimSearchResource.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(claimSearchFunction, { proxy: true }),
+      methodOptions
+    );
+
+    deployment.node.addDependency(claimSearchResource);
+
+    // ============================================================
+    // Claim Export Infrastructure
+    // ============================================================
+
+    const claimExportFunction = createLambdaFunction(
+      'ClaimExportFunction',
+      'dist/src/lambda/claim-export-pdf.handler',
+      {
+        DOCUMENTS_TABLE_NAME: documentsTable.tableName,
+        STATUS_HISTORY_TABLE: statusHistoryTable.tableName,
+        REGION: this.region,
+      },
+      cdk.Duration.seconds(30),
+      256
+    );
+
+    statusHistoryTable.grantReadData(claimExportFunction);
+
+    // POST /claims/{claimId}/export
+    const claimExportResource = claimResource.addResource('export');
+    addCorsOptions(claimExportResource);
+    claimExportResource.addMethod(
+      'POST',
+      new apigateway.LambdaIntegration(claimExportFunction, { proxy: true }),
+      methodOptions
+    );
+
+    deployment.node.addDependency(claimExportResource);
 
     // ============================================================
     // Claim Summary Feature Infrastructure
