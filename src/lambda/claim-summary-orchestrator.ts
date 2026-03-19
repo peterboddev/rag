@@ -356,48 +356,18 @@ async function executeRagStrategy(
 }
 
 /**
- * Graph RAG strategy: extract entities and relationships, then invoke Bedrock.
+ * Graph RAG strategy: uses same prompt as other strategies for fair comparison.
+ * The differentiation is in how documents are gathered/processed, not the prompt.
  */
 async function executeGraphRagStrategy(
   documents: DocumentRecord[]
 ): Promise<{ summary: string; anomalies: DataAnomaly[] }> {
-  // Build entity-relationship context from documents
   const documentsText = documents
     .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
     .join('\n\n');
 
-  const graphPrompt = `You are an insurance claims analyst using a knowledge graph approach. 
-
-First, extract entities and relationships from the documents:
-- Entities: patients, providers, diagnoses, procedures, dates, amounts, medications
-- Relationships: patient-has-diagnosis, provider-performed-procedure, procedure-on-date, etc.
-
-Then, using the entity-relationship graph context, provide:
-
-1. A comprehensive summary that leverages entity connections to provide deeper insights.
-2. Graph-based anomaly detection - identify inconsistencies by analyzing entity relationships:
-   - Chronological impossibilities (service dates before birth dates)
-   - Contradictory relationships between entities
-   - Disconnected or orphaned entities that suggest missing information
-   - Conflicting attributes for the same entity across documents
-
-Format your response as JSON with this exact structure:
-{
-  "summary": "Your graph-aware comprehensive summary text here",
-  "anomalies": [
-    {
-      "description": "Description of the anomaly",
-      "severity": "critical|warning|info",
-      "sourceDocument": "document name",
-      "dataValues": {"key": "value"}
-    }
-  ]
-}
-
-Documents:
-${documentsText}`;
-
-  const responseText = await invokeBedrockNovaPro(graphPrompt);
+  const prompt = buildSummaryPrompt(documentsText, 'graph-rag');
+  const responseText = await invokeBedrockNovaPro(prompt);
   return parseSummaryResponse(responseText);
 }
 
