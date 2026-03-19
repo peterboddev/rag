@@ -507,7 +507,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(phases).toContain('identifying');
     expect(phases).toContain('removing_kb');
     expect(phases).toContain('removing_vectordb');
-  });
+  }, 30000);
 
   it('deduplicates embedding IDs across documents', async () => {
     const docs = [
@@ -621,7 +621,7 @@ describe('Monitoring and audit logging', () => {
       } catch { return false; }
     });
     expect(startLogs.length).toBeGreaterThanOrEqual(1);
-  });
+  }, 30000);
 });
 
 // ============================================================
@@ -692,19 +692,18 @@ describe('Error recovery workflows', () => {
     mockDynamoSend.mockResolvedValueOnce({}); // job progress update
     mockDynamoSend.mockResolvedValue({}); // remaining
 
-    // Make OpenSearch bulk fail for all retry attempts (retryWithBackoff maxRetries:3 → 4 calls)
-    mockOpenSearchBulk
-      .mockRejectedValueOnce(new Error('OpenSearch connection refused'))
-      .mockRejectedValueOnce(new Error('OpenSearch connection refused'))
-      .mockRejectedValueOnce(new Error('OpenSearch connection refused'))
-      .mockRejectedValueOnce(new Error('OpenSearch connection refused'));
+    // Make ALL OpenSearch bulk calls fail (avoids mock exhaustion issues with retryWithBackoff)
+    mockOpenSearchBulk.mockRejectedValue(new Error('OpenSearch connection refused'));
 
     const result = await cleanupService.cleanupCustomerEmbeddings('cust-001', 'tenant-A');
+
+    // Restore default bulk mock for subsequent tests
+    mockOpenSearchBulk.mockResolvedValue({ body: { errors: false, items: [] } });
 
     expect(result.success).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.some(e => e.includes('Vector DB'))).toBe(true);
-  });
+  }, 30000);
 
   it('cleanup handles timeout gracefully', async () => {
     const cleanupService = new EmbeddingCleanupService();

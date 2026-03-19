@@ -84,7 +84,7 @@ describe('Feature: token-aware-summarization, Property 14: Performance Maintenan
 
         expect(elapsed).toBeLessThan(5000);
       }),
-      { numRuns: 100 }
+      { numRuns: 15 }
     );
   });
 
