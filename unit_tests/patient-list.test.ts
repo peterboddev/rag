@@ -226,13 +226,20 @@ describe('Patient List Lambda', () => {
 
       expect(result.statusCode).toBe(200);
       const response = JSON.parse(result.body);
-      expect(response.patients).toHaveLength(1);
-      expect(response.patients[0].patientName).toBe('Unknown Patient');
+      // With no mapping, all patients are filtered out as unmapped
+      expect(response.patients).toHaveLength(0);
     });
   });
 
   describe('Pagination', () => {
     it('should support pagination with limit parameter', async () => {
+      const mockMapping = {
+        patient_mappings: [
+          { synthea_id: 's1', tcia_id: 'TCIA-001', patient_name: 'Patient One' },
+          { synthea_id: 's2', tcia_id: 'TCIA-002', patient_name: 'Patient Two' }
+        ]
+      };
+
       s3Mock.on(ListObjectsV2Command).resolves({
         CommonPrefixes: [
           { Prefix: 'patients/TCIA-001/' },
@@ -244,7 +251,7 @@ describe('Patient List Lambda', () => {
 
       s3Mock.on(GetObjectCommand).resolves({
         Body: {
-          transformToString: async () => '[]'
+          transformToString: async () => JSON.stringify(mockMapping)
         } as any
       });
 
@@ -351,6 +358,12 @@ describe('Patient List Lambda', () => {
     });
 
     it('should handle patients with no claims', async () => {
+      const mockMapping = {
+        patient_mappings: [
+          { synthea_id: 's1', tcia_id: 'TCIA-001', patient_name: 'John Doe' }
+        ]
+      };
+
       s3Mock.on(ListObjectsV2Command, {
         Prefix: 'patients/',
         Delimiter: '/'
@@ -370,7 +383,7 @@ describe('Patient List Lambda', () => {
 
       s3Mock.on(GetObjectCommand).resolves({
         Body: {
-          transformToString: async () => '[]'
+          transformToString: async () => JSON.stringify(mockMapping)
         } as any
       });
 
@@ -413,13 +426,19 @@ describe('Patient List Lambda', () => {
       const event = createMockEvent('GET');
       const result = await handler(event);
 
-      // Should still return 200 with default patient data
+      // Should still return 200 but with no patients (malformed mapping = empty map = all filtered)
       expect(result.statusCode).toBe(200);
       const response = JSON.parse(result.body);
-      expect(response.patients[0].patientName).toBe('Unknown Patient');
+      expect(response.patients).toHaveLength(0);
     });
 
     it('should handle claim counting errors gracefully', async () => {
+      const mockMapping = {
+        patient_mappings: [
+          { synthea_id: 's1', tcia_id: 'TCIA-001', patient_name: 'John Doe' }
+        ]
+      };
+
       s3Mock.on(ListObjectsV2Command, {
         Prefix: 'patients/',
         Delimiter: '/'
@@ -436,7 +455,7 @@ describe('Patient List Lambda', () => {
 
       s3Mock.on(GetObjectCommand).resolves({
         Body: {
-          transformToString: async () => '[]'
+          transformToString: async () => JSON.stringify(mockMapping)
         } as any
       });
 

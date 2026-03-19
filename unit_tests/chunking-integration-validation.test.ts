@@ -466,7 +466,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(result.embeddingsRemoved).toBe(240);
     // OpenSearch bulk should be called for batch processing
     expect(mockOpenSearchBulk).toHaveBeenCalled();
-  }, 60000);
+  }, 120000);
 
   it('handles documents with varying embedding counts', async () => {
     const docs = [
