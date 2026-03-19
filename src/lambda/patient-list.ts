@@ -113,8 +113,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       patientMapping = await loadPatientMapping();
     }
 
+    // Filter out patients that don't have a mapping entry (would show as "Unknown Patient")
+    const mappedPatientIds = patientDirectories.patients.filter(id => patientMapping.has(id));
+    console.log('Filtered patient list', {
+      total: patientDirectories.patients.length,
+      mapped: mappedPatientIds.length,
+      unmapped: patientDirectories.patients.filter(id => !patientMapping.has(id))
+    });
+
     // Enrich patient data with metadata and claim counts
-    const patients = await enrichPatientData(patientDirectories.patients, patientMapping);
+    const patients = await enrichPatientData(mappedPatientIds, patientMapping);
 
     // Cache the full patient list (only for first page)
     if (!nextToken) {

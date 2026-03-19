@@ -431,11 +431,13 @@ async function loadPatientMapping(patientId: string): Promise<PatientMapping> {
 
     const mapping = JSON.parse(mappingData);
     
-    // Find the patient in the mapping
-    const patientEntry = mapping.patients?.find((p: any) => p.tciaId === patientId);
+    // Handle the actual mapping.json format: patient_mappings array with snake_case fields
+    const patientMappings = mapping.patient_mappings || mapping.patients || [];
+    const patientEntry = patientMappings.find((p: any) => 
+      p.tcia_id === patientId || p.tciaId === patientId
+    );
     
     if (!patientEntry) {
-      // If not found, create a default mapping
       console.warn('Patient not found in mapping, using default', { patientId });
       return {
         syntheaId: 'unknown',
@@ -446,10 +448,10 @@ async function loadPatientMapping(patientId: string): Promise<PatientMapping> {
     }
 
     return {
-      syntheaId: patientEntry.syntheaId || 'unknown',
-      tciaId: patientEntry.tciaId,
-      patientName: patientEntry.patientName || `Patient ${patientId}`,
-      tciaCollectionId: patientEntry.tciaCollectionId || 'unknown'
+      syntheaId: patientEntry.synthea_id || patientEntry.syntheaId || 'unknown',
+      tciaId: patientEntry.tcia_id || patientEntry.tciaId,
+      patientName: patientEntry.patient_name || patientEntry.patientName || `Patient ${patientId}`,
+      tciaCollectionId: patientEntry.tcia_id || patientEntry.tciaCollectionId || 'unknown'
     };
   }, DEFAULT_RETRY_CONFIG, 'loadPatientMapping').catch(error => {
     console.error('Error loading patient mapping after retries:', serializeError(error));
