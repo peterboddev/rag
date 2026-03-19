@@ -1,0 +1,233 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { getClaimSummary, ClaimSummaryResponse } from '../services/claimApi';
+import StrategyColumn, { Strategy, ColumnState } from './StrategyColumn';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface StrategyComparisonViewProps {
+  claimId: string;
+}
+
+interface StrategyConfig {
+  key: Strategy;
+  label: string;
+  chunkingMethod?: string;
+}
+
+type ChunkingMethod = 'full-document' | 'semantic';
+
+const CHUNKING_OPTIONS: { value: ChunkingMethod; label: string }[] = [
+  { value: 'full-document', label: 'Full Document Chunking' },
+  { value: 'semantic', label: 'Semantic Chunking' },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildStrategies(chunkingMethod: ChunkingMethod): StrategyConfig[] {
+  return [
+    { key: 'full-context', label: 'Full Context' },
+    { key: 'rag', label: 'RAG', chunkingMethod },
+    { key: 'graph-rag', label: 'Graph RAG' },
+  ];
+}
+
+const INITIAL_COLUMN_STATE: ColumnState = {
+  status: 'idle',
+  response: null,
+  error: null,
+};
+
+function createInitialColumns(): Record<Strategy, ColumnState> {
+  return {
+    'full-context': { ...INITIAL_COLUMN_STATE },
+    'rag': { ...INITIAL_COLUMN_STATE },
+    'graph-rag': { ...INITIAL_COLUMN_STATE },
+  };
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId }) => {
+  const [columns, setColumns] = useState<Record<Strategy, ColumnState>>(createInitialColumns);
+  const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
+  const [isNarrow, setIsNarrow] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // ResizeObserver to detect width < 900px and switch flex-direction
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setIsNarrow(width < 900);
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // Generate summary for a single strategy
+  const generateForStrategy = useCallback(
+    async (config: StrategyConfig, forceRegenerate: boolean = false) => {
+      setColumns((prev) => ({
+        ...prev,
+        [config.key]: { status: 'loading', response: null, error: null },
+      }));
+
+      try {
+        const response = await getClaimSummary(
+          claimId,
+          config.key,
+          config.chunkingMethod,
+          forceRegenerate,
+          true // includeEvaluation
+        );
+        setColumns((prev) => ({
+          ...prev,
+          [config.key]: { status: 'success', response, error: null },
+        }));
+      } catch (err: any) {
+        setColumns((prev) => ({
+          ...prev,
+          [config.key]: {
+            status: 'error',
+            response: null,
+            error: err?.message || 'An unknown error occurred',
+          },
+        }));
+      }
+    },
+    [claimId]
+  );
+
+  // Generate All: call getClaimSummary concurrently for all three strategies
+  const handleGenerateAll = useCallback(async () => {
+    const strategies = buildStrategies(chunkingMethod);
+
+    // Set all columns to loading
+    setColumns({
+      'full-context': { status: 'loading', response: null, error: null },
+      'rag': { status: 'loading', response: null, error: null },
+      'graph-rag': { status: 'loading', response: null, error: null },
+    });
+
+    const promises = strategies.map((config) =>
+      getClaimSummary(
+        claimId,
+        config.key,
+        config.chunkingMethod,
+        false,
+        true // includeEvaluation
+      )
+    );
+
+    const results = await Promise.allSettled(promises);
+
+    results.forEach((result, index) => {
+      const strategyKey = strategies[index].key;
+      if (result.status === 'fulfilled') {
+        setColumns((prev) => ({
+          ...prev,
+          [strategyKey]: { status: 'success', response: result.value, error: null },
+        }));
+      } else {
+        setColumns((prev) => ({
+          ...prev,
+          [strategyKey]: {
+            status: 'error',
+            response: null,
+            error: result.reason?.message || 'An unknown error occurred',
+          },
+        }));
+      }
+    });
+  }, [claimId, chunkingMethod]);
+
+  // Individual regeneration handler
+  const handleRegenerate = useCallback(
+    (strategyKey: Strategy) => {
+      const strategies = buildStrategies(chunkingMethod);
+      const config = strategies.find((c) => c.key === strategyKey);
+      if (config) {
+        generateForStrategy(config, true);
+      }
+    },
+    [generateForStrategy, chunkingMethod]
+  );
+
+  const isAnyLoading = Object.values(columns).some((col) => col.status === 'loading');
+
+  return (
+    <div ref={containerRef} data-testid="strategy-comparison-view">
+      {/* Chunking method selector for RAG strategy */}
+      <div style={{ marginBottom: '12px', textAlign: 'center' }}>
+        <label style={{ fontSize: '14px', fontWeight: 600, marginRight: '12px' }}>
+          RAG Chunking Method:
+        </label>
+        {CHUNKING_OPTIONS.map((opt) => (
+          <label key={opt.value} style={{ marginRight: '16px', cursor: 'pointer', fontSize: '14px' }}>
+            <input
+              type="radio"
+              name="comparison-chunking"
+              value={opt.value}
+              checked={chunkingMethod === opt.value}
+              onChange={() => setChunkingMethod(opt.value)}
+              style={{ marginRight: '4px' }}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+
+      {/* Generate All button */}
+      <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+        <button
+          data-testid="generate-all-btn"
+          onClick={handleGenerateAll}
+          disabled={isAnyLoading}
+          style={{
+            padding: '10px 24px',
+            fontSize: '14px',
+            fontWeight: 600,
+            backgroundColor: isAnyLoading ? '#6c757d' : '#007bff',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: isAnyLoading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isAnyLoading ? '⏳ Generating...' : '🚀 Generate All'}
+        </button>
+      </div>
+
+      {/* Three-column layout */}
+      <div
+        data-testid="columns-container"
+        style={{
+          display: 'flex',
+          flexDirection: isNarrow ? 'column' : 'row',
+          gap: '12px',
+        }}
+      >
+        {buildStrategies(chunkingMethod).map((config) => (
+          <div
+            key={config.key}
+            style={{ flex: '1 1 0', minWidth: '250px' }}
+          >
+            <StrategyColumn
+              strategyKey={config.key}
+              label={config.label}
+              data={columns[config.key]}
+              onRegenerate={() => handleRegenerate(config.key)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default StrategyComparisonView;
