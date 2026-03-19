@@ -6,15 +6,7 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.test.json',
-      diagnostics: {
-        // Ignore TypeScript diagnostics that cascade from missing frontend-only
-        // packages (react, aws-amplify) not in root node_modules:
-        // 2307: Cannot find module
-        // 2339: Property does not exist on type (e.g. this.state, this.props)
-        // 7026: JSX element implicitly has type 'any'
-        // 7016: Could not find a declaration file
-        ignoreDiagnostics: [2307, 2339, 7026, 7016],
-      },
+      diagnostics: false, // Disable TS diagnostics in Jest — tsc handles type checking in the build phase
     }],
   },
   collectCoverageFrom: [
