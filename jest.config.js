@@ -6,7 +6,7 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: 'tsconfig.test.json',
-      diagnostics: false, // Disable TS diagnostics in Jest — tsc handles type checking in the build phase
+      diagnostics: false, // Type checking handled by tsc build step, not during test compilation
     }],
   },
   collectCoverageFrom: [
@@ -23,6 +23,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(@aws-sdk|@smithy)/)',
   ],
+  moduleDirectories: ['node_modules', 'frontend/node_modules'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^aws-amplify/auth$': '<rootDir>/unit_tests/__mocks__/aws-amplify-auth.ts',
