@@ -33,7 +33,7 @@ export class RAGApplicationStack extends cdk.Stack {
     const knowledgeBaseIdParam = new cdk.CfnParameter(this, 'KnowledgeBaseId', {
       type: 'String',
       description: 'Bedrock Knowledge Base ID',
-      default: '1LNVEQZNJD'
+      default: 'IJ9SLGVYQ1'
     });
 
     const vectorDbEndpointParam = new cdk.CfnParameter(this, 'VectorDbEndpoint', {
