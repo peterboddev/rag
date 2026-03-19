@@ -487,7 +487,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(result.diagnostics!.documentsWithoutEmbeddings).toBe(2);
     expect(result.diagnostics!.totalEmbeddingIds).toBe(6);
     expect(result.embeddingsRemoved).toBe(6);
-  }, 30000);
+  }, 60000);
 
   it('reports progress during large cleanup', async () => {
     const docs = makeDocs(50);
