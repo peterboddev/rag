@@ -116,7 +116,8 @@ const sampleDocuments = [
 function setupCacheMissWithDocuments(summary = 'Generated summary', anomalies: any[] = []) {
   mockDynamoSend
     .mockResolvedValueOnce({ Item: null })           // cache miss (GetCommand)
-    .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
+    .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId → queryClaimDocuments
+    .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query (full-context)
     .mockResolvedValue({});                            // cache write ops
   mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse(summary, anomalies));
   mockS3Send.mockResolvedValue({});                    // S3 cache write
@@ -224,7 +225,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     it('should return 404 when no documents found for full-context', async () => {
       mockDynamoSend
         .mockResolvedValueOnce({ Item: null })  // cache miss
-        .mockResolvedValueOnce({ Items: [] });   // empty documents
+        .mockResolvedValueOnce({ Items: [] })   // resolvePatientId → queryClaimDocuments (empty)
+        .mockResolvedValueOnce({ Items: [] });   // documents query (empty)
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
@@ -236,8 +238,11 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
     it('should return 404 when no documents found for graph-rag', async () => {
       mockDynamoSend
-        .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: [] });
+        .mockResolvedValueOnce({ Item: null })  // cache miss
+        .mockResolvedValueOnce({ Items: [] });  // resolvePatientId → queryClaimDocuments (empty)
+      mockBedrockAgentSend
+        .mockResolvedValueOnce({ retrievalResults: [] })  // filtered query
+        .mockResolvedValueOnce({ retrievalResults: [] }); // fallback unfiltered
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'graph-rag' }),
@@ -247,7 +252,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     });
 
     it('should return 404 for RAG when Knowledge Base returns no chunks', async () => {
-      mockDynamoSend.mockResolvedValueOnce({ Item: null }); // cache miss
+      mockDynamoSend
+        .mockResolvedValueOnce({ Item: null }) // cache miss
+        .mockResolvedValueOnce({ Items: sampleDocuments }); // resolvePatientId → queryClaimDocuments
       mockBedrockAgentSend
         .mockResolvedValueOnce({ retrievalResults: [] })  // filtered query returns nothing
         .mockResolvedValueOnce({ retrievalResults: [] });  // fallback unfiltered also empty
@@ -283,7 +290,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
       mockDynamoSend
         .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: unprocessedDocs });
+        .mockResolvedValueOnce({ Items: unprocessedDocs }) // resolvePatientId
+        .mockResolvedValueOnce({ Items: unprocessedDocs }); // documents query
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
@@ -307,7 +315,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
       mockDynamoSend
         .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: whitespaceOnlyDocs });
+        .mockResolvedValueOnce({ Items: whitespaceOnlyDocs }) // resolvePatientId
+        .mockResolvedValueOnce({ Items: whitespaceOnlyDocs }); // documents query
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
@@ -323,7 +332,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     it('should return 502 when Bedrock invocation throws', async () => {
       mockDynamoSend
         .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: sampleDocuments });
+        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
+        .mockResolvedValueOnce({ Items: sampleDocuments }); // documents query
       mockBedrockSend.mockRejectedValueOnce(new Error('Bedrock service unavailable'));
 
       const event = createEvent({
@@ -335,7 +345,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     });
 
     it('should return 502 when RAG Knowledge Base retrieval throws', async () => {
-      mockDynamoSend.mockResolvedValueOnce({ Item: null }); // cache miss
+      mockDynamoSend
+        .mockResolvedValueOnce({ Item: null }) // cache miss
+        .mockResolvedValueOnce({ Items: sampleDocuments }); // resolvePatientId
       mockBedrockAgentSend.mockRejectedValueOnce(new Error('KB unavailable'));
 
       const event = createEvent({
@@ -399,6 +411,7 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     it('should generate fresh summary when forceRegenerate is true', async () => {
       // With forceRegenerate=true, cache check is skipped entirely
       mockDynamoSend
+        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId → queryClaimDocuments
         .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query (no cache check)
         .mockResolvedValue({});                             // cache write ops
       mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh regenerated summary'));
@@ -419,7 +432,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
     it('should not check DynamoDB cache when forceRegenerate is true', async () => {
       mockDynamoSend
-        .mockResolvedValueOnce({ Items: sampleDocuments })
+        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
+        .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
         .mockResolvedValue({});
       mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh summary'));
       mockS3Send.mockResolvedValue({});
@@ -507,7 +521,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     });
 
     it('should include chunkingMethod in response for RAG strategy', async () => {
-      mockDynamoSend.mockResolvedValueOnce({ Item: null }); // cache miss
+      mockDynamoSend
+        .mockResolvedValueOnce({ Item: null }) // cache miss
+        .mockResolvedValueOnce({ Items: sampleDocuments }); // resolvePatientId
       mockBedrockAgentSend.mockResolvedValueOnce({
         retrievalResults: [
           {

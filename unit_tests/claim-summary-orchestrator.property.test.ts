@@ -692,14 +692,27 @@ describe('Property 7: Summary Response Structure Completeness', () => {
     mockDynamoSend
       .mockResolvedValueOnce({ Item: null }) // cache miss
       .mockResolvedValueOnce({
-        // documents query
+        // resolvePatientId → queryClaimDocuments
         Items: [
           {
             documentId: 'doc-1',
             fileName: 'test.pdf',
             extractedText: documentText,
             processingStatus: 'completed',
-            claimMetadata: { claimId: 'test-claim-001' },
+            claimMetadata: { claimId: 'test-claim-001', patientId: 'patient-001' },
+            tenantId: 'local-dev-tenant',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        // documents query (for full-context) or additional calls
+        Items: [
+          {
+            documentId: 'doc-1',
+            fileName: 'test.pdf',
+            extractedText: documentText,
+            processingStatus: 'completed',
+            claimMetadata: { claimId: 'test-claim-001', patientId: 'patient-001' },
             tenantId: 'local-dev-tenant',
           },
         ],
@@ -726,6 +739,19 @@ describe('Property 7: Summary Response Structure Completeness', () => {
 
     // Mock Knowledge Base for RAG strategy
     if (strategy === 'rag') {
+      mockBedrockAgentSend.mockResolvedValueOnce({
+        retrievalResults: [
+          {
+            content: { text: documentText },
+            location: { s3Location: { uri: 's3://bucket/doc.pdf' } },
+            score: 0.9,
+          },
+        ],
+      });
+    }
+
+    // Mock Knowledge Base for graph-rag strategy
+    if (strategy === 'graph-rag') {
       mockBedrockAgentSend.mockResolvedValueOnce({
         retrievalResults: [
           {

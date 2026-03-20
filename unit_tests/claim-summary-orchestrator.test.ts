@@ -206,6 +206,7 @@ describe('Claim Summary Orchestrator - Request Validation (Task 4.1)', () => {
       // Mock DynamoDB to return documents, and Bedrock to return summary
       mockDynamoSend
         .mockResolvedValueOnce({ Item: null }) // cache miss (GetCommand)
+        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
         .mockResolvedValueOnce({ Items: sampleDocuments }) // query documents
         .mockResolvedValueOnce({}) // PutObject (S3 via cache)
         .mockResolvedValueOnce({}); // PutCommand (DynamoDB cache)
@@ -232,9 +233,10 @@ describe('Claim Summary Orchestrator - Cache Logic (Task 4.2)', () => {
     // Due to module-level mocking complexity with S3, we verify the cache check happens
     // by observing that DynamoDB GetCommand is called first (for cache lookup).
     
-    // Mock: cache miss (GetCommand returns no item), then documents query, then Bedrock
+    // Mock: cache miss (GetCommand returns no item), then resolvePatientId, then documents query, then Bedrock
     mockDynamoSend
       .mockResolvedValueOnce({ Item: null }) // cache miss
+      .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
       .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
       .mockResolvedValue({}); // cache write ops
     mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh summary'));
@@ -255,8 +257,9 @@ describe('Claim Summary Orchestrator - Cache Logic (Task 4.2)', () => {
 
   it('should bypass cache when forceRegenerate is true', async () => {
     // With forceRegenerate=true, cache should NOT be checked
-    // Mock documents query and Bedrock response
+    // Mock resolvePatientId, documents query and Bedrock response
     mockDynamoSend
+      .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
       .mockResolvedValueOnce({ Items: sampleDocuments }) // query documents (no cache check)
       .mockResolvedValueOnce({}) // cache write (PutCommand)
       .mockResolvedValueOnce({}); // additional cache ops
@@ -280,6 +283,8 @@ describe('Claim Summary Orchestrator - Agent Routing (Task 4.3)', () => {
   beforeEach(() => {
     // Default: cache miss (GetCommand returns no item)
     mockDynamoSend.mockResolvedValueOnce({ Item: null });
+    // Default: resolvePatientId → queryClaimDocuments
+    mockDynamoSend.mockResolvedValueOnce({ Items: sampleDocuments });
   });
 
   it('should execute full-context strategy and return summary', async () => {
@@ -353,10 +358,24 @@ describe('Claim Summary Orchestrator - Agent Routing (Task 4.3)', () => {
   });
 
   it('should execute graph-rag strategy and return summary', async () => {
-    // Mock documents query
-    mockDynamoSend.mockResolvedValueOnce({ Items: sampleDocuments });
     // Mock cache write
     mockDynamoSend.mockResolvedValue({});
+
+    // Mock GraphRAG KB retrieve
+    mockBedrockAgentSend.mockResolvedValueOnce({
+      retrievalResults: [
+        {
+          content: { text: 'Patient John Doe, claim details from graph...' },
+          location: { s3Location: { uri: 's3://bucket/doc1.pdf' } },
+          score: 0.95,
+        },
+        {
+          content: { text: 'EOB details from graph, amount $1500...' },
+          location: { s3Location: { uri: 's3://bucket/doc2.pdf' } },
+          score: 0.88,
+        },
+      ],
+    });
 
     mockBedrockSend.mockResolvedValueOnce(
       mockBedrockResponse('Graph RAG summary with entity relationships')
@@ -382,11 +401,17 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
   beforeEach(() => {
     // Default: cache miss
     mockDynamoSend.mockResolvedValueOnce({ Item: null });
+    // Default: resolvePatientId → queryClaimDocuments
+    mockDynamoSend.mockResolvedValueOnce({ Items: sampleDocuments });
   });
 
   it('should return 404 when no documents found for claim', async () => {
-    // Mock documents query returning empty
-    mockDynamoSend.mockResolvedValueOnce({ Items: [] });
+    // Reset mocks to override beforeEach
+    mockDynamoSend.mockReset();
+    mockDynamoSend
+      .mockResolvedValueOnce({ Item: null })  // cache miss
+      .mockResolvedValueOnce({ Items: [] })   // resolvePatientId → empty
+      .mockResolvedValueOnce({ Items: [] });  // documents query → empty
 
     const event = createEvent({
       pathParameters: { claimId: 'nonexistent-claim' },
@@ -420,7 +445,12 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
       },
     ];
 
-    mockDynamoSend.mockResolvedValueOnce({ Items: documentsWithoutText });
+    // Reset mocks to override beforeEach
+    mockDynamoSend.mockReset();
+    mockDynamoSend
+      .mockResolvedValueOnce({ Item: null })                // cache miss
+      .mockResolvedValueOnce({ Items: documentsWithoutText }) // resolvePatientId
+      .mockResolvedValueOnce({ Items: documentsWithoutText }); // documents query
 
     const event = createEvent({
       pathParameters: { claimId: 'test-claim-001' },
@@ -508,6 +538,7 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
     mockDynamoSend.mockReset();
     mockDynamoSend
       .mockResolvedValueOnce({ Item: null }) // cache miss
+      .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
       .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
       .mockResolvedValueOnce({ // evaluation scores query
         Items: [{

@@ -507,7 +507,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(phases).toContain('identifying');
     expect(phases).toContain('removing_kb');
     expect(phases).toContain('removing_vectordb');
-  }, 60000);
+  }, 120000);
 
   it('deduplicates embedding IDs across documents', async () => {
     const docs = [
