@@ -5,13 +5,13 @@ const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || '';
 const API_TIMEOUT = 30000; // 30 seconds
 
 // Helper to get auth token from Amplify (User Pool JWT only, skip AWS credentials)
-const getAuthToken = async (): Promise<string | null> => {
+const getAuthToken = async (forceRefresh: boolean = false): Promise<string | null> => {
   try {
     // First verify user is authenticated
     await getCurrentUser();
     
-    // Fetch session - even if Identity Pool credentials fail, tokens should be available
-    const session = await fetchAuthSession({ forceRefresh: false });
+    // Fetch session - forceRefresh ensures we get a fresh token when needed
+    const session = await fetchAuthSession({ forceRefresh });
     
     // Extract the ID token (JWT) for API Gateway authentication
     const idToken = session.tokens?.idToken?.toString();
@@ -21,24 +21,22 @@ const getAuthToken = async (): Promise<string | null> => {
       return null;
     }
     
-    console.log('Successfully retrieved auth token');
     return idToken;
   } catch (error: any) {
-    // Log all errors for debugging
     console.error('Error getting auth token:', error);
     return null;
   }
 };
 
-// Helper for API requests with authentication
+// Helper for API requests with authentication (retries once with fresh token on 401)
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _isRetry: boolean = false
 ): Promise<T> {
-  const token = await getAuthToken();
+  const token = await getAuthToken(_isRetry);
   
   if (!token) {
-    console.error('No auth token available - user may not be authenticated');
     throw new Error('Authentication required - please sign in again');
   }
   
@@ -51,7 +49,6 @@ async function apiRequest<T>(
   }
 
   headers['Authorization'] = `Bearer ${token}`;
-  console.log('Making API request with Authorization header to:', endpoint);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
@@ -64,6 +61,11 @@ async function apiRequest<T>(
     });
 
     clearTimeout(timeoutId);
+
+    if (response.status === 401 && !_isRetry) {
+      // Token may be expired — retry once with a forced refresh
+      return apiRequest<T>(endpoint, options, true);
+    }
 
     if (!response.ok) {
       const errorData: any = await response.json().catch(() => ({}));
