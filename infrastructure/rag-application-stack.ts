@@ -279,6 +279,19 @@ export class RAGApplicationStack extends cdk.Stack {
                 `npx esbuild ${sourcePath} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
               ].join(' && ')
             ],
+            local: {
+              tryBundle(outputDir: string) {
+                try {
+                  const { execSync } = require('child_process');
+                  execSync(`npx esbuild ${sourcePath} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=${outputDir}/index.js`, {
+                    stdio: 'inherit',
+                  });
+                  return true;
+                } catch {
+                  return false;
+                }
+              },
+            },
           },
         }),
         role: lambdaExecutionRole, // undefined during first synthesis, real role during deployment
@@ -1137,27 +1150,56 @@ export class RAGApplicationStack extends cdk.Stack {
     graphRagKb.node.addDependency(neptuneGraph);
 
     // S3 data source with CHUNK_ENTITY_EXTRACTION enrichment
-    const graphRagDataSource = new cdk.CfnResource(this, 'GraphRagDataSource', {
-      type: 'AWS::Bedrock::DataSource',
-      properties: {
-        KnowledgeBaseId: graphRagKb.getAtt('KnowledgeBaseId').toString(),
-        Name: `${applicationName}-graphrag-ds-${environment}`,
-        DataSourceConfiguration: {
-          Type: 'S3',
-          S3Configuration: {
-            BucketArn: documentsBucket.bucketArn,
+    // Using AwsCustomResource because CloudFormation AWS::Bedrock::DataSource
+    // doesn't support ContextEnrichmentConfiguration in this region yet, but the
+    // Bedrock API requires it when using Neptune Analytics storage
+    const graphRagDataSource = new cr.AwsCustomResource(this, 'GraphRagDataSource', {
+      onCreate: {
+        service: 'BedrockAgent',
+        action: 'createDataSource',
+        parameters: {
+          knowledgeBaseId: graphRagKb.getAtt('KnowledgeBaseId').toString(),
+          name: `${applicationName}-graphrag-ds-${environment}`,
+          dataSourceConfiguration: {
+            type: 'S3',
+            s3Configuration: {
+              bucketArn: documentsBucket.bucketArn,
+            },
+          },
+          vectorIngestionConfiguration: {
+            contextEnrichmentConfiguration: {
+              type: 'BEDROCK_FOUNDATION_MODEL',
+              bedrockFoundationModelConfiguration: {
+                enrichmentStrategyConfiguration: {
+                  method: 'CHUNK_ENTITY_EXTRACTION',
+                },
+                modelArn: `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-micro-v1:0`,
+              },
+            },
           },
         },
-        ContextEnrichmentConfiguration: {
-          Type: 'BEDROCK_FOUNDATION_MODEL',
-          BedrockFoundationModelConfiguration: {
-            EnrichmentStrategyConfiguration: {
-              Method: 'CHUNK_ENTITY_EXTRACTION',
-            },
-            ModelArn: `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-micro-v1:0`,
-          },
+        physicalResourceId: cr.PhysicalResourceId.fromResponse('dataSource.dataSourceId'),
+        outputPaths: ['dataSource.dataSourceId'],
+      },
+      onDelete: {
+        service: 'BedrockAgent',
+        action: 'deleteDataSource',
+        parameters: {
+          knowledgeBaseId: graphRagKb.getAtt('KnowledgeBaseId').toString(),
+          dataSourceId: new cr.PhysicalResourceIdReference(),
         },
       },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: [
+            'bedrock:CreateDataSource',
+            'bedrock:DeleteDataSource',
+            'bedrock:GetDataSource',
+          ],
+          resources: ['*'],
+        }),
+      ]),
+      installLatestAwsSdk: false,
     });
     graphRagDataSource.node.addDependency(graphRagKb);
 
