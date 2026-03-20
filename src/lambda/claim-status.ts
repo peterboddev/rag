@@ -49,8 +49,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
+    // Extract tenant ID from request headers (sent by frontend)
+    const headers = event.headers || {};
+    const tenantId = headers['x-tenant-id'] || headers['X-Tenant-Id'] || 'local-dev-tenant';
+
     // Query documents table for all documents with this claim ID
-    const documents = await queryClaimDocuments(claimId);
+    const documents = await queryClaimDocuments(claimId, tenantId);
 
     if (documents.length === 0) {
       // Claim not loaded yet
@@ -131,7 +135,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 /**
  * Query documents table for all documents with a specific claim ID
  */
-async function queryClaimDocuments(claimId: string): Promise<any[]> {
+async function queryClaimDocuments(claimId: string, tenantId: string): Promise<any[]> {
   try {
     // Use Scan with filter since we don't have a GSI on claimId yet
     // In production, consider adding a GSI for better performance
@@ -141,7 +145,7 @@ async function queryClaimDocuments(claimId: string): Promise<any[]> {
       KeyConditionExpression: 'tenantId = :tenantId',
       FilterExpression: 'claimMetadata.claimId = :claimId',
       ExpressionAttributeValues: {
-        ':tenantId': 'local-dev-tenant', // Matches claim-loader's default tenant
+        ':tenantId': tenantId,
         ':claimId': claimId,
       },
     });
@@ -159,7 +163,7 @@ async function queryClaimDocuments(claimId: string): Promise<any[]> {
         IndexName: 'tenant-documents-index',
         KeyConditionExpression: 'tenantId = :tenantId',
         ExpressionAttributeValues: {
-          ':tenantId': 'local-dev-tenant',
+          ':tenantId': tenantId,
         },
       });
 

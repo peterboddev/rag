@@ -23,6 +23,7 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
   const [summaryModalClaimId, setSummaryModalClaimId] = useState<string | null>(null);
   const [timelineClaimId, setTimelineClaimId] = useState<string | null>(null);
   const [exportingClaimId, setExportingClaimId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const pollIntervalsRef = React.useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
@@ -66,6 +67,7 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
     try {
       setLoadingClaim(claimId);
       setError(null);
+      setSuccessMessage(null);
       
       // TODO: Get customerUUID from auth context or API
       // For now, using a placeholder - this needs to be implemented
@@ -73,24 +75,38 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
       
       const response = await loadClaim(patientId, claimId, customerUUID);
       
+      setSuccessMessage(`✅ ${response.message || `Loaded ${response.status}`}`);
+
+      // Immediately refresh claim status after successful load
+      try {
+        const freshStatus = await getClaimStatus(claimId);
+        setClaimStatuses((prev) => ({ ...prev, [claimId]: freshStatus }));
+        
+        // If already completed, no need to poll
+        if (freshStatus.status === 'completed' || freshStatus.status === 'failed') {
+          setLoadingClaim(null);
+          return;
+        }
+      } catch (statusErr) {
+        console.error('Failed to fetch initial claim status:', statusErr);
+      }
+
       // Poll for status updates with stale-detection
       let lastProcessed = -1;
       let staleCount = 0;
-      const maxStalePolls = 5; // Stop after 5 polls with no progress
+      const maxStalePolls = 5;
 
       const pollInterval = setInterval(async () => {
         try {
           const status = await getClaimStatus(claimId);
           setClaimStatuses((prev) => ({ ...prev, [claimId]: status }));
           
-          // Stop polling when complete or failed
           if (status.status === 'completed' || status.status === 'failed') {
             clearInterval(pollInterval);
             setLoadingClaim(null);
             return;
           }
 
-          // Detect stale progress — stop polling if no documents are advancing
           if (status.documentsProcessed === lastProcessed) {
             staleCount++;
           } else {
@@ -105,18 +121,19 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
         } catch (err) {
           console.error('Failed to poll claim status:', err);
         }
-      }, 5000); // Poll every 5 seconds (was 3)
+      }, 5000);
 
       pollIntervalsRef.current.push(pollInterval);
       
-      // Stop polling after 2 minutes max
       setTimeout(() => {
         clearInterval(pollInterval);
         setLoadingClaim(null);
       }, 120000);
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load claim');
+      const msg = err instanceof Error ? err.message : 'Failed to load claim';
+      console.error('handleLoadClaim error:', err);
+      setError(`Failed to load claim ${claimId}: ${msg}`);
       setLoadingClaim(null);
     }
   };
@@ -308,6 +325,21 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
           fontSize: '14px'
         }}>
           ⚠️ {error}
+        </div>
+      )}
+
+      {/* Success Message */}
+      {successMessage && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '12px',
+          backgroundColor: '#d4edda',
+          border: '1px solid #c3e6cb',
+          borderRadius: '6px',
+          color: '#155724',
+          fontSize: '14px'
+        }}>
+          {successMessage}
         </div>
       )}
 
