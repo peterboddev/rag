@@ -451,7 +451,9 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
   });
 
   it('should return 404 for RAG strategy when Knowledge Base returns no chunks', async () => {
-    mockBedrockAgentSend.mockResolvedValueOnce({ retrievalResults: [] });
+    mockBedrockAgentSend
+      .mockResolvedValueOnce({ retrievalResults: [] })  // filtered query returns nothing
+      .mockResolvedValueOnce({ retrievalResults: [] });  // fallback unfiltered also empty
 
     const event = createEvent({
       pathParameters: { claimId: 'test-claim-001' },

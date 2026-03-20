@@ -248,7 +248,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
     it('should return 404 for RAG when Knowledge Base returns no chunks', async () => {
       mockDynamoSend.mockResolvedValueOnce({ Item: null }); // cache miss
-      mockBedrockAgentSend.mockResolvedValueOnce({ retrievalResults: [] });
+      mockBedrockAgentSend
+        .mockResolvedValueOnce({ retrievalResults: [] })  // filtered query returns nothing
+        .mockResolvedValueOnce({ retrievalResults: [] });  // fallback unfiltered also empty
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'rag', chunkingMethod: 'semantic' }),
