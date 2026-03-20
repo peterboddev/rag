@@ -7,7 +7,7 @@ export interface LazyLoadingState {
   visibleChunks: DocumentChunk[];
   hasMore: boolean;
   isLoadingMore: boolean;
-  sentinelRef: React.RefObject<HTMLDivElement | null>;
+  sentinelRef: React.RefObject<HTMLDivElement>;
   loadedCount: number;
   totalCount: number;
 }
@@ -20,7 +20,7 @@ export interface LazyLoadingState {
 export function useChunkLazyLoading(allChunks: DocumentChunk[]): LazyLoadingState {
   const [loadedCount, setLoadedCount] = useState(CHUNK_PAGE_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Reset loaded count when chunks change (new data loaded)
   useEffect(() => {

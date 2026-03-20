@@ -5,8 +5,9 @@ import DocumentUpload from './components/DocumentUpload';
 import DocumentSummary from './components/DocumentSummary';
 import PatientListPage from './components/PatientListPage';
 import ClaimDetailPage from './components/ClaimDetailPage';
+import ClaimSearchPanel from './components/ClaimSearchPanel';
 
-type Page = 'upload' | 'summary' | 'patients' | 'claim-detail';
+type Page = 'upload' | 'summary' | 'patients' | 'claim-detail' | 'search';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, signOut, tenantId } = useAuth();
@@ -34,6 +35,12 @@ const AppContent: React.FC = () => {
 
   const handleBackToPatients = () => {
     setSelectedPatientId(null);
+    setActivePage('patients');
+  };
+
+  const handleSearchSelectClaim = (claimId: string) => {
+    // Navigate to patients page — the claimId doesn't directly map to a patient,
+    // but we can show the patients list for the user to find the right one.
     setActivePage('patients');
   };
 
@@ -69,8 +76,15 @@ const AppContent: React.FC = () => {
         <button
           className={`btn ${activePage === 'patients' || activePage === 'claim-detail' ? 'btn-primary' : ''}`}
           onClick={() => setActivePage('patients')}
+          style={{ marginRight: '10px' }}
         >
           🏥 Patients
+        </button>
+        <button
+          className={`btn ${activePage === 'search' ? 'btn-primary' : ''}`}
+          onClick={() => setActivePage('search')}
+        >
+          🔍 Search
         </button>
       </div>
 
@@ -79,6 +93,9 @@ const AppContent: React.FC = () => {
       {activePage === 'patients' && <PatientListPage onPatientSelect={handlePatientSelect} />}
       {activePage === 'claim-detail' && selectedPatientId && (
         <ClaimDetailPage patientId={selectedPatientId} onBack={handleBackToPatients} />
+      )}
+      {activePage === 'search' && (
+        <ClaimSearchPanel onSelectClaim={handleSearchSelectClaim} />
       )}
     </div>
   );

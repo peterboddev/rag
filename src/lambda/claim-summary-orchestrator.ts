@@ -18,6 +18,7 @@ const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE || 'rag-app-v2-documents-dev
 const EVALUATION_RESULTS_TABLE = process.env.EVALUATION_RESULTS_TABLE || 'evaluation-results-table';
 const BEDROCK_REGION = process.env.BEDROCK_REGION || 'us-east-1';
 const KNOWLEDGE_BASE_ID = process.env.KNOWLEDGE_BASE_ID || '';
+const GRAPH_RAG_KNOWLEDGE_BASE_ID = process.env.GRAPH_RAG_KNOWLEDGE_BASE_ID || '';
 
 // AWS SDK clients
 const dynamoClient = new DynamoDBClient({ region: process.env.REGION || 'us-east-1' });
@@ -148,6 +149,7 @@ function validateRequest(body: string | null): { valid: false; error: string } |
       chunkingMethod: request.chunkingMethod as ChunkingMethod | undefined,
       forceRegenerate: request.forceRegenerate === true,
       includeEvaluation: request.includeEvaluation === true,
+      useReranker: request.useReranker === true,
     },
   };
 }
@@ -356,19 +358,63 @@ async function executeRagStrategy(
 }
 
 /**
- * Graph RAG strategy: uses same prompt as other strategies for fair comparison.
- * The differentiation is in how documents are gathered/processed, not the prompt.
+ * Graph RAG strategy: queries GraphRAG Knowledge Base backed by Neptune Analytics.
+ * Optionally applies Cohere Rerank 3.5 to retrieval results.
  */
 async function executeGraphRagStrategy(
-  documents: DocumentRecord[]
-): Promise<{ summary: string; anomalies: DataAnomaly[] }> {
-  const documentsText = documents
-    .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
+  claimId: string,
+  useReranker: boolean = false
+): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
+  const retrieveInput: any = {
+    knowledgeBaseId: GRAPH_RAG_KNOWLEDGE_BASE_ID,
+    retrievalQuery: {
+      text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
+    },
+    retrievalConfiguration: {
+      vectorSearchConfiguration: {
+        numberOfResults: 20,
+      },
+    },
+  };
+
+  if (useReranker) {
+    retrieveInput.retrievalConfiguration.rerankingConfiguration = {
+      type: 'BEDROCK_RERANKING_MODEL',
+      bedrockRerankingConfiguration: {
+        modelConfiguration: {
+          modelArn: `arn:aws:bedrock:${process.env.AWS_REGION || 'us-east-1'}::foundation-model/cohere.rerank-v3-5:0`,
+        },
+      },
+    };
+  }
+
+  const retrieveCommand = new RetrieveCommand(retrieveInput);
+  const retrievalResponse = await bedrockAgentClient.send(retrieveCommand);
+  const chunks = retrievalResponse.retrievalResults || [];
+
+  if (chunks.length === 0) {
+    return { summary: '', anomalies: [], documentCount: 0 };
+  }
+
+  const chunksText = chunks
+    .map((chunk, i) => {
+      const source = chunk.location?.s3Location?.uri || `Chunk ${i + 1}`;
+      return `--- Chunk from: ${source} ---\n${chunk.content?.text || ''}`;
+    })
     .join('\n\n');
 
-  const prompt = buildSummaryPrompt(documentsText, 'graph-rag');
+  const uniqueSources = new Set(
+    chunks.map((c) => c.location?.s3Location?.uri).filter(Boolean)
+  );
+
+  const prompt = buildSummaryPrompt(chunksText, 'graph-rag (Neptune Analytics GraphRAG)');
   const responseText = await invokeBedrockNovaPro(prompt);
-  return parseSummaryResponse(responseText);
+  const parsed = parseSummaryResponse(responseText);
+
+  return {
+    ...parsed,
+    documentCount: uniqueSources.size || chunks.length,
+  };
 }
 
 /**
@@ -462,7 +508,7 @@ async function handlePostSummary(
 
   // Task 4.2: Cache check logic
   if (!request.forceRegenerate) {
-    const cacheKey = buildCacheKey(claimId, request.strategy, request.chunkingMethod);
+    const cacheKey = buildCacheKey(claimId, request.strategy, request.chunkingMethod, request.useReranker);
     console.log('Checking cache for key:', cacheKey);
 
     try {
@@ -516,22 +562,48 @@ async function handlePostSummary(
       summary = ragResult.summary;
       anomalies = ragResult.anomalies;
       documentCount = ragResult.documentCount;
+    } else if (request.strategy === 'graph-rag') {
+      // Graph RAG strategy: query GraphRAG KB (Neptune Analytics)
+      const useReranker = request.useReranker ?? false;
+      console.log('Executing graph-rag strategy for claimId:', claimId, 'useReranker:', useReranker);
+      try {
+        const graphRagResult = await executeGraphRagStrategy(claimId, useReranker);
+        if (graphRagResult.documentCount === 0) {
+          return errorResponse(404, `No documents found for claim ${claimId}`);
+        }
+        summary = graphRagResult.summary;
+        anomalies = graphRagResult.anomalies;
+        documentCount = graphRagResult.documentCount;
+      } catch (error) {
+        // Fallback to full-context on GraphRAG failure
+        console.error('Graph RAG failed, falling back to full-context:', error);
+        const documents = await queryClaimDocuments(claimId);
+        if (documents.length === 0) {
+          return errorResponse(404, `No documents found for claim ${claimId}`);
+        }
+        const summarizable = documents.filter((d) => d.extractedText?.trim());
+        if (summarizable.length === 0) {
+          return errorResponse(400, 'No summarizable content available.');
+        }
+        documentIds = summarizable.map((d) => d.documentId);
+        documentCount = summarizable.length;
+        const result = await executeFullContextStrategy(summarizable);
+        summary = result.summary;
+        anomalies = result.anomalies;
+      }
     } else {
-      // Full-context and graph-rag strategies: query documents directly
+      // Full-context strategy: query documents directly
       console.log('Querying documents for claimId:', claimId);
       const documents = await queryClaimDocuments(claimId);
 
-      // Task 4.4: Return 404 when no documents found
       if (documents.length === 0) {
         return errorResponse(404, `No documents found for claim ${claimId}`);
       }
 
-      // Filter to documents with extracted text
       const summarizableDocuments = documents.filter(
         (doc) => doc.extractedText && doc.extractedText.trim().length > 0
       );
 
-      // Task 4.4: Return 400 when no documents have extracted text
       if (summarizableDocuments.length === 0) {
         return errorResponse(
           400,
@@ -542,18 +614,10 @@ async function handlePostSummary(
       documentIds = summarizableDocuments.map((doc) => doc.documentId);
       documentCount = summarizableDocuments.length;
 
-      if (request.strategy === 'full-context') {
-        console.log('Executing full-context strategy with', documentCount, 'documents');
-        const result = await executeFullContextStrategy(summarizableDocuments);
-        summary = result.summary;
-        anomalies = result.anomalies;
-      } else {
-        // graph-rag strategy
-        console.log('Executing graph-rag strategy with', documentCount, 'documents');
-        const result = await executeGraphRagStrategy(summarizableDocuments);
-        summary = result.summary;
-        anomalies = result.anomalies;
-      }
+      console.log('Executing full-context strategy with', documentCount, 'documents');
+      const result = await executeFullContextStrategy(summarizableDocuments);
+      summary = result.summary;
+      anomalies = result.anomalies;
     }
   } catch (error) {
     // Task 4.4: Return 502 when Bedrock/AgentCore invocation fails
@@ -574,6 +638,7 @@ async function handlePostSummary(
     processingTime,
     generatedAt,
     cached: false,
+    useReranker: request.strategy === 'graph-rag' ? request.useReranker : undefined,
   };
 
   // Include evaluation scores if requested
@@ -587,7 +652,7 @@ async function handlePostSummary(
 
   // Task 4.4: Store successful summary in cache
   try {
-    const cacheKey = buildCacheKey(claimId, request.strategy, request.chunkingMethod);
+    const cacheKey = buildCacheKey(claimId, request.strategy, request.chunkingMethod, request.useReranker);
     await cacheSummary(cacheKey, response, documentIds);
     console.log('Summary cached successfully for key:', cacheKey);
   } catch (error) {

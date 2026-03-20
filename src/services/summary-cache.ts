@@ -62,10 +62,12 @@ const s3Client = new S3Client({ region: AWS_REGION });
 export function buildCacheKey(
   claimId: string,
   strategy: SummaryStrategy | string,
-  chunkingMethod: ChunkingMethod | string | undefined
+  chunkingMethod: ChunkingMethod | string | undefined,
+  useReranker?: boolean
 ): string {
   const method = chunkingMethod || 'none';
-  return `${claimId}#${strategy}#${method}`;
+  const key = `${claimId}#${strategy}#${method}`;
+  return strategy === 'graph-rag' && useReranker ? `${key}#reranker` : key;
 }
 
 /**

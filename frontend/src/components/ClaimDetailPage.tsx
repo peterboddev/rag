@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { getPatientDetail, loadClaim, getClaimStatus, getDocument, PatientDetail, ClaimStatusResponse, ClaimDocument } from '../services/claimApi';
+import { getPatientDetail, loadClaim, getClaimStatus, getDocument, exportClaim, PatientDetail, ClaimStatusResponse, ClaimDocument } from '../services/claimApi';
 import DocumentSummary from './DocumentSummary';
 import DocumentListModal from './DocumentListModal';
 import ClaimSummaryModal from './ClaimSummaryModal';
+import ClaimTimeline from './ClaimTimeline';
+import DocumentCategoryPanel from './DocumentCategoryPanel';
+import ImagingMetadataPanel from './ImagingMetadataPanel';
 
 interface ClaimDetailPageProps {
   patientId: string;
@@ -18,6 +21,8 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
   const [documentModalClaimId, setDocumentModalClaimId] = useState<string | null>(null);
   const [documentModalDocuments, setDocumentModalDocuments] = useState<ClaimDocument[]>([]);
   const [summaryModalClaimId, setSummaryModalClaimId] = useState<string | null>(null);
+  const [timelineClaimId, setTimelineClaimId] = useState<string | null>(null);
+  const [exportingClaimId, setExportingClaimId] = useState<string | null>(null);
   const pollIntervalsRef = React.useRef<NodeJS.Timeout[]>([]);
 
   useEffect(() => {
@@ -130,6 +135,28 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
 
   const handleSummarizeClaim = (claimId: string) => {
     setSummaryModalClaimId(claimId);
+  };
+
+  const handleExportClaim = async (claimId: string) => {
+    try {
+      setExportingClaimId(claimId);
+      setError(null);
+      const result = await exportClaim(claimId);
+      // Trigger browser download
+      const blob = new Blob([result.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export claim');
+    } finally {
+      setExportingClaimId(null);
+    }
   };
 
   const getStatusColor = (status: string): string => {
@@ -262,6 +289,11 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
         <div style={{ fontSize: '14px', color: '#666' }}>
           <span style={{ fontWeight: '500' }}>TCIA Collection:</span> {patientDetail.tciaCollectionId}
         </div>
+        {/* Medical Imaging Metadata */}
+        <ImagingMetadataPanel
+          tciaCollectionId={patientDetail.tciaCollectionId}
+          patientName={patientDetail.patientName}
+        />
       </div>
 
       {/* Error Message */}
@@ -402,7 +434,7 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
 
                   {/* View Documents and Summarize Claim Buttons (when loaded) */}
                   {status && status.status === 'completed' && (
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <button
                         onClick={() => handleViewDocuments(claim.claimId)}
                         style={{
@@ -431,6 +463,56 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
                       >
                         📝 Summarize Claim
                       </button>
+                      <button
+                        onClick={() => setTimelineClaimId(
+                          timelineClaimId === claim.claimId ? null : claim.claimId
+                        )}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: timelineClaimId === claim.claimId ? '#5a6268' : '#17a2b8',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {timelineClaimId === claim.claimId ? '🕐 Hide Timeline' : '🕐 Timeline'}
+                      </button>
+                      <button
+                        onClick={() => handleExportClaim(claim.claimId)}
+                        disabled={exportingClaimId === claim.claimId}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: exportingClaimId === claim.claimId ? '#6c757d' : '#20c997',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: exportingClaimId === claim.claimId ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {exportingClaimId === claim.claimId ? '⏳ Exporting...' : '📥 Export'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Claim Timeline Panel */}
+                  {timelineClaimId === claim.claimId && (
+                    <div style={{
+                      marginTop: '12px',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '6px',
+                      backgroundColor: '#fafafa',
+                    }}>
+                      <ClaimTimeline claimId={claim.claimId} />
+                    </div>
+                  )}
+
+                  {/* Document Category Panel (when documents are loaded) */}
+                  {status && status.status === 'completed' && status.documents && status.documents.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                      <DocumentCategoryPanel documents={status.documents} />
                     </div>
                   )}
                 </div>

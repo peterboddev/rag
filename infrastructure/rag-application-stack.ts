@@ -1056,6 +1056,123 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
+    // Graph RAG Infrastructure — Neptune Analytics + Bedrock KB
+    // ============================================================
+
+    // Neptune Analytics Graph (L1 — no L2 construct available)
+    const neptuneGraph = new cdk.CfnResource(this, 'NeptuneAnalyticsGraph', {
+      type: 'AWS::NeptuneGraph::Graph',
+      properties: {
+        GraphName: `${applicationName}-graph-${environment}`,
+        ProvisionedMemory: 32,
+        VectorSearchConfiguration: {
+          VectorSearchDimension: 1024,
+        },
+        PublicConnectivity: false,
+        ReplicaCount: 0,
+        DeletionProtection: environment === 'prod',
+      },
+    });
+
+    // KB service role for Bedrock to access S3, Neptune, and embedding models
+    const graphRagKbRole = new iam.Role(this, 'GraphRagKbRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+      inlinePolicies: {
+        BedrockKbPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ['s3:GetObject', 's3:ListBucket'],
+              resources: [
+                documentsBucket.bucketArn,
+                `${documentsBucket.bucketArn}/*`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              actions: [
+                'neptune-graph:GetGraph',
+                'neptune-graph:ReadDataViaQuery',
+                'neptune-graph:WriteDataViaQuery',
+                'neptune-graph:DeleteDataViaQuery',
+              ],
+              resources: [neptuneGraph.getAtt('GraphArn').toString()],
+            }),
+            new iam.PolicyStatement({
+              actions: ['bedrock:InvokeModel'],
+              resources: [
+                `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+                `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-micro-v1:0`,
+              ],
+            }),
+          ],
+        }),
+      },
+    });
+
+    // Bedrock Knowledge Base backed by Neptune Analytics
+    // Using CfnResource because the typed L1 construct doesn't support
+    // NEPTUNE_ANALYTICS storage type or contextEnrichmentConfiguration yet
+    const graphRagKb = new cdk.CfnResource(this, 'GraphRagKnowledgeBase', {
+      type: 'AWS::Bedrock::KnowledgeBase',
+      properties: {
+        Name: `${applicationName}-graphrag-kb-${environment}`,
+        RoleArn: graphRagKbRole.roleArn,
+        KnowledgeBaseConfiguration: {
+          Type: 'VECTOR',
+          VectorKnowledgeBaseConfiguration: {
+            EmbeddingModelArn: `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
+          },
+        },
+        StorageConfiguration: {
+          Type: 'NEPTUNE_ANALYTICS',
+          NeptuneAnalyticsConfiguration: {
+            GraphArn: neptuneGraph.getAtt('GraphArn').toString(),
+            FieldMapping: {
+              MetadataField: 'metadata',
+              TextField: 'text',
+            },
+          },
+        },
+      },
+    });
+    graphRagKb.node.addDependency(neptuneGraph);
+
+    // S3 data source with CHUNK_ENTITY_EXTRACTION enrichment
+    const graphRagDataSource = new cdk.CfnResource(this, 'GraphRagDataSource', {
+      type: 'AWS::Bedrock::DataSource',
+      properties: {
+        KnowledgeBaseId: graphRagKb.getAtt('KnowledgeBaseId').toString(),
+        Name: `${applicationName}-graphrag-ds-${environment}`,
+        DataSourceConfiguration: {
+          Type: 'S3',
+          S3Configuration: {
+            BucketArn: documentsBucket.bucketArn,
+          },
+        },
+        ContextEnrichmentConfiguration: {
+          Type: 'BEDROCK_FOUNDATION_MODEL',
+          BedrockFoundationModelConfiguration: {
+            EnrichmentStrategyConfiguration: {
+              Method: 'CHUNK_ENTITY_EXTRACTION',
+            },
+            ModelArn: `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-micro-v1:0`,
+          },
+        },
+      },
+    });
+    graphRagDataSource.node.addDependency(graphRagKb);
+
+    // Export Neptune graph ARN
+    new cdk.CfnOutput(this, 'NeptuneGraphArn', {
+      value: neptuneGraph.getAtt('GraphArn').toString(),
+      description: 'Neptune Analytics Graph ARN',
+    });
+
+    new cdk.CfnOutput(this, 'GraphRagKnowledgeBaseId', {
+      value: graphRagKb.getAtt('KnowledgeBaseId').toString(),
+      description: 'GraphRAG Knowledge Base ID',
+    });
+
+    // ============================================================
     // Claim Summary Orchestrator Lambda
     // ============================================================
 
@@ -1077,6 +1194,7 @@ export class RAGApplicationStack extends cdk.Stack {
         EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
         BEDROCK_REGION: 'us-east-1',
         KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
+        GRAPH_RAG_KNOWLEDGE_BASE_ID: graphRagKb.getAtt('KnowledgeBaseId').toString(),
         REGION: this.region,
       },
       cdk.Duration.seconds(120),
@@ -1120,6 +1238,27 @@ export class RAGApplicationStack extends cdk.Stack {
         'aoss:APIAccessAll',
       ],
       resources: ['*'],
+    }));
+
+    // Grant GraphRAG KB retrieval permissions
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:Retrieve', 'bedrock:RetrieveAndGenerate'],
+      resources: [graphRagKb.getAtt('KnowledgeBaseArn').toString()],
+    }));
+
+    // Grant Neptune Analytics read access for GraphRAG queries
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['neptune-graph:ReadDataViaQuery', 'neptune-graph:GetQueryResults'],
+      resources: [neptuneGraph.getAtt('GraphArn').toString()],
+    }));
+
+    // Grant Cohere Rerank 3.5 model access for optional reranking
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [`arn:aws:bedrock:${this.region}::foundation-model/cohere.rerank-v3-5:0`],
     }));
 
     // Export Claim Summary Orchestrator Lambda function name

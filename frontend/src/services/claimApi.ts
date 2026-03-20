@@ -241,6 +241,105 @@ export async function getDocument(documentId: string): Promise<DocumentRetrieval
   );
 }
 
+// Claim Status History Types
+
+export type ClaimStatusValue = 'Submitted' | 'Under Review' | 'Approved' | 'Denied' | 'Pending Information';
+
+export interface ClaimStatusHistoryEntry {
+  claimId: string;
+  timestamp: string;
+  status: ClaimStatusValue;
+  changedBy?: string;
+  note?: string;
+}
+
+export interface ClaimStatusHistoryResponse {
+  claimId: string;
+  currentStatus: ClaimStatusValue;
+  history: ClaimStatusHistoryEntry[];
+}
+
+/**
+ * Retrieves claim status history (chronological list of status changes).
+ */
+export async function getClaimHistory(claimId: string): Promise<ClaimStatusHistoryResponse> {
+  return withRetry(() =>
+    apiRequest<ClaimStatusHistoryResponse>(`/claims/${encodeURIComponent(claimId)}/history`)
+  );
+}
+
+/**
+ * Adds a new status entry to a claim's history.
+ */
+export async function addClaimStatusEntry(
+  claimId: string,
+  status: ClaimStatusValue,
+  note?: string,
+  changedBy?: string
+): Promise<ClaimStatusHistoryEntry> {
+  return withRetry(() =>
+    apiRequest<ClaimStatusHistoryEntry>(`/claims/${encodeURIComponent(claimId)}/history`, {
+      method: 'POST',
+      body: JSON.stringify({ status, note, changedBy }),
+    })
+  );
+}
+
+// Claim Search Types
+
+export interface ClaimSearchResult {
+  documentId: string;
+  claimId: string;
+  fileName: string;
+  excerpt: string;
+  score: number;
+  documentType?: string;
+}
+
+export interface ClaimSearchResponse {
+  query: string;
+  results: ClaimSearchResult[];
+  totalResults: number;
+}
+
+/**
+ * Performs semantic search across claim documents.
+ */
+export async function searchClaims(
+  query: string,
+  documentType?: string,
+  limit?: number
+): Promise<ClaimSearchResponse> {
+  return withRetry(() =>
+    apiRequest<ClaimSearchResponse>('/claims/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, documentType, limit }),
+    })
+  );
+}
+
+// Claim Export Types
+
+export interface ClaimExportResponse {
+  claimId: string;
+  fileName: string;
+  contentType: string;
+  content: string;
+  documentCount: number;
+  generatedAt: string;
+}
+
+/**
+ * Exports claim data as a downloadable text report.
+ */
+export async function exportClaim(claimId: string): Promise<ClaimExportResponse> {
+  return withRetry(() =>
+    apiRequest<ClaimExportResponse>(`/claims/${encodeURIComponent(claimId)}/export`, {
+      method: 'POST',
+    })
+  );
+}
+
 // Claim Summary Types
 
 export interface DataAnomaly {
@@ -290,7 +389,8 @@ export function buildSummaryRequest(
   strategy: string,
   chunkingMethod?: string,
   forceRegenerate?: boolean,
-  includeEvaluation?: boolean
+  includeEvaluation?: boolean,
+  useReranker?: boolean
 ) {
   return {
     endpoint: `/claims/${encodeURIComponent(claimId)}/summary`,
@@ -300,6 +400,7 @@ export function buildSummaryRequest(
       ...(chunkingMethod && { chunkingMethod }),
       ...(forceRegenerate !== undefined && { forceRegenerate }),
       ...(includeEvaluation !== undefined && { includeEvaluation }),
+      ...(useReranker !== undefined && { useReranker }),
     },
   };
 }
@@ -334,9 +435,10 @@ export async function getClaimSummary(
   strategy: string,
   chunkingMethod?: string,
   forceRegenerate?: boolean,
-  includeEvaluation?: boolean
+  includeEvaluation?: boolean,
+  useReranker?: boolean
 ): Promise<ClaimSummaryResponse> {
-  const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation);
+  const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation, useReranker);
   return apiRequest<ClaimSummaryResponse>(req.endpoint, {
     method: req.method,
     body: JSON.stringify(req.body),

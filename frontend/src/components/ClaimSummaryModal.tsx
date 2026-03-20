@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getClaimSummary, getClaimEvaluations } from '../services/claimApi';
 import EvaluationScoreDisplay from './EvaluationScoreDisplay';
 import StrategyComparisonPanel from './StrategyComparisonPanel';
+import StrategyComparisonView from './StrategyComparisonView';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,7 @@ const CHUNKING_OPTIONS: { value: ChunkingMethod; label: string }[] = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, claimId }) => {
+  const [activeTab, setActiveTab] = useState<'generate' | 'compare'>('generate');
   const [strategy, setStrategy] = useState<Strategy>('full-context');
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
   const [includeEvaluation, setIncludeEvaluation] = useState(true);
@@ -129,6 +131,7 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
+      setActiveTab('generate');
       setStrategy('full-context');
       setChunkingMethod('semantic');
       setIncludeEvaluation(true);
@@ -230,7 +233,7 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
         tabIndex={-1}
         style={{
           backgroundColor: 'white', borderRadius: '8px',
-          width: '90%', maxWidth: '800px', maxHeight: '85vh',
+          width: '90%', maxWidth: activeTab === 'compare' ? '1200px' : '800px', maxHeight: '85vh',
           overflow: 'hidden', display: 'flex', flexDirection: 'column',
           outline: 'none',
         }}
@@ -251,8 +254,48 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
           >×</button>
         </div>
 
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: '0 20px' }}>
+          <button
+            data-testid="tab-generate"
+            onClick={() => setActiveTab('generate')}
+            style={{
+              padding: '10px 20px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 600,
+              backgroundColor: activeTab === 'generate' ? '#fff' : 'transparent',
+              borderBottom: activeTab === 'generate' ? '3px solid #6f42c1' : '3px solid transparent',
+              color: activeTab === 'generate' ? '#6f42c1' : '#666',
+            }}
+          >
+            Generate Summary
+          </button>
+          <button
+            data-testid="tab-compare"
+            onClick={() => setActiveTab('compare')}
+            style={{
+              padding: '10px 20px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 600,
+              backgroundColor: activeTab === 'compare' ? '#fff' : 'transparent',
+              borderBottom: activeTab === 'compare' ? '3px solid #6f42c1' : '3px solid transparent',
+              color: activeTab === 'compare' ? '#6f42c1' : '#666',
+            }}
+          >
+            Compare All Strategies
+          </button>
+        </div>
+
         {/* Scrollable content */}
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+          {activeTab === 'compare' ? (
+            <StrategyComparisonView claimId={claimId} />
+          ) : (
+          <>
           {/* Strategy Selection */}
           <div style={{ marginBottom: '20px' }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: '15px' }}>Summarization Strategy</h3>
@@ -486,6 +529,8 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
                 <StrategyComparisonPanel claimId={claimId} summaries={comparisonData} />
               )}
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

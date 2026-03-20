@@ -50,6 +50,7 @@ function createInitialColumns(): Record<Strategy, ColumnState> {
 const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId }) => {
   const [columns, setColumns] = useState<Record<Strategy, ColumnState>>(createInitialColumns);
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
+  const [useReranker, setUseReranker] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +84,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           config.key,
           config.chunkingMethod,
           forceRegenerate,
-          true // includeEvaluation
+          true, // includeEvaluation
+          config.key === 'graph-rag' ? useReranker : undefined
         );
         setColumns((prev) => ({
           ...prev,
@@ -100,7 +102,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     },
-    [claimId]
+    [claimId, useReranker]
   );
 
   // Generate All: call getClaimSummary concurrently for all three strategies
@@ -120,7 +122,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         config.key,
         config.chunkingMethod,
         false,
-        true // includeEvaluation
+        true, // includeEvaluation
+        config.key === 'graph-rag' ? useReranker : undefined
       )
     );
 
@@ -144,7 +147,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     });
-  }, [claimId, chunkingMethod]);
+  }, [claimId, chunkingMethod, useReranker]);
 
   // Individual regeneration handler
   const handleRegenerate = useCallback(
@@ -180,6 +183,19 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
             {opt.label}
           </label>
         ))}
+      </div>
+
+      {/* Reranker toggle for Graph RAG */}
+      <div style={{ marginBottom: '12px', textAlign: 'center' }}>
+        <label style={{ fontSize: '14px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={useReranker}
+            onChange={() => setUseReranker(!useReranker)}
+            style={{ marginRight: '4px' }}
+          />
+          Graph RAG: Use Reranker (Cohere Rerank 3.5)
+        </label>
       </div>
 
       {/* Generate All button */}

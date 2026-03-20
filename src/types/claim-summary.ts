@@ -70,6 +70,12 @@ export interface ClaimSummaryRequest {
    * @default false
    */
   includeEvaluation?: boolean;
+
+  /**
+   * When true and strategy is 'graph-rag', enables Cohere Rerank 3.5 on retrieval results.
+   * @default false
+   */
+  useReranker?: boolean;
 }
 
 /**
@@ -142,6 +148,11 @@ export interface ClaimSummaryResponse {
    * Only present when `includeEvaluation` was true in the request.
    */
   evaluation?: EvaluationScores;
+
+  /**
+   * Whether reranking was enabled for this summary (graph-rag only).
+   */
+  useReranker?: boolean;
 }
 
 /**
