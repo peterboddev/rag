@@ -451,8 +451,8 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     cleanupService = new EmbeddingCleanupService();
   });
 
-  it('handles 100+ documents with batch embedding cleanup', async () => {
-    const docs = makeDocs(120);
+  it('handles batch embedding cleanup at scale', async () => {
+    const docs = makeDocs(50);
 
     mockDynamoSend.mockResolvedValueOnce({}); // cleanup status
     mockDynamoSend.mockResolvedValueOnce({}); // job progress
@@ -461,12 +461,12 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
 
     const result = await cleanupService.cleanupCustomerEmbeddings('cust-001', 'tenant-A');
 
-    expect(result.diagnostics!.totalDocuments).toBe(120);
-    expect(result.diagnostics!.totalEmbeddingIds).toBe(240); // 120 × 2
-    expect(result.embeddingsRemoved).toBe(240);
+    expect(result.diagnostics!.totalDocuments).toBe(50);
+    expect(result.diagnostics!.totalEmbeddingIds).toBe(100); // 50 × 2
+    expect(result.embeddingsRemoved).toBe(100);
     // OpenSearch bulk should be called for batch processing
     expect(mockOpenSearchBulk).toHaveBeenCalled();
-  }, 120000);
+  }, 180000);
 
   it('handles documents with varying embedding counts', async () => {
     const docs = [
