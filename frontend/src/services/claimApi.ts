@@ -50,6 +50,12 @@ async function apiRequest<T>(
 
   headers['Authorization'] = `Bearer ${token}`;
 
+  // Include tenant ID for multi-tenant Lambda handlers
+  const tenantId = localStorage.getItem('tenantId');
+  if (tenantId) {
+    headers['X-Tenant-Id'] = tenantId;
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 

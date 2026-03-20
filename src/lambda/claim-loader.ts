@@ -625,7 +625,8 @@ function determineDocumentType(fileName: string): 'CMS1500' | 'EOB' | 'Clinical 
 
 function extractTenantFromToken(event: APIGatewayProxyEvent): string | null {
   // For local development, allow tenant_id in headers
-  const tenantIdHeader = event.headers['x-tenant-id'] || event.headers['X-Tenant-Id'];
+  const headers = event.headers || {};
+  const tenantIdHeader = headers['x-tenant-id'] || headers['X-Tenant-Id'];
   if (tenantIdHeader) {
     return tenantIdHeader;
   }
