@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
 import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand, StandardUnit } from '@aws-sdk/client-cloudwatch';
@@ -562,6 +562,24 @@ async function processDocument(
     }));
 
     console.log('Document copied to platform bucket', { sourceKey, destKey, documentId });
+
+    // Write .metadata.json sidecar for Bedrock Knowledge Base metadata indexing
+    const metadataSidecar = {
+      metadataAttributes: {
+        claimId,
+        patientId,
+        patientName: patientMapping.patientName,
+        documentType: determineDocumentType(fileName),
+      },
+    };
+    await s3Client.send(new PutObjectCommand({
+      Bucket: PLATFORM_BUCKET,
+      Key: `${destKey}.metadata.json`,
+      Body: JSON.stringify(metadataSidecar),
+      ContentType: 'application/json',
+    }));
+
+    console.log('Metadata sidecar written', { key: `${destKey}.metadata.json`, claimId, patientId });
 
     // Create claim metadata
     const claimMetadata: ClaimMetadata = {
