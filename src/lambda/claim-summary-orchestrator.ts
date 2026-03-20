@@ -293,6 +293,24 @@ function parseSummaryResponse(responseText: string): { summary: string; anomalie
 }
 
 /**
+ * Resolve patientId from claimId by querying DynamoDB for claim documents.
+ * Returns the patientId from the first document's claimMetadata, or null if not found.
+ */
+async function resolvePatientId(claimId: string): Promise<string | null> {
+  try {
+    const docs = await queryClaimDocuments(claimId);
+    const patientId = docs.find((d) => d.claimMetadata?.patientId)?.claimMetadata?.patientId;
+    if (patientId) {
+      console.log(`Resolved patientId=${patientId} for claimId=${claimId}`);
+    }
+    return patientId || null;
+  } catch (error) {
+    console.error('Failed to resolve patientId for claimId:', claimId, error);
+    return null;
+  }
+}
+
+/**
  * Full Context strategy: concatenate all document text and invoke Bedrock.
  */
 async function executeFullContextStrategy(
@@ -312,15 +330,19 @@ async function executeFullContextStrategy(
  */
 async function executeRagStrategy(
   claimId: string,
-  chunkingMethod: string
+  chunkingMethod: string,
+  patientId?: string | null
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
-  // Build retrieval config with claimId metadata filter
+  // Build retrieval config — prefer patientId filter (scopes to all patient docs), fall back to claimId
+  const filterKey = patientId ? 'patientId' : 'claimId';
+  const filterValue = patientId || claimId;
   const vectorSearchConfig: any = {
     numberOfResults: 20,
     filter: {
-      equals: { key: 'claimId', value: claimId },
+      equals: { key: filterKey, value: filterValue },
     },
   };
+  console.log(`RAG KB filter: ${filterKey}=${filterValue}`);
 
   const retrieveCommand = new RetrieveCommand({
     knowledgeBaseId: KNOWLEDGE_BASE_ID,
@@ -337,7 +359,7 @@ async function executeRagStrategy(
 
   if (chunks.length === 0) {
     // Fallback: if metadata filter returned nothing (e.g. metadata not yet indexed), try without filter
-    console.warn(`No KB results with claimId metadata filter for claim ${claimId}, falling back to unfiltered`);
+    console.warn(`No KB results with ${filterKey} metadata filter for claim ${claimId}, falling back to unfiltered`);
     const fallbackCommand = new RetrieveCommand({
       knowledgeBaseId: KNOWLEDGE_BASE_ID,
       retrievalQuery: {
@@ -401,8 +423,12 @@ async function executeRagStrategy(
  */
 async function executeGraphRagStrategy(
   claimId: string,
-  useReranker: boolean = false
+  useReranker: boolean = false,
+  patientId?: string | null
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
+  const filterKey = patientId ? 'patientId' : 'claimId';
+  const filterValue = patientId || claimId;
+  console.log(`GraphRAG KB filter: ${filterKey}=${filterValue}`);
   const retrieveInput: any = {
     knowledgeBaseId: GRAPH_RAG_KNOWLEDGE_BASE_ID,
     retrievalQuery: {
@@ -412,7 +438,7 @@ async function executeGraphRagStrategy(
       vectorSearchConfiguration: {
         numberOfResults: 20,
         filter: {
-          equals: { key: 'claimId', value: claimId },
+          equals: { key: filterKey, value: filterValue },
         },
       },
     },
@@ -435,7 +461,7 @@ async function executeGraphRagStrategy(
 
   if (chunks.length === 0) {
     // Fallback: if metadata filter returned nothing, try without filter
-    console.warn(`No GraphRAG KB results with claimId metadata filter for claim ${claimId}, falling back to unfiltered`);
+    console.warn(`No GraphRAG KB results with ${filterKey} metadata filter for claim ${claimId}, falling back to unfiltered`);
     const fallbackInput: any = {
       knowledgeBaseId: GRAPH_RAG_KNOWLEDGE_BASE_ID,
       retrievalQuery: {
@@ -624,12 +650,16 @@ async function handlePostSummary(
   let documentIds: string[] = [];
 
   try {
+    // Resolve patientId from claimId for KB metadata filtering
+    const patientId = await resolvePatientId(claimId);
+
     if (request.strategy === 'rag') {
       // RAG strategy: use Knowledge Base retrieval
       console.log('Executing RAG strategy with chunkingMethod:', request.chunkingMethod);
       const ragResult = await executeRagStrategy(
         claimId,
-        request.chunkingMethod || 'semantic'
+        request.chunkingMethod || 'semantic',
+        patientId
       );
 
       if (ragResult.documentCount === 0) {
@@ -644,7 +674,7 @@ async function handlePostSummary(
       const useReranker = request.useReranker ?? false;
       console.log('Executing graph-rag strategy for claimId:', claimId, 'useReranker:', useReranker);
       try {
-        const graphRagResult = await executeGraphRagStrategy(claimId, useReranker);
+        const graphRagResult = await executeGraphRagStrategy(claimId, useReranker, patientId);
         if (graphRagResult.documentCount === 0) {
           return errorResponse(404, `No documents found for claim ${claimId}`);
         }
