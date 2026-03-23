@@ -244,6 +244,8 @@ function buildSummaryPrompt(documentsText: string, strategy: string): string {
    - Duplicate or conflicting information
    - Unrealistic data patterns
 
+IMPORTANT: Dates in these documents use MM/DD/YYYY format. When comparing dates, you MUST convert them to YYYY-MM-DD format first to determine chronological order. For example, 10/03/1964 means October 3, 1964 and 08/10/1946 means August 10, 1946. A service date of 10/03/1964 is AFTER a birth date of 08/10/1946 (the patient was 18 years old), so that is NOT an anomaly. Only flag a chronological impossibility when the service date is genuinely earlier than the birth date (i.e., the YYYY year of service is less than the YYYY year of birth, or same year but earlier month/day).
+
 Format your response as JSON with this exact structure:
 {
   "summary": "Your comprehensive summary text here",
