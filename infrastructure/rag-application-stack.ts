@@ -1152,7 +1152,11 @@ export class RAGApplicationStack extends cdk.Stack {
     // S3 data source with CHUNK_ENTITY_EXTRACTION enrichment
     // Using AwsCustomResource because CloudFormation AWS::Bedrock::DataSource
     // doesn't support ContextEnrichmentConfiguration in this region yet, but the
-    // Bedrock API requires it when using Neptune Analytics storage
+    // Bedrock API requires it when using Neptune Analytics storage.
+    // NOTE: Bedrock KB automatically recognizes <filename>.metadata.json sidecar files
+    // co-located with source documents in S3. No explicit parsingConfiguration is needed.
+    // The claim-loader Lambda writes sidecars with { metadataAttributes: { claimId, patientId, ... } }
+    // which Bedrock indexes during ingestion for metadata-filtered retrieval.
     const graphRagDataSource = new cr.AwsCustomResource(this, 'GraphRagDataSource', {
       onCreate: {
         service: 'BedrockAgent',
@@ -1164,6 +1168,7 @@ export class RAGApplicationStack extends cdk.Stack {
             type: 'S3',
             s3Configuration: {
               bucketArn: documentsBucket.bucketArn,
+              inclusionPrefixes: ['uploads/'],
             },
           },
           vectorIngestionConfiguration: {

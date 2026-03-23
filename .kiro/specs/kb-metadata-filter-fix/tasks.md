@@ -1,0 +1,125 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - Metadata-Filtered KB Retrieval Returns Zero Results
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate metadata-filtered retrieval returns 0 results because data sources lack `parsingConfiguration` with metadata file settings
+  - **Scoped PBT Approach**: For any `{ claimId, patientId, strategy }` input where strategy is `rag` or `graph-rag` and a metadata filter is applied, scope the property to verify that `Retrieve` returns >0 results with metadata matching the filter value
+  - Create test file `unit_tests/bug-kb-metadata-filter-exploration.property.test.ts`
+  - Use the Bedrock Agent Runtime `Retrieve` API to query both KBs with metadata filters on the UNFIXED (current) configuration
+  - Test cases to include:
+    - RAG KB `IJ9SLGVYQ1` with filter `{ equals: { key: 'patientId', value: '<known-patientId>' } }` — assert >0 results
+    - RAG KB `IJ9SLGVYQ1` with filter `{ equals: { key: 'claimId', value: '<known-claimId>' } }` — assert >0 results
+    - GraphRAG KB `B72QTGJBCX` with filter `{ equals: { key: 'patientId', value: '<known-patientId>' } }` — assert >0 results
+    - RAG KB `IJ9SLGVYQ1` WITHOUT metadata filter — assert >0 results (confirms documents exist but metadata is not indexed)
+  - Use fast-check to generate random metadata filter key/value pairs from known patient/claim IDs
+  - For each generated input, call `Retrieve` with the metadata filter and assert:
+    - `retrievalResults.length > 0`
+    - All returned chunks have metadata matching the filter value
+  - Run test on UNFIXED code
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct - it proves the bug exists because metadata-filtered queries return 0 results while unfiltered queries return results)
+  - Document counterexamples found: filtered queries return `{ retrievalResults: [] }` while unfiltered queries return chunks, confirming metadata attributes are not indexed
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Full-Context Strategy, Cache Hits, No-Fallback Behavior, and Sidecar Writing Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Create test file `unit_tests/preservation-kb-metadata-filter.property.test.ts`
+  - Observe behavior on UNFIXED code for non-buggy inputs (inputs where `isBugCondition` returns false):
+  - Observe: `handlePostSummary` with `strategy: 'full-context'` queries DynamoDB via `queryClaimDocuments`, calls `executeFullContextStrategy`, never calls `RetrieveCommand` — returns `{ summary, anomalies, documentCount }` from DynamoDB documents
+  - Observe: `handlePostSummary` with any strategy and `forceRegenerate: false` where cache has a hit returns the cached `ClaimSummaryResponse` with `cached: true` without invoking any strategy execution
+  - Observe: `executeRagStrategy` and `executeGraphRagStrategy` when filtered retrieval returns 0 chunks return `{ summary: '', anomalies: [], documentCount: 0 }` — the caller returns HTTP 404, no unfiltered fallback query is made
+  - Observe: `processDocument` in `claim-loader.ts` writes `.metadata.json` sidecar files with format `{ metadataAttributes: { claimId, patientId, patientName, documentType } }` alongside each uploaded document
+  - Write property-based tests with fast-check capturing observed behavior:
+    - For all random `{ claimId, tenantId }` inputs with `strategy: 'full-context'`, verify `queryClaimDocuments` is called, `RetrieveCommand` is never called, and summary is generated from DynamoDB documents
+    - For all random `{ claimId, strategy, chunkingMethod }` inputs where cache returns a hit, verify cached response is returned with `cached: true` and no strategy execution occurs
+    - For all random `{ claimId, patientId }` inputs where `executeRagStrategy` filtered retrieval returns 0 chunks, verify `RetrieveCommand` is called exactly once (no unfiltered fallback) and result is `{ summary: '', anomalies: [], documentCount: 0 }`
+    - For all random `{ claimId, patientId }` inputs where `executeGraphRagStrategy` filtered retrieval returns 0 chunks, verify `RetrieveCommand` is called exactly once (no unfiltered fallback) and result is `{ summary: '', anomalies: [], documentCount: 0 }`
+    - For all random `{ patientId, claimId, fileName }` inputs, verify `processDocument` writes a `.metadata.json` sidecar with the correct `metadataAttributes` structure
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4_
+
+- [x] 3. Fix for KB metadata-filtered retrieval returning zero results
+
+  - [x] 3.1 Update RAG KB data source `ND5VILOG2Q` configuration via API
+    - Run `aws bedrock-agent get-data-source --knowledge-base-id IJ9SLGVYQ1 --data-source-id ND5VILOG2Q` to capture current data source name and configuration
+    - Run `aws bedrock-agent update-data-source` with the current configuration PLUS `parsingConfiguration` to enable metadata file parsing for `.metadata.json` sidecars
+    - The key addition is `parsingConfiguration` with metadata sidecar recognition (Bedrock default `<filename>.metadata.json` pattern)
+    - Verify the update succeeded by re-running `get-data-source` and confirming `parsingConfiguration` is present
+    - _Bug_Condition: isBugCondition(input) where input.targetDataSource.parsingConfiguration.metadataConfiguration IS UNDEFINED_
+    - _Expected_Behavior: Data source recognizes `.metadata.json` sidecars during ingestion, metadata attributes indexed_
+    - _Preservation: No changes to Lambda code, no changes to S3 bucket structure, no changes to sidecar format_
+    - _Requirements: 2.1, 2.3_
+
+  - [x] 3.2 Update GraphRAG data source CDK code in `infrastructure/rag-application-stack.ts`
+    - In `infrastructure/rag-application-stack.ts`, resource `GraphRagDataSource` (`AwsCustomResource`)
+    - Add `parsingConfiguration` to the `createDataSource` parameters alongside the existing `vectorIngestionConfiguration`
+    - This ensures future CDK deployments create the data source with metadata parsing enabled
+    - Do NOT remove or modify the existing `vectorIngestionConfiguration` with `contextEnrichmentConfiguration`
+    - _Bug_Condition: GraphRAG data source created without parsingConfiguration_
+    - _Expected_Behavior: Future CDK deployments include parsingConfiguration for metadata sidecar recognition_
+    - _Preservation: Existing vectorIngestionConfiguration with CHUNK_ENTITY_EXTRACTION enrichment unchanged_
+    - _Requirements: 2.2, 2.4_
+
+  - [x] 3.3 Update live GraphRAG data source `PEZG3NEKRP` configuration via API
+    - CDK `AwsCustomResource` only runs `onCreate` (not `onUpdate`), so the live data source must be updated via API
+    - Run `aws bedrock-agent get-data-source --knowledge-base-id B72QTGJBCX --data-source-id PEZG3NEKRP` to capture current configuration
+    - Run `aws bedrock-agent update-data-source` with the current configuration PLUS `parsingConfiguration` for metadata file parsing
+    - Verify the update succeeded by re-running `get-data-source` and confirming `parsingConfiguration` is present
+    - _Bug_Condition: isBugCondition(input) where input.targetDataSource.parsingConfiguration.metadataConfiguration IS UNDEFINED_
+    - _Expected_Behavior: Data source recognizes `.metadata.json` sidecars during ingestion, metadata attributes indexed_
+    - _Preservation: Existing vectorIngestionConfiguration with contextEnrichmentConfiguration unchanged_
+    - _Requirements: 2.2, 2.4_
+
+  - [x] 3.4 Re-sync RAG KB `IJ9SLGVYQ1`
+    - Run `aws bedrock-agent start-ingestion-job --knowledge-base-id IJ9SLGVYQ1 --data-source-id ND5VILOG2Q`
+    - Monitor ingestion job status with `aws bedrock-agent get-ingestion-job`
+    - Wait for ingestion to complete successfully (status: `COMPLETE`)
+    - Verify metadata attributes are now indexed by running a test `Retrieve` call with a metadata filter
+    - _Expected_Behavior: Ingestion processes `.metadata.json` sidecars and indexes patientId, claimId, patientName, documentType attributes_
+    - _Requirements: 2.1_
+
+  - [x] 3.5 Re-sync GraphRAG KB `B72QTGJBCX`
+    - Run `aws bedrock-agent start-ingestion-job --knowledge-base-id B72QTGJBCX --data-source-id PEZG3NEKRP`
+    - **WARNING**: Previous ingestion failed with "MaxIngestionFileCountPerJob limit: 1000 reached" (1272 files in bucket)
+    - Mitigation options if limit is hit again:
+      - Use `inclusionPrefixes` in the S3 data source configuration to scope ingestion to a subset of files
+      - Request a service limit increase from AWS
+      - Remove old/unused documents from the S3 bucket to reduce file count below 1000
+    - Monitor ingestion job status with `aws bedrock-agent get-ingestion-job`
+    - Document the outcome (success or file limit workaround applied)
+    - _Expected_Behavior: Ingestion processes `.metadata.json` sidecars and indexes metadata attributes_
+    - _Requirements: 2.2_
+
+  - [x] 3.6 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - Metadata-Filtered KB Retrieval Returns Results
+    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
+    - The test from task 1 encodes the expected behavior
+    - When this test passes, it confirms metadata-filtered retrieval now returns matching document chunks after data source config update + KB re-sync
+    - Run bug condition exploration test from step 1
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4_
+
+  - [x] 3.7 Verify preservation tests still pass
+    - **Property 2: Preservation** - Full-Context Strategy, Cache Hits, No-Fallback Behavior, and Sidecar Writing Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
+    - Run preservation property tests from step 2
+    - Verify full-context strategy still queries DynamoDB and never calls KB retrieval
+    - Verify cached summaries still returned without re-querying KBs
+    - Verify no-fallback behavior preserved (0 filtered results → empty results, not unfiltered query)
+    - Verify claim-loader sidecar writing unchanged
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run all unit tests: `npx jest --run`
+  - Verify bug condition exploration test passes (metadata-filtered retrieval returns >0 results after config update + re-sync)
+  - Verify preservation tests pass (full-context strategy, cache hits, no-fallback behavior, sidecar writing all unchanged)
+  - Verify all existing tests in `unit_tests/claim-summary-orchestrator.test.ts` and `unit_tests/claim-summary-orchestrator.property.test.ts` still pass
+  - Verify CDK synth succeeds with the updated `infrastructure/rag-application-stack.ts` (GraphRAG data source parsingConfiguration change)
+  - Ensure all tests pass, ask the user if questions arise
