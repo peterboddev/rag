@@ -158,7 +158,7 @@ function validateRequest(body: string | null): { valid: false; error: string } |
  * Query documents from Documents_Table by claimId.
  * Uses tenant-documents-index GSI with filter on claimMetadata.claimId.
  */
-async function queryClaimDocuments(claimId: string): Promise<DocumentRecord[]> {
+async function queryClaimDocuments(claimId: string, tenantId: string): Promise<DocumentRecord[]> {
   try {
     // Use tenant-documents-index GSI with filter, matching existing claim-status pattern
     const command = new QueryCommand({
@@ -167,7 +167,7 @@ async function queryClaimDocuments(claimId: string): Promise<DocumentRecord[]> {
       KeyConditionExpression: 'tenantId = :tenantId',
       FilterExpression: 'claimMetadata.claimId = :claimId',
       ExpressionAttributeValues: {
-        ':tenantId': 'local-dev-tenant',
+        ':tenantId': tenantId,
         ':claimId': claimId,
       },
     });
@@ -296,9 +296,9 @@ function parseSummaryResponse(responseText: string): { summary: string; anomalie
  * Resolve patientId from claimId by querying DynamoDB for claim documents.
  * Returns the patientId from the first document's claimMetadata, or null if not found.
  */
-async function resolvePatientId(claimId: string): Promise<string | null> {
+async function resolvePatientId(claimId: string, tenantId: string): Promise<string | null> {
   try {
-    const docs = await queryClaimDocuments(claimId);
+    const docs = await queryClaimDocuments(claimId, tenantId);
     const patientId = docs.find((d) => d.claimMetadata?.patientId)?.claimMetadata?.patientId;
     if (patientId) {
       console.log(`Resolved patientId=${patientId} for claimId=${claimId}`);
@@ -605,7 +605,8 @@ async function handleGetEvaluations(claimId: string): Promise<APIGatewayProxyRes
  */
 async function handlePostSummary(
   claimId: string,
-  request: ClaimSummaryRequest
+  request: ClaimSummaryRequest,
+  tenantId: string
 ): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
 
@@ -651,7 +652,7 @@ async function handlePostSummary(
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
-    const patientId = await resolvePatientId(claimId);
+    const patientId = await resolvePatientId(claimId, tenantId);
 
     if (request.strategy === 'rag') {
       // RAG strategy: use Knowledge Base retrieval
@@ -684,7 +685,7 @@ async function handlePostSummary(
       } catch (error) {
         // Fallback to full-context on GraphRAG failure
         console.error('Graph RAG failed, falling back to full-context:', error);
-        const documents = await queryClaimDocuments(claimId);
+        const documents = await queryClaimDocuments(claimId, tenantId);
         if (documents.length === 0) {
           return errorResponse(404, `No documents found for claim ${claimId}`);
         }
@@ -701,7 +702,7 @@ async function handlePostSummary(
     } else {
       // Full-context strategy: query documents directly
       console.log('Querying documents for claimId:', claimId);
-      const documents = await queryClaimDocuments(claimId);
+      const documents = await queryClaimDocuments(claimId, tenantId);
 
       if (documents.length === 0) {
         return errorResponse(404, `No documents found for claim ${claimId}`);
@@ -819,10 +820,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       includeEvaluation: request.includeEvaluation,
     }));
 
-    return handlePostSummary(claimId, request);
+    return handlePostSummary(claimId, request, extractTenantId(event));
 
   } catch (error) {
     console.error('Unexpected error in claim summary orchestrator:', error);
     return errorResponse(500, 'Internal server error');
   }
 };
+
+/**
+ * Extract tenant ID from request headers, falling back to 'local-dev-tenant'.
+ */
+function extractTenantId(event: APIGatewayProxyEvent): string {
+  const headers = event.headers || {};
+  return headers['x-tenant-id'] || headers['X-Tenant-Id'] || 'local-dev-tenant';
+}
