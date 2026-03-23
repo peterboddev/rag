@@ -244,7 +244,16 @@ function buildSummaryPrompt(documentsText: string, strategy: string): string {
    - Duplicate or conflicting information
    - Unrealistic data patterns
 
-IMPORTANT: Dates in these documents use MM/DD/YYYY format. When comparing dates, you MUST convert them to YYYY-MM-DD format first to determine chronological order. For example, 10/03/1964 means October 3, 1964 and 08/10/1946 means August 10, 1946. A service date of 10/03/1964 is AFTER a birth date of 08/10/1946 (the patient was 18 years old), so that is NOT an anomaly. Only flag a chronological impossibility when the service date is genuinely earlier than the birth date (i.e., the YYYY year of service is less than the YYYY year of birth, or same year but earlier month/day).
+CRITICAL DATE COMPARISON RULES:
+- All dates in these documents use MM/DD/YYYY format (month/day/year).
+- To compare two dates, first extract the YEAR (the last 4 digits). A higher year number means a later date.
+- A service date is AFTER a birth date if the service year > birth year. This is NOT an anomaly.
+- Only flag "service date before birth date" if the service year is LESS than the birth year.
+- Example: birthDate=08/08/2008 (year 2008), serviceDate=01/16/2015 (year 2015). Since 2015 > 2008, the service date is AFTER the birth date. This is NOT an anomaly.
+- Example: birthDate=08/08/2008, serviceDate=08/05/2016 (year 2016). Since 2016 > 2008, NOT an anomaly.
+- Example: birthDate=03/15/1990, serviceDate=01/10/1985 (year 1985). Since 1985 < 1990, this IS an anomaly.
+- When reporting dates in dataValues, convert to YYYY-MM-DD format.
+- Do NOT flag a date as anomalous unless you are certain the service year is strictly less than the birth year.
 
 Format your response as JSON with this exact structure:
 {
@@ -274,14 +283,15 @@ function parseSummaryResponse(responseText: string): { summary: string; anomalie
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      const rawAnomalies: DataAnomaly[] = Array.isArray(parsed.anomalies) ? parsed.anomalies.map((a: any) => ({
+        description: a.description || '',
+        severity: ['critical', 'warning', 'info'].includes(a.severity) ? a.severity : 'info',
+        sourceDocument: a.sourceDocument || 'Unknown',
+        dataValues: a.dataValues || {},
+      })) : [];
       return {
         summary: parsed.summary || responseText,
-        anomalies: Array.isArray(parsed.anomalies) ? parsed.anomalies.map((a: any) => ({
-          description: a.description || '',
-          severity: ['critical', 'warning', 'info'].includes(a.severity) ? a.severity : 'info',
-          sourceDocument: a.sourceDocument || 'Unknown',
-          dataValues: a.dataValues || {},
-        })) : [],
+        anomalies: filterFalsePositiveDateAnomalies(rawAnomalies),
       };
     }
   } catch {
@@ -292,6 +302,62 @@ function parseSummaryResponse(responseText: string): { summary: string; anomalie
     summary: responseText,
     anomalies: [],
   };
+}
+
+/**
+ * Validates date-based anomalies programmatically to filter out LLM false positives.
+ * LLMs frequently miscompare dates even when instructed to convert formats first.
+ * This function checks anomalies that claim "service date before birth date" and
+ * removes them if the dates actually show the service date is AFTER the birth date.
+ */
+function filterFalsePositiveDateAnomalies(anomalies: DataAnomaly[]): DataAnomaly[] {
+  return anomalies.filter((anomaly) => {
+    // Only validate chronological date anomalies
+    const desc = anomaly.description.toLowerCase();
+    if (!desc.includes('service date') || !desc.includes('birth')) {
+      return true; // Keep non-date anomalies as-is
+    }
+
+    const dv = anomaly.dataValues;
+    const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
+    const birthDateStr = dv.birthDate || dv.birth_date || dv.BirthDate || dv.dateOfBirth || dv.DateOfBirth;
+
+    if (!serviceDateStr || !birthDateStr) {
+      return true; // Can't validate without both dates, keep the anomaly
+    }
+
+    const serviceDate = parseFlexibleDate(serviceDateStr);
+    const birthDate = parseFlexibleDate(birthDateStr);
+
+    if (!serviceDate || !birthDate) {
+      return true; // Can't parse, keep the anomaly
+    }
+
+    // If service date is actually on or after birth date, it's a false positive — remove it
+    return serviceDate < birthDate;
+  });
+}
+
+/**
+ * Parses a date string in either MM/DD/YYYY or YYYY-MM-DD format.
+ * Returns a Date object or null if parsing fails.
+ */
+function parseFlexibleDate(dateStr: string): Date | null {
+  const trimmed = dateStr.trim();
+
+  // Try YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]));
+  }
+
+  // Try MM/DD/YYYY
+  const usMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (usMatch) {
+    return new Date(parseInt(usMatch[3]), parseInt(usMatch[1]) - 1, parseInt(usMatch[2]));
+  }
+
+  return null;
 }
 
 /**
