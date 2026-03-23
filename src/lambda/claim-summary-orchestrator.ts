@@ -358,40 +358,10 @@ async function executeRagStrategy(
   const chunks = retrievalResponse.retrievalResults || [];
 
   if (chunks.length === 0) {
-    // Fallback: if metadata filter returned nothing (e.g. metadata not yet indexed), try without filter
-    console.warn(`No KB results with ${filterKey} metadata filter for claim ${claimId}, falling back to unfiltered`);
-    const fallbackCommand = new RetrieveCommand({
-      knowledgeBaseId: KNOWLEDGE_BASE_ID,
-      retrievalQuery: {
-        text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
-      },
-      retrievalConfiguration: {
-        vectorSearchConfiguration: { numberOfResults: 20 },
-      },
-    });
-    const fallbackResponse = await bedrockAgentClient.send(fallbackCommand);
-    const fallbackChunks = fallbackResponse.retrievalResults || [];
-
-    if (fallbackChunks.length === 0) {
-      return { summary: '', anomalies: [], documentCount: 0 };
-    }
-
-    const chunksText = fallbackChunks
-      .map((chunk, i) => {
-        const source = chunk.location?.s3Location?.uri || `Chunk ${i + 1}`;
-        return `--- Chunk from: ${source} ---\n${chunk.content?.text || ''}`;
-      })
-      .join('\n\n');
-
-    const uniqueSources = new Set(
-      fallbackChunks.map((c) => c.location?.s3Location?.uri).filter(Boolean)
-    );
-
-    const prompt = buildSummaryPrompt(chunksText, `rag (${chunkingMethod} chunking)`);
-    const responseText = await invokeBedrockNovaPro(prompt);
-    const parsed = parseSummaryResponse(responseText);
-
-    return { ...parsed, documentCount: uniqueSources.size || fallbackChunks.length };
+    // No results with metadata filter — do NOT fall back to unfiltered queries
+    // as that returns chunks from ALL patients, causing mixed patient data.
+    console.warn(`No KB results with ${filterKey} metadata filter for claim ${claimId}. KB may need re-sync to index metadata sidecars.`);
+    return { summary: '', anomalies: [], documentCount: 0 };
   }
 
   // Build context from retrieved chunks
@@ -460,43 +430,8 @@ async function executeGraphRagStrategy(
   const chunks = retrievalResponse.retrievalResults || [];
 
   if (chunks.length === 0) {
-    // Fallback: if metadata filter returned nothing, try without filter
-    console.warn(`No GraphRAG KB results with ${filterKey} metadata filter for claim ${claimId}, falling back to unfiltered`);
-    const fallbackInput: any = {
-      knowledgeBaseId: GRAPH_RAG_KNOWLEDGE_BASE_ID,
-      retrievalQuery: {
-        text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
-      },
-      retrievalConfiguration: {
-        vectorSearchConfiguration: { numberOfResults: 20 },
-      },
-    };
-    if (useReranker) {
-      fallbackInput.retrievalConfiguration.rerankingConfiguration = retrieveInput.retrievalConfiguration.rerankingConfiguration;
-    }
-    const fallbackResponse = await bedrockAgentClient.send(new RetrieveCommand(fallbackInput));
-    const fallbackChunks = fallbackResponse.retrievalResults || [];
-
-    if (fallbackChunks.length === 0) {
-      return { summary: '', anomalies: [], documentCount: 0 };
-    }
-
-    const chunksText = fallbackChunks
-      .map((chunk, i) => {
-        const source = chunk.location?.s3Location?.uri || `Chunk ${i + 1}`;
-        return `--- Chunk from: ${source} ---\n${chunk.content?.text || ''}`;
-      })
-      .join('\n\n');
-
-    const uniqueSources = new Set(
-      fallbackChunks.map((c) => c.location?.s3Location?.uri).filter(Boolean)
-    );
-
-    const prompt = buildSummaryPrompt(chunksText, 'graph-rag (Neptune Analytics GraphRAG)');
-    const responseText = await invokeBedrockNovaPro(prompt);
-    const parsed = parseSummaryResponse(responseText);
-
-    return { ...parsed, documentCount: uniqueSources.size || fallbackChunks.length };
+    console.warn(`No GraphRAG KB results with ${filterKey} metadata filter for claim ${claimId}. KB may need re-sync to index metadata sidecars.`);
+    return { summary: '', anomalies: [], documentCount: 0 };
   }
 
   const chunksText = chunks
