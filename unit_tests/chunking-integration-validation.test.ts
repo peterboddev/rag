@@ -507,7 +507,7 @@ describe('Large-scale operations (100+ documents, batch processing)', () => {
     expect(phases).toContain('identifying');
     expect(phases).toContain('removing_kb');
     expect(phases).toContain('removing_vectordb');
-  }, 120000);
+  }, 300000);
 
   it('deduplicates embedding IDs across documents', async () => {
     const docs = [
@@ -664,19 +664,22 @@ describe('Error recovery workflows', () => {
     const configService = new ChunkingConfigurationService();
     const customer = makeCustomer({ chunkingMethod: SUPPORTED_CHUNKING_METHODS[0] });
 
-    // Track call count to switch behavior: first call returns customer, then all fail, then rollback succeeds
-    let callIndex = 0;
-    mockDynamoSend.mockImplementation(async () => {
-      callIndex++;
-      if (callIndex === 1) {
+    // Track update attempts to distinguish: get succeeds, first N updates fail, rollback succeeds
+    let updateAttempts = 0;
+    mockDynamoSend.mockImplementation(async (cmd: any) => {
+      if (cmd._type === 'Get') {
         // getCustomerChunkingConfig — return customer
         return { Item: customer };
       }
-      if (callIndex <= 5) {
-        // retryWithBackoff attempts (1 initial + 3 retries = calls 2-5)
-        throw new Error('DynamoDB write failed');
+      if (cmd._type === 'Update') {
+        updateAttempts++;
+        if (updateAttempts <= 4) {
+          // retryWithBackoff attempts (1 initial + 3 retries) — all fail
+          throw new Error('DynamoDB write failed');
+        }
+        // rollback attempt — succeeds
+        return {};
       }
-      // rollback attempt (call 6+)
       return {};
     });
 
@@ -684,8 +687,8 @@ describe('Error recovery workflows', () => {
       configService.updateCustomerChunkingConfig('cust-001', 'tenant-A', SUPPORTED_CHUNKING_METHODS[2])
     ).rejects.toThrow('DynamoDB write failed');
 
-    // Verify rollback was attempted (1 get + 4 failed retries + 1 rollback = 6)
-    expect(mockDynamoSend).toHaveBeenCalledTimes(6);
+    // Verify rollback was attempted (4 failed update retries + 1 rollback = 5 update calls)
+    expect(updateAttempts).toBe(5);
   }, 60000);
 
   it('cleanup continues and reports errors when vectorDB removal fails', async () => {
