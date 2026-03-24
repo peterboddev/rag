@@ -365,6 +365,12 @@ export interface EvaluationScores {
   evaluatedAt: string;
 }
 
+export interface PromptInfo {
+  promptTemplate: string;
+  strategyLabel: string;
+  retrievalQuery?: string;
+}
+
 export interface ClaimSummaryResponse {
   summary: string;
   anomalies: DataAnomaly[];
@@ -376,6 +382,7 @@ export interface ClaimSummaryResponse {
   cached: boolean;
   cachedAt?: string;
   evaluation?: EvaluationScores;
+  promptInfo?: PromptInfo;
 }
 
 export interface ClaimEvaluationsResponse {
@@ -425,6 +432,19 @@ export function parseClaimSummaryResponse(data: any): { valid: boolean; errors: 
   if (typeof data.processingTime !== 'number') errors.push('processingTime must be number');
   if (typeof data.generatedAt !== 'string') errors.push('generatedAt must be string');
   if (typeof data.cached !== 'boolean') errors.push('cached must be boolean');
+  if (data.promptInfo !== undefined) {
+    if (typeof data.promptInfo !== 'object' || data.promptInfo === null) {
+      errors.push('promptInfo must be object');
+    } else {
+      if (typeof data.promptInfo.promptTemplate !== 'string')
+        errors.push('promptInfo.promptTemplate must be string');
+      if (typeof data.promptInfo.strategyLabel !== 'string')
+        errors.push('promptInfo.strategyLabel must be string');
+      if (data.promptInfo.retrievalQuery !== undefined &&
+          typeof data.promptInfo.retrievalQuery !== 'string')
+        errors.push('promptInfo.retrievalQuery must be string');
+    }
+  }
   return { valid: errors.length === 0, errors };
 }
 

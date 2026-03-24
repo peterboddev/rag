@@ -52,6 +52,7 @@ function computeAnomalySummary(anomalies: ClaimSummaryResponse['anomalies']): An
 
 const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, data, onRegenerate }) => {
   const { status, response, error } = data;
+  const [promptExpanded, setPromptExpanded] = React.useState(false);
 
   return (
     <div
@@ -162,6 +163,78 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             {/* Evaluation scores */}
             {response.evaluation && (
               <EvaluationScoreDisplay scores={response.evaluation} strategy={label} />
+            )}
+
+            {/* Prompt section */}
+            {response.promptInfo && (
+              <div
+                data-testid={`prompt-section-${strategyKey}`}
+                style={{ marginBottom: '10px' }}
+              >
+                <button
+                  onClick={() => setPromptExpanded(!promptExpanded)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    padding: '6px 10px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#495057',
+                    width: '100%',
+                    textAlign: 'left',
+                  }}
+                >
+                  {promptExpanded ? '▼' : '▶'} LLM Prompt
+                </button>
+                {promptExpanded && (
+                  <div style={{
+                    marginTop: '6px',
+                    padding: '8px 10px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                  }}>
+                    {response.promptInfo.retrievalQuery && (
+                      <div
+                        data-testid={`retrieval-query-${strategyKey}`}
+                        style={{ marginBottom: '8px' }}
+                      >
+                        <strong style={{ fontSize: '12px', color: '#495057' }}>Retrieval Query:</strong>
+                        <pre style={{
+                          margin: '4px 0 0 0',
+                          padding: '6px 8px',
+                          backgroundColor: '#fff',
+                          borderRadius: '3px',
+                          border: '1px solid #e0e0e0',
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                        }}>
+                          {response.promptInfo.retrievalQuery}
+                        </pre>
+                      </div>
+                    )}
+                    <pre style={{
+                      margin: 0,
+                      padding: '6px 8px',
+                      backgroundColor: '#fff',
+                      borderRadius: '3px',
+                      border: '1px solid #e0e0e0',
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                    }}>
+                      {response.promptInfo.promptTemplate}
+                    </pre>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Summary text */}

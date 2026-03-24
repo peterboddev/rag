@@ -18,6 +18,12 @@ interface EvaluationScores {
   evaluatedAt: string;
 }
 
+interface PromptInfo {
+  promptTemplate: string;
+  strategyLabel: string;
+  retrievalQuery?: string;
+}
+
 interface ClaimSummaryResponse {
   summary: string;
   anomalies: DataAnomaly[];
@@ -29,6 +35,7 @@ interface ClaimSummaryResponse {
   cached: boolean;
   cachedAt?: string;
   evaluation?: EvaluationScores;
+  promptInfo?: PromptInfo;
 }
 
 interface StrategyComparisonPanelProps {
@@ -121,6 +128,20 @@ const StrategyComparisonPanel: React.FC<StrategyComparisonPanelProps> = ({ claim
               <div style={{ fontSize: '12px', color: '#555', marginBottom: '10px' }}>
                 📄 {resp.documentCount} docs · ⏱️ {resp.processingTime}ms
               </div>
+
+              {/* Prompt preview */}
+              {resp.promptInfo && (
+                <div style={{ fontSize: '12px', color: '#555', marginBottom: '10px' }}>
+                  <div>🏷️ {resp.promptInfo.strategyLabel}</div>
+                  {resp.promptInfo.retrievalQuery && (
+                    <div style={{ marginTop: '4px', color: '#666' }}>
+                      🔍 KB Query: {resp.promptInfo.retrievalQuery.length > 80
+                        ? resp.promptInfo.retrievalQuery.slice(0, 80) + '…'
+                        : resp.promptInfo.retrievalQuery}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Evaluation scores with best-highlight */}
               {resp.evaluation ? (

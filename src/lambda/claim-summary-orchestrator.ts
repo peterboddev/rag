@@ -10,6 +10,7 @@ import {
   EvaluationScores,
   SummaryStrategy,
   ChunkingMethod,
+  PromptInfo,
 } from '../types/claim-summary';
 import { buildCacheKey, getCachedSummary, cacheSummary } from '../services/summary-cache';
 
@@ -275,6 +276,19 @@ ${documentsText}`;
 }
 
 /**
+ * Build prompt metadata for transparency.
+ * Uses the same buildSummaryPrompt with a placeholder to capture the template.
+ */
+function buildPromptInfo(strategyLabel: string, retrievalQuery?: string): PromptInfo {
+  const promptTemplate = buildSummaryPrompt('[DOCUMENTS]', strategyLabel);
+  return {
+    promptTemplate,
+    strategyLabel,
+    ...(retrievalQuery !== undefined && { retrievalQuery }),
+  };
+}
+
+/**
  * Parse the Bedrock response into summary and anomalies.
  */
 function parseSummaryResponse(responseText: string): { summary: string; anomalies: DataAnomaly[] } {
@@ -383,14 +397,15 @@ async function resolvePatientId(claimId: string, tenantId: string): Promise<stri
  */
 async function executeFullContextStrategy(
   documents: DocumentRecord[]
-): Promise<{ summary: string; anomalies: DataAnomaly[] }> {
+): Promise<{ summary: string; anomalies: DataAnomaly[]; promptInfo: PromptInfo }> {
   const documentsText = documents
     .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
     .join('\n\n');
 
   const prompt = buildSummaryPrompt(documentsText, 'full-context');
   const responseText = await invokeBedrockNovaPro(prompt);
-  return parseSummaryResponse(responseText);
+  const promptInfo = buildPromptInfo('full-context');
+  return { ...parseSummaryResponse(responseText), promptInfo };
 }
 
 /**
@@ -401,7 +416,7 @@ async function executeRagStrategy(
   chunkingMethod: string,
   useReranker: boolean = false,
   patientId?: string | null
-): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
+): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
   // Build retrieval config — prefer patientId filter (scopes to all patient docs), fall back to claimId
   const filterKey = patientId ? 'patientId' : 'claimId';
   const filterValue = patientId || claimId;
@@ -413,10 +428,12 @@ async function executeRagStrategy(
   };
   console.log(`RAG KB filter: ${filterKey}=${filterValue}`);
 
+  const retrievalQueryText = `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`;
+
   const retrieveInput: any = {
     knowledgeBaseId: KNOWLEDGE_BASE_ID,
     retrievalQuery: {
-      text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
+      text: retrievalQueryText,
     },
     retrievalConfiguration: {
       vectorSearchConfiguration: vectorSearchConfig,
@@ -443,7 +460,8 @@ async function executeRagStrategy(
     // No results with metadata filter — do NOT fall back to unfiltered queries
     // as that returns chunks from ALL patients, causing mixed patient data.
     console.warn(`No KB results with ${filterKey} metadata filter for claim ${claimId}. KB may need re-sync to index metadata sidecars.`);
-    return { summary: '', anomalies: [], documentCount: 0 };
+    const promptInfo = buildPromptInfo(`rag (${chunkingMethod} chunking)`, retrievalQueryText);
+    return { summary: '', anomalies: [], documentCount: 0, promptInfo };
   }
 
   // Build context from retrieved chunks
@@ -462,10 +480,12 @@ async function executeRagStrategy(
   const prompt = buildSummaryPrompt(chunksText, `rag (${chunkingMethod} chunking)`);
   const responseText = await invokeBedrockNovaPro(prompt);
   const parsed = parseSummaryResponse(responseText);
+  const promptInfo = buildPromptInfo(`rag (${chunkingMethod} chunking)`, retrievalQueryText);
 
   return {
     ...parsed,
     documentCount: uniqueSources.size || chunks.length,
+    promptInfo,
   };
 }
 
@@ -477,14 +497,15 @@ async function executeGraphRagStrategy(
   claimId: string,
   useReranker: boolean = false,
   patientId?: string | null
-): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
+): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
   const filterKey = patientId ? 'patientId' : 'claimId';
   const filterValue = patientId || claimId;
   console.log(`GraphRAG KB filter: ${filterKey}=${filterValue}`);
+  const retrievalQueryText = `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`;
   const retrieveInput: any = {
     knowledgeBaseId: GRAPH_RAG_KNOWLEDGE_BASE_ID,
     retrievalQuery: {
-      text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
+      text: retrievalQueryText,
     },
     retrievalConfiguration: {
       vectorSearchConfiguration: {
@@ -513,7 +534,8 @@ async function executeGraphRagStrategy(
 
   if (chunks.length === 0) {
     console.warn(`No GraphRAG KB results with ${filterKey} metadata filter for claim ${claimId}. KB may need re-sync to index metadata sidecars.`);
-    return { summary: '', anomalies: [], documentCount: 0 };
+    const promptInfo = buildPromptInfo('graph-rag (Neptune Analytics GraphRAG)', retrievalQueryText);
+    return { summary: '', anomalies: [], documentCount: 0, promptInfo };
   }
 
   const chunksText = chunks
@@ -530,10 +552,12 @@ async function executeGraphRagStrategy(
   const prompt = buildSummaryPrompt(chunksText, 'graph-rag (Neptune Analytics GraphRAG)');
   const responseText = await invokeBedrockNovaPro(prompt);
   const parsed = parseSummaryResponse(responseText);
+  const promptInfo = buildPromptInfo('graph-rag (Neptune Analytics GraphRAG)', retrievalQueryText);
 
   return {
     ...parsed,
     documentCount: uniqueSources.size || chunks.length,
+    promptInfo,
   };
 }
 
@@ -666,6 +690,7 @@ async function handlePostSummary(
   let anomalies: DataAnomaly[];
   let documentCount: number;
   let documentIds: string[] = [];
+  let promptInfo: PromptInfo | undefined;
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -689,6 +714,7 @@ async function handlePostSummary(
       summary = ragResult.summary;
       anomalies = ragResult.anomalies;
       documentCount = ragResult.documentCount;
+      promptInfo = ragResult.promptInfo;
     } else if (request.strategy === 'graph-rag') {
       // Graph RAG strategy: query GraphRAG KB (Neptune Analytics)
       const useReranker = request.useReranker ?? false;
@@ -701,6 +727,7 @@ async function handlePostSummary(
         summary = graphRagResult.summary;
         anomalies = graphRagResult.anomalies;
         documentCount = graphRagResult.documentCount;
+        promptInfo = graphRagResult.promptInfo;
       } catch (error) {
         // Fallback to full-context on GraphRAG failure
         console.error('Graph RAG failed, falling back to full-context:', error);
@@ -717,6 +744,7 @@ async function handlePostSummary(
         const result = await executeFullContextStrategy(summarizable);
         summary = result.summary;
         anomalies = result.anomalies;
+        promptInfo = result.promptInfo;
       }
     } else {
       // Full-context strategy: query documents directly
@@ -745,6 +773,7 @@ async function handlePostSummary(
       const result = await executeFullContextStrategy(summarizableDocuments);
       summary = result.summary;
       anomalies = result.anomalies;
+      promptInfo = result.promptInfo;
     }
   } catch (error) {
     // Task 4.4: Return 502 when Bedrock/AgentCore invocation fails
@@ -766,6 +795,7 @@ async function handlePostSummary(
     generatedAt,
     cached: false,
     useReranker: (request.strategy === 'graph-rag' || request.strategy === 'rag') ? request.useReranker : undefined,
+    promptInfo,
   };
 
   // Include evaluation scores if requested

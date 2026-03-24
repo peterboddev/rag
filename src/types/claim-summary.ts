@@ -31,6 +31,20 @@ export type ChunkingMethod = 'full-document' | 'semantic';
 export type AnomalySeverity = 'critical' | 'warning' | 'info';
 
 /**
+ * Prompt metadata for transparency into LLM invocations.
+ * Contains the prompt template (with documents replaced by a placeholder),
+ * the strategy label, and the optional retrieval query.
+ */
+export interface PromptInfo {
+  /** The full prompt template with "[DOCUMENTS]" placeholder instead of actual document text */
+  promptTemplate: string;
+  /** The strategy label string embedded in the prompt */
+  strategyLabel: string;
+  /** The retrieval query sent to KB Retrieve API (rag and graph-rag only) */
+  retrievalQuery?: string;
+}
+
+/**
  * Request payload for generating a claim summary.
  *
  * @example
@@ -153,6 +167,11 @@ export interface ClaimSummaryResponse {
    * Whether reranking was enabled for this summary (rag and graph-rag strategies).
    */
   useReranker?: boolean;
+
+  /**
+   * Prompt metadata for transparency. Present on all successful summaries.
+   */
+  promptInfo?: PromptInfo;
 }
 
 /**
