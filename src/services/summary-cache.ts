@@ -67,7 +67,7 @@ export function buildCacheKey(
 ): string {
   const method = chunkingMethod || 'none';
   const key = `${claimId}#${strategy}#${method}`;
-  return strategy === 'graph-rag' && useReranker ? `${key}#reranker` : key;
+  return (strategy === 'graph-rag' || strategy === 'rag') && useReranker ? `${key}#reranker` : key;
 }
 
 /**

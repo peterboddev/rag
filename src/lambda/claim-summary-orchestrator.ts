@@ -399,6 +399,7 @@ async function executeFullContextStrategy(
 async function executeRagStrategy(
   claimId: string,
   chunkingMethod: string,
+  useReranker: boolean = false,
   patientId?: string | null
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number }> {
   // Build retrieval config — prefer patientId filter (scopes to all patient docs), fall back to claimId
@@ -412,7 +413,7 @@ async function executeRagStrategy(
   };
   console.log(`RAG KB filter: ${filterKey}=${filterValue}`);
 
-  const retrieveCommand = new RetrieveCommand({
+  const retrieveInput: any = {
     knowledgeBaseId: KNOWLEDGE_BASE_ID,
     retrievalQuery: {
       text: `Summarize insurance claim ${claimId} including patient information, diagnoses, procedures, service dates, provider details, and amounts. Identify any data anomalies.`,
@@ -420,7 +421,20 @@ async function executeRagStrategy(
     retrievalConfiguration: {
       vectorSearchConfiguration: vectorSearchConfig,
     },
-  });
+  };
+
+  if (useReranker) {
+    retrieveInput.retrievalConfiguration.rerankingConfiguration = {
+      type: 'BEDROCK_RERANKING_MODEL',
+      bedrockRerankingConfiguration: {
+        modelConfiguration: {
+          modelArn: `arn:aws:bedrock:${process.env.AWS_REGION || 'us-east-1'}::foundation-model/cohere.rerank-v3-5:0`,
+        },
+      },
+    };
+  }
+
+  const retrieveCommand = new RetrieveCommand(retrieveInput);
 
   const retrievalResponse = await bedrockAgentClient.send(retrieveCommand);
   const chunks = retrievalResponse.retrievalResults || [];
@@ -659,10 +673,12 @@ async function handlePostSummary(
 
     if (request.strategy === 'rag') {
       // RAG strategy: use Knowledge Base retrieval
-      console.log('Executing RAG strategy with chunkingMethod:', request.chunkingMethod);
+      const useReranker = request.useReranker ?? false;
+      console.log('Executing RAG strategy with chunkingMethod:', request.chunkingMethod, 'useReranker:', useReranker);
       const ragResult = await executeRagStrategy(
         claimId,
         request.chunkingMethod || 'semantic',
+        useReranker,
         patientId
       );
 
@@ -749,7 +765,7 @@ async function handlePostSummary(
     processingTime,
     generatedAt,
     cached: false,
-    useReranker: request.strategy === 'graph-rag' ? request.useReranker : undefined,
+    useReranker: (request.strategy === 'graph-rag' || request.strategy === 'rag') ? request.useReranker : undefined,
   };
 
   // Include evaluation scores if requested
