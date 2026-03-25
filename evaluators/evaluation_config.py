@@ -25,8 +25,9 @@ from typing import Any, Optional
 
 import boto3
 
-from evaluators.faithfulness_evaluator import FaithfulnessEvaluator
-from evaluators.completeness_evaluator import CompletenessEvaluator
+from evaluators.faithfulness_evaluator import FaithfulnessEvaluator, FAITHFULNESS_PROMPT
+from evaluators.completeness_evaluator import CompletenessEvaluator, COMPLETENESS_PROMPT
+from evaluators.anomaly_accuracy_evaluator import ANOMALY_ACCURACY_PROMPT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -220,3 +221,123 @@ class EvaluationConfig:
                 f"Failed to store evaluation results for "
                 f"{claim_id}/{strategy_key}: {e}"
             )
+
+# ---------------------------------------------------------------------------
+# Module-level helpers for AgentCore evaluator registration and CI/CD
+# ---------------------------------------------------------------------------
+
+DEFAULT_SCORE_THRESHOLDS = {
+    "helpfulness": 0.6,
+    "faithfulness": 0.7,
+    "completeness": 0.6,
+    "anomaly_accuracy": 0.5,
+}
+
+
+def _build_evaluator_config(prompt: str) -> dict:
+    """
+    Build the evaluatorConfig structure for bedrock-agentcore-control
+    create_evaluator() API.
+
+    Args:
+        prompt: The evaluation criteria prompt (instructions).
+
+    Returns:
+        Dict with the llmAsAJudge nested structure.
+    """
+    return {
+        "llmAsAJudge": {
+            "modelConfig": {
+                "bedrockEvaluatorModelConfig": {
+                    "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                    "inferenceConfig": {
+                        "maxTokens": 500,
+                        "temperature": 1.0,
+                    },
+                }
+            },
+            "instructions": prompt,
+            "ratingScale": {
+                "numerical": [
+                    {
+                        "value": 1,
+                        "label": "Very Good",
+                        "definition": "Summary meets all evaluation criteria",
+                    },
+                    {
+                        "value": 0,
+                        "label": "Very Poor",
+                        "definition": "Summary fails to meet evaluation criteria",
+                    },
+                ]
+            },
+        }
+    }
+
+
+def get_evaluator_definitions() -> list[dict]:
+    """
+    Return evaluator definitions for AgentCore custom evaluator registration.
+
+    Each definition contains the evaluator name, evaluation criteria prompt,
+    scoring schema, model ID, level, and evaluatorConfig. The ``level`` and
+    ``evaluatorConfig`` fields are used by the EvaluationRunner to register
+    custom evaluators with the bedrock-agentcore-control ``create_evaluator()``
+    API.  The ``prompt``, ``scoring_schema``, and ``model_id`` fields are
+    preserved for backward compatibility with offline evaluation and CI/CD.
+
+    Returns:
+        List of dicts with keys: name, prompt, scoring_schema, model_id,
+        level, evaluatorConfig
+    """
+    return [
+        {
+            "name": "Faithfulness",
+            "prompt": FAITHFULNESS_PROMPT,
+            "scoring_schema": {
+                "scoreFieldName": "score",
+                "reasoningFieldName": "reasoning",
+                "minScore": 0.0,
+                "maxScore": 1.0,
+            },
+            "model_id": "amazon.nova-pro-v1:0",
+            "level": "TRACE",
+            "evaluatorConfig": _build_evaluator_config(FAITHFULNESS_PROMPT),
+        },
+        {
+            "name": "Completeness",
+            "prompt": COMPLETENESS_PROMPT,
+            "scoring_schema": {
+                "scoreFieldName": "score",
+                "reasoningFieldName": "reasoning",
+                "minScore": 0.0,
+                "maxScore": 1.0,
+            },
+            "model_id": "amazon.nova-pro-v1:0",
+            "level": "TRACE",
+            "evaluatorConfig": _build_evaluator_config(COMPLETENESS_PROMPT),
+        },
+        {
+            "name": "AnomalyAccuracy",
+            "prompt": ANOMALY_ACCURACY_PROMPT,
+            "scoring_schema": {
+                "scoreFieldName": "score",
+                "reasoningFieldName": "reasoning",
+                "minScore": 0.0,
+                "maxScore": 1.0,
+            },
+            "model_id": "amazon.nova-pro-v1:0",
+            "level": "TRACE",
+            "evaluatorConfig": _build_evaluator_config(ANOMALY_ACCURACY_PROMPT),
+        },
+    ]
+
+
+def get_score_thresholds() -> dict:
+    """
+    Return configurable pass/fail score thresholds for CI/CD evaluation.
+
+    Returns:
+        Dict mapping metric name to minimum passing score (0-1).
+    """
+    return dict(DEFAULT_SCORE_THRESHOLDS)

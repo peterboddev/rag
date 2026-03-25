@@ -1320,6 +1320,116 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
+    // Evaluation Results Writer Lambda
+    // ============================================================
+
+    const evaluationResultsWriterFunction = createLambdaFunction(
+      'EvaluationResultsWriterFunction',
+      'dist/src/lambda/evaluation-results-writer.handler',
+      {
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        BEDROCK_REGION: this.region,
+      },
+      cdk.Duration.seconds(30),
+      256
+    );
+
+    // Grant DynamoDB write access to the evaluation results table
+    evaluationResultsTable.grantWriteData(evaluationResultsWriterFunction);
+
+    // IAM policy for AgentCore Evaluations actions
+    const agentCoreEvaluationsPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock-agentcore:CreateEvaluator',
+        'bedrock-agentcore:GetEvaluator',
+        'bedrock-agentcore:CreateEvaluationConfig',
+        'bedrock-agentcore:StartEvaluation',
+      ],
+      resources: ['*'],
+    });
+
+    evaluationResultsWriterFunction.addToRolePolicy(agentCoreEvaluationsPolicy);
+
+    // Grant the orchestrator Lambda the same AgentCore Evaluations permissions
+    // so it can trigger on-demand evaluations
+    claimSummaryOrchestratorFunction.addToRolePolicy(agentCoreEvaluationsPolicy);
+
+    // Export Evaluation Results Writer Lambda function ARN
+    new cdk.CfnOutput(this, 'EvaluationResultsWriterFunctionArn', {
+      value: evaluationResultsWriterFunction.functionArn,
+      description: 'Evaluation Results Writer Lambda Function ARN',
+    });
+
+    // ============================================================
+    // Evaluation Trigger Lambda (Python)
+    // ============================================================
+
+    const evaluationTriggerFunction = new lambda.Function(this, 'EvaluationTriggerFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'handler.handler',
+      code: lambda.Code.fromAsset('.', {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            'bash', '-c', [
+              'cp -r src/lambda/evaluation_trigger/* /asset-output/',
+              'cp -r evaluators /asset-output/evaluators',
+              'pip install strands-agents-evals -t /asset-output/ 2>/dev/null || true',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string) {
+              try {
+                const { execSync } = require('child_process');
+                execSync(`cp -r src/lambda/evaluation_trigger/* ${outputDir}/`, { stdio: 'inherit' });
+                execSync(`cp -r evaluators ${outputDir}/evaluators`, { stdio: 'inherit' });
+                try {
+                  execSync(`pip install strands-agents-evals -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
+                } catch { /* optional dependency */ }
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      role: lambdaExecutionRole,
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 512,
+      environment: {
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        BEDROCK_REGION: 'us-east-1',
+      },
+    });
+
+    // Grant DynamoDB write access to evaluation results table
+    evaluationResultsTable.grantWriteData(evaluationTriggerFunction);
+
+    // Grant Bedrock InvokeModel permission (for the evaluators)
+    evaluationTriggerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+
+    // Grant the orchestrator Lambda permission to invoke the trigger Lambda
+    evaluationTriggerFunction.grantInvoke(claimSummaryOrchestratorFunction);
+
+    // Set EVALUATION_TRIGGER_FUNCTION env var on the orchestrator Lambda
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'EVALUATION_TRIGGER_FUNCTION',
+      evaluationTriggerFunction.functionName,
+    );
+
+    // Export Evaluation Trigger Lambda function ARN
+    new cdk.CfnOutput(this, 'EvaluationTriggerFunctionArn', {
+      value: evaluationTriggerFunction.functionArn,
+      description: 'Evaluation Trigger Lambda Function ARN',
+    });
+
+    // ============================================================
     // Claim Summary API Gateway Endpoints
     // ============================================================
 

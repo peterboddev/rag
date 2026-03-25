@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
-import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { v4 as uuidv4 } from 'uuid';
@@ -305,7 +305,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const jobId = uuidv4();
 
     // List all documents for this patient's claim
-    const claimDocuments = await listClaimDocuments(patientId);
+    const claimDocuments = await listClaimDocuments(patientId, claimId);
     const totalDocuments = claimDocuments.length;
 
     logStructured('INFO', 'Found claim documents', { patientId, claimId, totalDocuments });
@@ -465,8 +465,9 @@ async function loadPatientMapping(patientId: string): Promise<PatientMapping> {
   });
 }
 
-async function listClaimDocuments(patientId: string): Promise<string[]> {
+async function listClaimDocuments(patientId: string, claimId: string): Promise<string[]> {
   try {
+    const claimNumber = extractClaimNumber(claimId);
     const documents: string[] = [];
     
     // List documents from claims directory
@@ -481,10 +482,15 @@ async function listClaimDocuments(patientId: string): Promise<string[]> {
       }));
 
       if (response.Contents) {
-        // Filter for PDF and TXT files
+        // Filter for PDF and TXT files, then filter by claim number suffix
         const files = response.Contents
           .filter((obj: any) => obj.Key && (obj.Key.endsWith('.pdf') || obj.Key.endsWith('.txt')))
-          .map((obj: any) => obj.Key!);
+          .map((obj: any) => obj.Key!)
+          .filter((key: string) => {
+            const fileName = key.split('/').pop()!;
+            // Check if filename contains the claim number after a known prefix
+            return fileName.includes(claimNumber);
+          });
         
         documents.push(...files);
       }
@@ -506,7 +512,12 @@ async function listClaimDocuments(patientId: string): Promise<string[]> {
       if (clinicalResponse.Contents) {
         const files = clinicalResponse.Contents
           .filter((obj: any) => obj.Key && (obj.Key.endsWith('.pdf') || obj.Key.endsWith('.txt')))
-          .map((obj: any) => obj.Key!);
+          .map((obj: any) => obj.Key!)
+          .filter((key: string) => {
+            const fileName = key.split('/').pop()!;
+            // Check if filename contains the claim number after a known prefix
+            return fileName.includes(claimNumber);
+          });
         
         documents.push(...files);
       }
@@ -514,7 +525,7 @@ async function listClaimDocuments(patientId: string): Promise<string[]> {
       continuationToken = clinicalResponse.NextContinuationToken;
     } while (continuationToken);
 
-    console.log('Listed claim documents', { patientId, documentCount: documents.length });
+    console.log('Listed claim documents', { patientId, claimId, claimNumber, documentCount: documents.length });
     return documents;
 
   } catch (error) {
@@ -538,6 +549,27 @@ async function processDocument(
     const fileName = sourceKey.split('/').pop()!;
     const documentType = determineDocumentType(fileName);
     const contentType = fileName.endsWith('.pdf') ? 'application/pdf' : 'text/plain';
+
+    // Deduplication check: skip if a record with the same fileName and claimId already exists
+    const existingRecords = await dynamoClient.send(new ScanCommand({
+      TableName: DOCUMENTS_TABLE,
+      FilterExpression: 'fileName = :fn AND claimMetadata.claimId = :cid',
+      ExpressionAttributeValues: {
+        ':fn': fileName,
+        ':cid': claimId,
+      },
+      Limit: 1,
+    }));
+
+    if (existingRecords.Items && existingRecords.Items.length > 0) {
+      logStructured('INFO', 'Document already processed, skipping duplicate', {
+        fileName,
+        claimId,
+        sourceKey,
+        existingDocumentId: existingRecords.Items[0].documentId,
+      });
+      return;
+    }
 
     // Generate document ID and destination key
     const documentId = uuidv4();
@@ -622,6 +654,18 @@ async function processDocument(
 
     console.log('Document record created', { documentId, fileName, documentType });
   }, DEFAULT_RETRY_CONFIG, `processDocument-${sourceKey}`);
+}
+
+/**
+ * Extract the numeric suffix from a claimId.
+ * E.g., "EOB000061" → "000061", "CLM000061" → "000061"
+ */
+export function extractClaimNumber(claimId: string): string {
+  const match = claimId.match(/(\d+)$/);
+  if (!match) {
+    throw new Error(`No numeric suffix found in claimId: ${claimId}`);
+  }
+  return match[1];
 }
 
 function determineDocumentType(fileName: string): 'CMS1500' | 'EOB' | 'Clinical Note' | 'Radiology Report' {

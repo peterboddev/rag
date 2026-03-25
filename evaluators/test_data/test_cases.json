@@ -1,0 +1,62 @@
+{
+    "test_cases": [
+        {
+            "id": "tc-001",
+            "claim_id": "CLM-TEST-001",
+            "strategy": "full-context",
+            "source_documents": "--- Document: cms1500_claim_001.pdf ---\nPatient Name: Jane M. Rodriguez\nDate of Birth: 1985-03-22\nPatient ID: PT-90210-JR\nInsurance ID: INS-445566\n\nProvider: Dr. Michael Chen, MD\nNPI: 1234567890\nFacility: Westside Medical Center\nFacility Address: 450 Health Blvd, Suite 200, Portland, OR 97201\n\nDate of Service: 2024-11-15\nAdmission Date: 2024-11-15\nDischarge Date: 2024-11-15\n\nDiagnosis Codes:\n  Primary: M54.5 - Low back pain\n  Secondary: M47.816 - Spondylosis without myelopathy, lumbar region\n\nProcedures:\n  CPT 99214 - Office visit, established patient, moderate complexity\n  CPT 72148 - MRI lumbar spine without contrast\n  CPT 97110 - Therapeutic exercises, 30 minutes\n\nCharges:\n  99214: $185.00\n  72148: $1,250.00\n  97110: $95.00\n  Total Charges: $1,530.00\n  Insurance Payment: $1,122.00\n  Patient Responsibility: $408.00\n\n--- Document: radiology_report_001.pdf ---\nPatient: Jane M. Rodriguez\nDOB: 03/22/1985\nExam: MRI Lumbar Spine without Contrast\nDate: 11/15/2024\nOrdering Physician: Dr. Michael Chen\n\nFindings:\nL4-L5: Mild disc bulge with no significant neural foraminal narrowing.\nL5-S1: Small central disc protrusion measuring 3mm. Mild bilateral facet arthropathy.\nNo spinal canal stenosis. Conus medullaris terminates at L1 level, normal.\nParaspinal soft tissues are unremarkable.\n\nImpression:\n1. Small central disc protrusion at L5-S1\n2. Mild disc bulge at L4-L5\n3. Mild bilateral facet arthropathy at L5-S1",
+            "summary": "This claim is for patient Jane M. Rodriguez (DOB: 1985-03-22, ID: PT-90210-JR) who was seen at Westside Medical Center on November 15, 2024 by Dr. Michael Chen (NPI: 1234567890). The primary diagnosis is low back pain (M54.5) with secondary diagnosis of lumbar spondylosis (M47.816). Three procedures were performed: an office visit of moderate complexity (CPT 99214, $185.00), an MRI of the lumbar spine without contrast (CPT 72148, $1,250.00), and therapeutic exercises for 30 minutes (CPT 97110, $95.00). The MRI revealed a small central disc protrusion at L5-S1 and mild disc bulge at L4-L5 with mild bilateral facet arthropathy. Total charges are $1,530.00 with insurance covering $1,122.00 and patient responsibility of $408.00.",
+            "anomalies": [],
+            "expected_score_ranges": {
+                "faithfulness": {"min": 0.7, "max": 1.0},
+                "completeness": {"min": 0.7, "max": 1.0},
+                "anomaly_accuracy": {"min": 0.0, "max": 0.0}
+            }
+        },
+        {
+            "id": "tc-002",
+            "claim_id": "CLM-TEST-002",
+            "strategy": "rag",
+            "source_documents": "--- Document: cms1500_claim_002.pdf ---\nPatient Name: Robert A. Thompson\nDate of Birth: 1972-08-10\nPatient ID: PT-33445-RT\nInsurance ID: INS-778899\n\nProvider: Dr. Sarah Patel, DO\nNPI: 9876543210\nFacility: Riverside Community Hospital\nFacility Address: 1200 River Road, Austin, TX 78701\n\nDate of Service: 2024-10-28\nAdmission Date: 2024-10-28\nDischarge Date: 2024-10-30\n\nDiagnosis Codes:\n  Primary: K80.20 - Calculus of gallbladder without cholecystitis, without obstruction\n  Secondary: K82.8 - Other specified diseases of gallbladder\n  Secondary: E11.9 - Type 2 diabetes mellitus without complications\n\nProcedures:\n  CPT 47562 - Laparoscopic cholecystectomy\n  CPT 76700 - Ultrasound, abdominal, complete\n  CPT 99223 - Initial hospital care, high complexity\n  CPT 99232 - Subsequent hospital care, moderate complexity\n  CPT 99238 - Hospital discharge day management\n\nCharges:\n  47562: $8,500.00\n  76700: $450.00\n  99223: $350.00\n  99232: $175.00\n  99238: $200.00\n  Total Charges: $9,675.00\n  Insurance Payment: $7,450.00\n  Patient Responsibility: $2,225.00\n\n--- Document: pathology_report_002.pdf ---\nPatient: Robert A. Thompson\nDOB: 08/10/1972\nSpecimen: Gallbladder\nDate Collected: 10/28/2024\nPathologist: Dr. Lisa Wong, MD\n\nGross Description:\nGallbladder measuring 9.5 x 3.2 cm. Serosal surface is smooth. Multiple yellow-green calculi ranging from 0.3 to 1.2 cm identified within the lumen.\n\nMicroscopic Description:\nChronic cholecystitis with cholelithiasis. Mild mucosal inflammation. No evidence of dysplasia or malignancy.\n\nDiagnosis:\n1. Chronic cholecystitis with cholelithiasis\n2. No evidence of malignancy",
+            "summary": "Patient Robert A. Thompson (DOB: 1972-08-10, ID: PT-33445-RT) was admitted to Riverside Community Hospital from October 28-30, 2024 under the care of Dr. Sarah Patel (NPI: 9876543210). The primary diagnosis is gallbladder calculus without cholecystitis (K80.20), with secondary diagnoses of other gallbladder disease (K82.8) and type 2 diabetes (E11.9). The patient underwent a laparoscopic cholecystectomy (CPT 47562, $8,500.00) along with abdominal ultrasound (CPT 76700, $450.00). Hospital care included initial high-complexity evaluation (CPT 99223), subsequent moderate-complexity care (CPT 99232), and discharge management (CPT 99238). Pathology confirmed chronic cholecystitis with cholelithiasis and no malignancy. Total charges are $9,675.00 with insurance payment of $7,450.00 and patient responsibility of $2,225.00.",
+            "anomalies": [
+                {
+                    "description": "Primary diagnosis code K80.20 indicates gallbladder calculus WITHOUT cholecystitis, but pathology report confirms chronic cholecystitis with cholelithiasis. The diagnosis code may need to be updated to K80.10 (calculus of gallbladder WITH cholecystitis).",
+                    "severity": "high",
+                    "sourceDocument": "cms1500_claim_002.pdf, pathology_report_002.pdf",
+                    "dataValues": {
+                        "claimDiagnosis": "K80.20 - without cholecystitis",
+                        "pathologyFinding": "Chronic cholecystitis with cholelithiasis"
+                    }
+                },
+                {
+                    "description": "Patient has type 2 diabetes (E11.9) listed as secondary diagnosis. Pre-operative clearance documentation for diabetic patient undergoing surgery is not present in the submitted documents.",
+                    "severity": "medium",
+                    "sourceDocument": "cms1500_claim_002.pdf",
+                    "dataValues": {
+                        "diabetesDiagnosis": "E11.9",
+                        "missingDocument": "Pre-operative clearance for diabetic patient"
+                    }
+                }
+            ],
+            "expected_score_ranges": {
+                "faithfulness": {"min": 0.7, "max": 1.0},
+                "completeness": {"min": 0.6, "max": 1.0},
+                "anomaly_accuracy": {"min": 0.3, "max": 1.0}
+            }
+        },
+        {
+            "id": "tc-003",
+            "claim_id": "CLM-TEST-003",
+            "strategy": "full-context",
+            "source_documents": "--- Document: cms1500_claim_003.pdf ---\nPatient Name: Maria L. Santos\nDate of Birth: 1990-06-14\nPatient ID: PT-55667-MS\nInsurance ID: INS-112233\n\nProvider: Dr. James Wilson, MD\nNPI: 5556667777\nFacility: Downtown Orthopedic Clinic\nFacility Address: 789 Bone Ave, Suite 100, Denver, CO 80202\n\nDate of Service: 2024-12-02\n\nDiagnosis Codes:\n  Primary: S82.001A - Fracture of right patella, initial encounter\n  Secondary: W01.0XXA - Fall on same level from slipping, initial encounter\n\nProcedures:\n  CPT 99213 - Office visit, established patient, low complexity\n  CPT 73562 - X-ray knee, 3 views\n  CPT 29530 - Strapping of knee\n\nCharges:\n  99213: $125.00\n  73562: $210.00\n  29530: $85.00\n  Total Charges: $420.00\n  Insurance Payment: $336.00\n  Patient Responsibility: $84.00",
+            "summary": "Claim for Maria L. Santos (DOB: 1990-06-14, ID: PT-55667-MS) seen at Downtown Orthopedic Clinic on December 2, 2024 by Dr. James Wilson (NPI: 5556667777). Primary diagnosis is right patella fracture, initial encounter (S82.001A) due to a fall on the same level (W01.0XXA). Procedures included a low-complexity office visit (CPT 99213, $125.00), knee X-ray with 3 views (CPT 73562, $210.00), and knee strapping (CPT 29530, $85.00). Total charges are $420.00, insurance paid $336.00, and patient owes $84.00.",
+            "anomalies": [],
+            "expected_score_ranges": {
+                "faithfulness": {"min": 0.7, "max": 1.0},
+                "completeness": {"min": 0.6, "max": 1.0},
+                "anomaly_accuracy": {"min": 0.0, "max": 0.0}
+            }
+        }
+    ]
+}

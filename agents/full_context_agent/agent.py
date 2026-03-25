@@ -20,6 +20,8 @@ import re
 import logging
 from datetime import datetime
 
+from opentelemetry import trace
+
 import boto3
 from strands import Agent, tool
 from strands.models import BedrockModel
@@ -506,6 +508,10 @@ def invoke(payload):
         claim_id = payload.get("claim_id")
         if not claim_id:
             return {"error": "claim_id is required", "statusCode": 400}
+        span = trace.get_current_span()
+        span.set_attribute("claim.id", claim_id or "")
+        span.set_attribute("claim.strategy", "full-context")
+        span.set_attribute("claim.chunking_method", "none")
         result = agent(
             f"Process claim {claim_id} and return the structured JSON response"
         )

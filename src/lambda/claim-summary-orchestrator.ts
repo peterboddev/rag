@@ -3,6 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import {
   ClaimSummaryRequest,
   ClaimSummaryResponse,
@@ -804,6 +805,29 @@ async function handlePostSummary(
     const evaluation = await getEvaluationScores(claimId, strategyKey);
     if (evaluation) {
       response.evaluation = evaluation;
+    }
+  }
+
+  // Trigger async evaluation (fire-and-forget)
+  const evalTriggerFunction = process.env.EVALUATION_TRIGGER_FUNCTION;
+  if (evalTriggerFunction) {
+    try {
+      const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: evalTriggerFunction,
+        InvocationType: 'Event',
+        Payload: JSON.stringify({
+          claimId,
+          strategy: request.strategy,
+          chunkingMethod: request.chunkingMethod || 'none',
+          summary,
+          sourceDocuments: '',
+          anomalies,
+        }),
+      }));
+      console.log('Evaluation trigger invoked for claim:', claimId);
+    } catch (evalError) {
+      console.error('Failed to trigger evaluation (non-blocking):', evalError);
     }
   }
 
