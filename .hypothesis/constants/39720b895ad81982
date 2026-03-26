@@ -1,4 +1,0 @@
-# file: C:\local_drive\rag\evaluators\evaluation_runner.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, '-', '/aws/agentcore', '80.0', 'AnomalyAccuracy', 'BEDROCK_REGION', 'Builtin.Helpfulness', 'Code', 'Completeness', 'ConflictException', 'Error', 'Faithfulness', 'Helpfulness', '[]', '_', '_evaluator_ids', 'anomalyAccuracy', 'claimId', 'cloudWatchLogs', 'completeness', 'dynamodb', 'error', 'evaluatedAt', 'evaluationResults', 'evaluator', 'evaluatorArn', 'evaluatorConfig', 'evaluatorId', 'evaluatorName', 'faithfulness', 'get', 'helpfulness', 'helpfulnessReasoning', 'level', 'logGroupNames', 'name', 'on-demand', 'reason', 'reasoning', 'response', 'samplingConfig', 'samplingPercentage', 'score', 'serviceNames', 'strategyKey', 'traceId', 'us-east-1']

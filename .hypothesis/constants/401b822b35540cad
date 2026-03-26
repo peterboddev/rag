@@ -1,4 +1,0 @@
-# file: C:\local_drive\rag\evaluators\evaluation_runner.py
-# hypothesis_version: 6.151.9
-
-[0.0, 1.0, 'AnomalyAccuracy', 'BEDROCK_REGION', 'Builtin.Helpfulness', 'Code', 'Completeness', 'ConflictException', 'Error', 'Faithfulness', 'Helpfulness', 'anomalyAccuracy', 'bedrock-agentcore', 'claimId', 'completeness', 'dynamodb', 'error', 'evaluatedAt', 'evaluationConfigId', 'evaluationCriteria', 'evaluationResults', 'evaluator', 'evaluatorArn', 'evaluatorModelId', 'evaluatorName', 'faithfulness', 'get', 'helpfulness', 'model_id', 'name', 'on-demand', 'prompt', 'reasoning', 'response', 'score', 'scoringSchema', 'scoring_schema', 'strategyKey', 'traceId', 'us-east-1']

@@ -5,7 +5,23 @@ tests_ongoing/
 
 # CDK output
 cdk.out/
+cdk-deploy-out/
+cdk-out-deploy/
+cdk-synth-out/
+cdk-synth-out2/
 dist/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Hypothesis test cache
+.hypothesis/
+
+# Test output artifacts
+jest-output.txt
+claim-loader-output.txt
+*.cpython-*.pyc
 
 # IDE files
 .vscode/

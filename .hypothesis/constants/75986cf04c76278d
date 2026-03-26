@@ -1,4 +1,0 @@
-# file: C:\local_drive\rag\evaluators\completeness_evaluator.py
-# hypothesis_version: 6.151.9
-
-[0.0, 0.1, 1.0, 500, 'BEDROCK_MODEL_ID', 'BEDROCK_REGION', '```', '```json', 'amazon.nova-pro-v1:0', 'amounts', 'bedrock-runtime', 'body', 'content', 'dates', 'diagnosis', 'inferenceConfig', 'max_new_tokens', 'message', 'messages', 'missing_elements', 'output', 'patient', 'procedures', 'provider', 'reasoning', 'role', 'score', 'temperature', 'text', 'us-east-1', 'user']
