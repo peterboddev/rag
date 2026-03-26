@@ -1,0 +1,48 @@
+{
+  "evaluated_at": "2026-03-25T12:13:08.531827+00:00",
+  "overall_status": "pass",
+  "thresholds": {
+    "helpfulness": 0.6,
+    "faithfulness": 0.7,
+    "completeness": 0.6,
+    "anomaly_accuracy": 0.5
+  },
+  "test_cases": [
+    {
+      "id": "tc-001",
+      "claim_id": "CLM-TEST-001",
+      "strategy": "full-context",
+      "scores": {
+        "faithfulness": 0.95,
+        "completeness": 1.0,
+        "anomaly_accuracy": 0.0
+      },
+      "failures": [],
+      "status": "pass"
+    },
+    {
+      "id": "tc-002",
+      "claim_id": "CLM-TEST-002",
+      "strategy": "rag",
+      "scores": {
+        "faithfulness": 0.95,
+        "completeness": 1.0,
+        "anomaly_accuracy": 0.75
+      },
+      "failures": [],
+      "status": "pass"
+    },
+    {
+      "id": "tc-003",
+      "claim_id": "CLM-TEST-003",
+      "strategy": "full-context",
+      "scores": {
+        "faithfulness": 1.0,
+        "completeness": 1.0,
+        "anomaly_accuracy": 0.0
+      },
+      "failures": [],
+      "status": "pass"
+    }
+  ]
+}

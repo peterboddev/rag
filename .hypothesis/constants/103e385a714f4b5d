@@ -1,0 +1,4 @@
+# file: C:\local_drive\rag\evaluators\evaluation_config.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 0.6, 0.7, 1.0, 500, ':claimId', 'AnomalyAccuracy', 'BEDROCK_REGION', 'Completeness', 'Faithfulness', 'Items', 'TRACE', 'Very Good', 'Very Poor', 'amazon.nova-pro-v1:0', 'anomaly_accuracy', 'claimId', 'claimId = :claimId', 'completeness', 'definition', 'dynamodb', 'evaluatedAt', 'evaluatorConfig', 'faithfulness', 'helpfulness', 'inferenceConfig', 'instructions', 'label', 'level', 'llmAsAJudge', 'maxScore', 'maxTokens', 'minScore', 'missingElements', 'missing_elements', 'modelConfig', 'modelId', 'model_id', 'name', 'none', 'numerical', 'prompt', 'ratingScale', 'reasoning', 'reasoningFieldName', 'score', 'scoreFieldName', 'scoring_schema', 'strategyKey', 'temperature', 'us-east-1', 'value']

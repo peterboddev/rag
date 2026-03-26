@@ -1,0 +1,5488 @@
+{
+ "Description": "RAG Application - Multi-tenant document management",
+ "Parameters": {
+  "UserPoolId": {
+   "Type": "String",
+   "Default": "us-east-1_XXXXXXXXX",
+   "Description": "Cognito User Pool ID"
+  },
+  "KnowledgeBaseId": {
+   "Type": "String",
+   "Default": "IJ9SLGVYQ1",
+   "Description": "Bedrock Knowledge Base ID"
+  },
+  "VectorDbEndpoint": {
+   "Type": "String",
+   "Default": "https://placeholder.us-east-1.aoss.amazonaws.com",
+   "Description": "OpenSearch Serverless endpoint"
+  },
+  "SourceBucket": {
+   "Type": "String",
+   "Default": "medical-claims-synthetic-data-dev",
+   "Description": "Source S3 bucket for medical claims synthetic data"
+  },
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Resources": {
+  "GSICustomer757DECE4": {
+   "Type": "Custom::AWS",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+      "Arn"
+     ]
+    },
+    "Create": "{\"service\":\"DynamoDB\",\"action\":\"updateTable\",\"parameters\":{\"TableName\":\"rag-app-documents-dev\",\"AttributeDefinitions\":[{\"AttributeName\":\"customerUuid\",\"AttributeType\":\"S\"}],\"GlobalSecondaryIndexUpdates\":[{\"Create\":{\"IndexName\":\"customer-documents-index\",\"KeySchema\":[{\"AttributeName\":\"customerUuid\",\"KeyType\":\"HASH\"}],\"Projection\":{\"ProjectionType\":\"ALL\"}}}]},\"physicalResourceId\":{\"id\":\"DocumentsTableGSICustomer\"},\"outputPaths\":[],\"ignoreErrorCodesMatching\":\".*\"}",
+    "Update": "{\"service\":\"DynamoDB\",\"action\":\"describeTable\",\"parameters\":{\"TableName\":\"rag-app-documents-dev\"},\"physicalResourceId\":{\"id\":\"DocumentsTableGSICustomer\"},\"outputPaths\":[]}",
+    "InstallLatestAwsSdk": false
+   },
+   "DependsOn": [
+    "GSICustomerCustomResourcePolicy329ECFBF"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GSICustomer/Resource/Default"
+   }
+  },
+  "GSICustomerCustomResourcePolicy329ECFBF": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:UpdateTable"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "GSICustomerCustomResourcePolicy329ECFBF",
+    "Roles": [
+     {
+      "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GSICustomer/CustomResourcePolicy/Resource"
+   }
+  },
+  "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/AWS679f53fac002430cb0da5b7982bd2287/ServiceRole/Resource"
+   }
+  },
+  "AWS679f53fac002430cb0da5b7982bd22872D164C4C": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "bc8ef58951f4c88e641dd23090e9d2e2e61c7530a07960e767522941e959b625.zip"
+    },
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 120
+   },
+   "DependsOn": [
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/AWS679f53fac002430cb0da5b7982bd2287/Resource",
+    "aws:asset:path": "asset.bc8ef58951f4c88e641dd23090e9d2e2e61c7530a07960e767522941e959b625",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "GSITenantA7F27E52": {
+   "Type": "Custom::AWS",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+      "Arn"
+     ]
+    },
+    "Create": "{\"service\":\"DynamoDB\",\"action\":\"updateTable\",\"parameters\":{\"TableName\":\"rag-app-documents-dev\",\"AttributeDefinitions\":[{\"AttributeName\":\"tenantId\",\"AttributeType\":\"S\"}],\"GlobalSecondaryIndexUpdates\":[{\"Create\":{\"IndexName\":\"tenant-documents-index\",\"KeySchema\":[{\"AttributeName\":\"tenantId\",\"KeyType\":\"HASH\"}],\"Projection\":{\"ProjectionType\":\"ALL\"}}}]},\"physicalResourceId\":{\"id\":\"DocumentsTableGSITenant\"},\"outputPaths\":[],\"ignoreErrorCodesMatching\":\".*\"}",
+    "Update": "{\"service\":\"DynamoDB\",\"action\":\"describeTable\",\"parameters\":{\"TableName\":\"rag-app-documents-dev\"},\"physicalResourceId\":{\"id\":\"DocumentsTableGSITenant\"},\"outputPaths\":[]}",
+    "InstallLatestAwsSdk": false
+   },
+   "DependsOn": [
+    "GSICustomerCustomResourcePolicy329ECFBF",
+    "GSICustomer757DECE4",
+    "GSITenantCustomResourcePolicyCBA0DD3D"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GSITenant/Resource/Default"
+   }
+  },
+  "GSITenantCustomResourcePolicyCBA0DD3D": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:UpdateTable"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "GSITenantCustomResourcePolicyCBA0DD3D",
+    "Roles": [
+     {
+      "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+     }
+    ]
+   },
+   "DependsOn": [
+    "GSICustomerCustomResourcePolicy329ECFBF",
+    "GSICustomer757DECE4"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GSITenant/CustomResourcePolicy/Resource"
+   }
+  },
+  "ImportedApicustomers567EF64D": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": "xqmtpb1cr4",
+    "PathPart": "customers",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/Resource"
+   }
+  },
+  "ImportedApicustomersOPTIONS47187E36": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApicustomers567EF64D"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/OPTIONS/Resource"
+   }
+  },
+  "ImportedApicustomersPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomers9D48DD34": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "CustomerManagerFunctionC9C8ABCE",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/customers"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..customers"
+   }
+  },
+  "ImportedApicustomersPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomers2B1437BC": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "CustomerManagerFunctionC9C8ABCE",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/customers"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..customers"
+   }
+  },
+  "ImportedApicustomersPOSTFB7E2FA8": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "CustomerManagerFunctionC9C8ABCE",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApicustomers567EF64D"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/POST/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUID6AAB192B": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApicustomers567EF64D"
+    },
+    "PathPart": "{customerUUID}",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDOPTIONSF6270039": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUID6AAB192B"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/OPTIONS/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApicustomerscustomerUUID6AAB192B"
+    },
+    "PathPart": "chunking-config",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigOPTIONS7EB5F73F": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/OPTIONS/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig15B12AB0": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingConfigGetFunction60794C55",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/customers/*/chunking-config"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig32B66276": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingConfigGetFunction60794C55",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/customers/*/chunking-config"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigGET39FCAD50": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkingConfigGetFunction60794C55",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig82F40069": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingConfigUpdateFunction095349E1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/PUT/customers/*/chunking-config"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/ApiPermission.ragappdevelopmentImportedApi7D920770.PUT..customers.{customerUUID}.chunking-config"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionTestragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig7351875A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingConfigUpdateFunction095349E1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/PUT/customers/*/chunking-config"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.PUT..customers.{customerUUID}.chunking-config"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigPUT990CEBBA": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "PUT",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkingConfigUpdateFunction095349E1",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4"
+    },
+    "PathPart": "cleanup",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupOPTIONS449E0191": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/OPTIONS/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanupDC3C42BC": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingCleanupTriggerFunctionE1DBA83F",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/customers/*/chunking-config/cleanup"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..customers.{customerUUID}.chunking-config.cleanup"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanup3124F20E": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingCleanupTriggerFunctionE1DBA83F",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/customers/*/chunking-config/cleanup"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..customers.{customerUUID}.chunking-config.cleanup"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOST6F77393B": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkingCleanupTriggerFunctionE1DBA83F",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdFB1132DE": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4"
+    },
+    "PathPart": "{jobId}",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdOPTIONS05D787FD": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdFB1132DE"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/OPTIONS/Resource"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobIdE161EE21": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingCleanupStatusFunction71702D49",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/customers/*/chunking-config/cleanup/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config.cleanup.{jobId}"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobId7C4A7FCF": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingCleanupStatusFunction71702D49",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/customers/*/chunking-config/cleanup/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config.cleanup.{jobId}"
+   }
+  },
+  "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGET7DD7BA75": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkingCleanupStatusFunction71702D49",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdFB1132DE"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/Resource"
+   }
+  },
+  "ImportedApichunkingmethods54F7D60E": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": "xqmtpb1cr4",
+    "PathPart": "chunking-methods",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/chunking-methods/Resource"
+   }
+  },
+  "ImportedApichunkingmethodsOPTIONS481BB99E": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApichunkingmethods54F7D60E"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/chunking-methods/OPTIONS/Resource"
+   }
+  },
+  "ImportedApichunkingmethodsGETApiPermissionragappdevelopmentImportedApi7D920770GETchunkingmethodsD840DCE8": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingMethodsListFunctionC23F662A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/chunking-methods"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/chunking-methods/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..chunking-methods"
+   }
+  },
+  "ImportedApichunkingmethodsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETchunkingmethods4137E56D": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkingMethodsListFunctionC23F662A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/chunking-methods"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/chunking-methods/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..chunking-methods"
+   }
+  },
+  "ImportedApichunkingmethodsGET6F99918C": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkingMethodsListFunctionC23F662A",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApichunkingmethods54F7D60E"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/chunking-methods/GET/Resource"
+   }
+  },
+  "ImportedApidocuments5EDD4A61": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": "xqmtpb1cr4",
+    "PathPart": "documents",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/Resource"
+   }
+  },
+  "ImportedApidocumentsOPTIONSFA82FA66": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocuments739347FD": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentUploadFunction21736EC4",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents"
+   }
+  },
+  "ImportedApidocumentsPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocuments90AB6E6A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentUploadFunction21736EC4",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents"
+   }
+  },
+  "ImportedApidocumentsPOSTB37F2678": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentUploadFunction21736EC4",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/POST/Resource"
+   }
+  },
+  "ImportedApidocumentsdocumentId44604C14": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "{documentId}",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/{documentId}/Resource"
+   }
+  },
+  "ImportedApidocumentsdocumentIdOPTIONSEA228A4C": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsdocumentId44604C14"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/{documentId}/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsdocumentIdGETApiPermissionragappdevelopmentImportedApi7D920770GETdocumentsdocumentId0D8D997E": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentRetrievalFunctionB8EA4614",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/documents/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/{documentId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..documents.{documentId}"
+   }
+  },
+  "ImportedApidocumentsdocumentIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETdocumentsdocumentIdD36F942B": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentRetrievalFunctionB8EA4614",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/documents/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/{documentId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..documents.{documentId}"
+   }
+  },
+  "ImportedApidocumentsdocumentIdGET500F94BF": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentRetrievalFunctionB8EA4614",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsdocumentId44604C14"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/{documentId}/GET/Resource"
+   }
+  },
+  "ImportedApidocumentsprocessECBA0CA5": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "process",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/process/Resource"
+   }
+  },
+  "ImportedApidocumentsprocessOPTIONSB9F5E61C": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsprocessECBA0CA5"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/process/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsprocessPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsprocess55B36CEB": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentProcessingFunctionC72C6344",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/process"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/process/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.process"
+   }
+  },
+  "ImportedApidocumentsprocessPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsprocess63AA0819": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentProcessingFunctionC72C6344",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/process"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/process/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.process"
+   }
+  },
+  "ImportedApidocumentsprocessPOST4ED70BD4": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentProcessingFunctionC72C6344",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsprocessECBA0CA5"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/process/POST/Resource"
+   }
+  },
+  "ImportedApidocumentssummary1A4322B2": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "summary",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/Resource"
+   }
+  },
+  "ImportedApidocumentssummaryOPTIONSCB2360CF": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentssummary1A4322B2"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentssummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummary81EDD0FB": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentSummaryFunction55333843",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/summary"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.summary"
+   }
+  },
+  "ImportedApidocumentssummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummary00BB6D4A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentSummaryFunction55333843",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/summary"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.summary"
+   }
+  },
+  "ImportedApidocumentssummaryPOST6BADF130": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentSummaryFunction55333843",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentssummary1A4322B2"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/POST/Resource"
+   }
+  },
+  "ImportedApidocumentssummaryselectiveA81F97E1": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocumentssummary1A4322B2"
+    },
+    "PathPart": "selective",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/selective/Resource"
+   }
+  },
+  "ImportedApidocumentssummaryselectiveOPTIONS449F69B1": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentssummaryselectiveA81F97E1"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/selective/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentssummaryselectivePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummaryselectiveAEEFB8AB": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentSummarySelectiveFunctionFFFF0C02",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/summary/selective"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/selective/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.summary.selective"
+   }
+  },
+  "ImportedApidocumentssummaryselectivePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummaryselective77EBBFF2": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentSummarySelectiveFunctionFFFF0C02",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/summary/selective"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/selective/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.summary.selective"
+   }
+  },
+  "ImportedApidocumentssummaryselectivePOSTA82B2F6F": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentSummarySelectiveFunctionFFFF0C02",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentssummaryselectiveA81F97E1"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/summary/selective/POST/Resource"
+   }
+  },
+  "ImportedApidocumentsretry7AC0B983": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "retry",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/retry/Resource"
+   }
+  },
+  "ImportedApidocumentsretryOPTIONS865B8B9C": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsretry7AC0B983"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/retry/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsretryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsretry4A654EBC": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentRetryFunctionE1A018C4",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/retry"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/retry/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.retry"
+   }
+  },
+  "ImportedApidocumentsretryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsretry0397746E": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentRetryFunctionE1A018C4",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/retry"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/retry/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.retry"
+   }
+  },
+  "ImportedApidocumentsretryPOST43C98157": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentRetryFunctionE1A018C4",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsretry7AC0B983"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/retry/POST/Resource"
+   }
+  },
+  "ImportedApidocumentsdelete631F8FC7": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "delete",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/delete/Resource"
+   }
+  },
+  "ImportedApidocumentsdeleteOPTIONSB1A1F860": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsdelete631F8FC7"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/delete/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsdeleteDELETEApiPermissionragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEF055F1E": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentDeleteFunction345A2AF1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/DELETE/documents/delete"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/delete/DELETE/ApiPermission.ragappdevelopmentImportedApi7D920770.DELETE..documents.delete"
+   }
+  },
+  "ImportedApidocumentsdeleteDELETEApiPermissionTestragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEBEDCE78": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentDeleteFunction345A2AF1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/DELETE/documents/delete"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/delete/DELETE/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.DELETE..documents.delete"
+   }
+  },
+  "ImportedApidocumentsdeleteDELETE898051F5": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "DELETE",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "DocumentDeleteFunction345A2AF1",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsdelete631F8FC7"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/delete/DELETE/Resource"
+   }
+  },
+  "ImportedApidocumentschunksD95685F5": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "chunks",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/Resource"
+   }
+  },
+  "ImportedApidocumentschunksOPTIONS3A24E519": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentschunksD95685F5"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentschunksvisualizationA0AEC56A": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocumentschunksD95685F5"
+    },
+    "PathPart": "visualization",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/visualization/Resource"
+   }
+  },
+  "ImportedApidocumentschunksvisualizationOPTIONSDE1A7703": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentschunksvisualizationA0AEC56A"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/visualization/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentschunksvisualizationPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization928783D8": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkVisualizationFunctionC0A6130C",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/chunks/visualization"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.chunks.visualization"
+   }
+  },
+  "ImportedApidocumentschunksvisualizationPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization9059E952": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ChunkVisualizationFunctionC0A6130C",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/chunks/visualization"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.chunks.visualization"
+   }
+  },
+  "ImportedApidocumentschunksvisualizationPOST68888CCD": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ChunkVisualizationFunctionC0A6130C",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentschunksvisualizationA0AEC56A"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/Resource"
+   }
+  },
+  "ImportedApidocumentsembeddings7FD96B29": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocuments5EDD4A61"
+    },
+    "PathPart": "embeddings",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/Resource"
+   }
+  },
+  "ImportedApidocumentsembeddingsOPTIONSDFCA7F62": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsembeddings7FD96B29"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsembeddingsgenerateD98D1426": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApidocumentsembeddings7FD96B29"
+    },
+    "PathPart": "generate",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/generate/Resource"
+   }
+  },
+  "ImportedApidocumentsembeddingsgenerateOPTIONS900658BA": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsembeddingsgenerateD98D1426"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/generate/OPTIONS/Resource"
+   }
+  },
+  "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate41541285": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "EmbeddingsGenerateFunctionE4B21481",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/documents/embeddings/generate"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.embeddings.generate"
+   }
+  },
+  "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate5131C4A8": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "EmbeddingsGenerateFunctionE4B21481",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/documents/embeddings/generate"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.embeddings.generate"
+   }
+  },
+  "ImportedApidocumentsembeddingsgeneratePOST0E5E35DB": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "EmbeddingsGenerateFunctionE4B21481",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApidocumentsembeddingsgenerateD98D1426"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/Resource"
+   }
+  },
+  "ImportedApipatients674C44CC": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": "xqmtpb1cr4",
+    "PathPart": "patients",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/Resource"
+   }
+  },
+  "ImportedApipatientsOPTIONS7E28A784": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApipatients674C44CC"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/OPTIONS/Resource"
+   }
+  },
+  "ImportedApipatientsGETApiPermissionragappdevelopmentImportedApi7D920770GETpatients4054DC23": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PatientListFunction8B6B832D",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/patients"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..patients"
+   }
+  },
+  "ImportedApipatientsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatients300F6C7C": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PatientListFunction8B6B832D",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/patients"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..patients"
+   }
+  },
+  "ImportedApipatientsGETC20D2432": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "PatientListFunction8B6B832D",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApipatients674C44CC"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/GET/Resource"
+   }
+  },
+  "ImportedApipatientspatientIdB9AC10D6": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApipatients674C44CC"
+    },
+    "PathPart": "{patientId}",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/{patientId}/Resource"
+   }
+  },
+  "ImportedApipatientspatientIdOPTIONS23B86BD2": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApipatientspatientIdB9AC10D6"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/{patientId}/OPTIONS/Resource"
+   }
+  },
+  "ImportedApipatientspatientIdGETApiPermissionragappdevelopmentImportedApi7D920770GETpatientspatientIdE2534D7C": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PatientDetailFunctionBC017CB1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/patients/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/{patientId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..patients.{patientId}"
+   }
+  },
+  "ImportedApipatientspatientIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatientspatientIdC5A54EE6": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PatientDetailFunctionBC017CB1",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/patients/*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/{patientId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..patients.{patientId}"
+   }
+  },
+  "ImportedApipatientspatientIdGETAA50FC60": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "PatientDetailFunctionBC017CB1",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApipatientspatientIdB9AC10D6"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/patients/{patientId}/GET/Resource"
+   }
+  },
+  "ImportedApiclaims958A6BDD": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": "xqmtpb1cr4",
+    "PathPart": "claims",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/Resource"
+   }
+  },
+  "ImportedApiclaimsOPTIONS56518A4D": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaims958A6BDD"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsloadAB681166": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaims958A6BDD"
+    },
+    "PathPart": "load",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/load/Resource"
+   }
+  },
+  "ImportedApiclaimsloadOPTIONSB7F2E86B": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsloadAB681166"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/load/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsloadPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsload3185A567": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimLoaderFunctionD1F8E0B0",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/claims/load"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/load/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.load"
+   }
+  },
+  "ImportedApiclaimsloadPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsloadAD2B6C7A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimLoaderFunctionD1F8E0B0",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/claims/load"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/load/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.load"
+   }
+  },
+  "ImportedApiclaimsloadPOSTE6FE2A7B": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimLoaderFunctionD1F8E0B0",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsloadAB681166"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/load/POST/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimId1285E94D": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaims958A6BDD"
+    },
+    "PathPart": "{claimId}",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdOPTIONSCEDDE2B0": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdstatus754C91FC": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "PathPart": "status",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/status/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdstatusOPTIONS51B32BAA": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdstatus754C91FC"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/status/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdstatusGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus6308F20A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusFunction0843561A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/claims/*/status"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.status"
+   }
+  },
+  "ImportedApiclaimsclaimIdstatusGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus08A112E2": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusFunction0843561A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/claims/*/status"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.status"
+   }
+  },
+  "ImportedApiclaimsclaimIdstatusGET71D7CC2A": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimStatusFunction0843561A",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdstatus754C91FC"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistory3E88BB00": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "PathPart": "history",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryOPTIONS4818C29D": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdhistory3E88BB00"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory1698DDBA": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusHistoryFunction49F2AC10",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/claims/*/history"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.history"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory5A7C7256": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusHistoryFunction49F2AC10",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/claims/*/history"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.history"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryGET945CD9CE": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimStatusHistoryFunction49F2AC10",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdhistory3E88BB00"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistory23186B2A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusHistoryFunction49F2AC10",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/claims/*/history"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.history"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistoryF18E707A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimStatusHistoryFunction49F2AC10",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/claims/*/history"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.history"
+   }
+  },
+  "ImportedApiclaimsclaimIdhistoryPOST5770B213": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimStatusHistoryFunction49F2AC10",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdhistory3E88BB00"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdexportF294EC95": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "PathPart": "export",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/export/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdexportOPTIONSE1130F95": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdexportF294EC95"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/export/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdexportPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexportFA9AF0DD": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimExportFunction1559CA3A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/claims/*/export"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.export"
+   }
+  },
+  "ImportedApiclaimsclaimIdexportPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexport9134184B": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimExportFunction1559CA3A",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/claims/*/export"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.export"
+   }
+  },
+  "ImportedApiclaimsclaimIdexportPOSTD5345476": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimExportFunction1559CA3A",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdexportF294EC95"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdsummary90FC4124": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "PathPart": "summary",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/summary/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdsummaryOPTIONS69DDF3E0": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdsummary90FC4124"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/summary/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummaryED375831": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSummaryOrchestratorFunction5D862AC9",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/claims/*/summary"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.summary"
+   }
+  },
+  "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummary43D9483A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSummaryOrchestratorFunction5D862AC9",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/claims/*/summary"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.summary"
+   }
+  },
+  "ImportedApiclaimsclaimIdsummaryPOSTD5CBB46E": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimSummaryOrchestratorFunction5D862AC9",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdsummary90FC4124"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdevaluationsE625AA12": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaimsclaimId1285E94D"
+    },
+    "PathPart": "evaluations",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdevaluationsOPTIONS8155631D": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdevaluationsE625AA12"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimsclaimIdevaluationsGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations80DEADC9": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSummaryOrchestratorFunction5D862AC9",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/GET/claims/*/evaluations"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.evaluations"
+   }
+  },
+  "ImportedApiclaimsclaimIdevaluationsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations378CA08B": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSummaryOrchestratorFunction5D862AC9",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/GET/claims/*/evaluations"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.evaluations"
+   }
+  },
+  "ImportedApiclaimsclaimIdevaluationsGETA9630698": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "GET",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimSummaryOrchestratorFunction5D862AC9",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimsclaimIdevaluationsE625AA12"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/Resource"
+   }
+  },
+  "ImportedApiclaimssearchBB3D4998": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Ref": "ImportedApiclaims958A6BDD"
+    },
+    "PathPart": "search",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/search/Resource"
+   }
+  },
+  "ImportedApiclaimssearchOPTIONS4F013CE3": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+        "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'"
+       },
+       "StatusCode": "200"
+      }
+     ],
+     "PassthroughBehavior": "NEVER",
+     "RequestTemplates": {
+      "application/json": "{\"statusCode\": 200}"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Methods": true,
+       "method.response.header.Access-Control-Allow-Origin": true
+      },
+      "StatusCode": "200"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ImportedApiclaimssearchBB3D4998"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/search/OPTIONS/Resource"
+   }
+  },
+  "ImportedApiclaimssearchPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimssearchBB4B25FB": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSearchFunction8F232E48",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/*/POST/claims/search"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/search/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.search"
+   }
+  },
+  "ImportedApiclaimssearchPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimssearch9D3F69E7": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "ClaimSearchFunction8F232E48",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": "arn:aws:execute-api:us-east-1:450683699755:wvbm6ooz1j/test-invoke-stage/POST/claims/search"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/search/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.search"
+   }
+  },
+  "ImportedApiclaimssearchPOST7E6690E2": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "COGNITO_USER_POOLS",
+    "AuthorizerId": {
+     "Ref": "ApiAuthorizer"
+    },
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "ClaimSearchFunction8F232E48",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ImportedApiclaimssearchBB3D4998"
+    },
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ImportedApi/Default/claims/search/POST/Resource"
+   }
+  },
+  "ApiAuthorizer": {
+   "Type": "AWS::ApiGateway::Authorizer",
+   "Properties": {
+    "IdentitySource": "method.request.header.Authorization",
+    "Name": "CognitoAuthorizer",
+    "ProviderARNs": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:aws:cognito-idp:us-east-1:450683699755:userpool/",
+        {
+         "Ref": "UserPoolId"
+        }
+       ]
+      ]
+     }
+    ],
+    "RestApiId": "wvbm6ooz1j",
+    "Type": "COGNITO_USER_POOLS"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ApiAuthorizer"
+   }
+  },
+  "DocumentsBucket9EC9DEB9": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "CorsConfiguration": {
+     "CorsRules": [
+      {
+       "AllowedHeaders": [
+        "*"
+       ],
+       "AllowedMethods": [
+        "GET",
+        "POST",
+        "PUT"
+       ],
+       "AllowedOrigins": [
+        "*"
+       ]
+      }
+     ]
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentsBucket/Resource"
+   }
+  },
+  "DocumentsBucketPolicy1F991BD4": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "DocumentsBucket9EC9DEB9"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:PutBucketPolicy"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "DocumentsBucket9EC9DEB9",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "DocumentsBucket9EC9DEB9",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentsBucket/Policy/Resource"
+   }
+  },
+  "DocumentsBucketAutoDeleteObjectsCustomResourceFE3123FC": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "DocumentsBucket9EC9DEB9"
+    }
+   },
+   "DependsOn": [
+    "DocumentsBucketPolicy1F991BD4"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentsBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "DocumentsBucketNotifications871115F2": {
+   "Type": "Custom::S3BucketNotifications",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "DocumentsBucket9EC9DEB9"
+    },
+    "NotificationConfiguration": {
+     "LambdaFunctionConfigurations": [
+      {
+       "Events": [
+        "s3:ObjectCreated:*"
+       ],
+       "Filter": {
+        "Key": {
+         "FilterRules": [
+          {
+           "Name": "prefix",
+           "Value": "uploads/"
+          }
+         ]
+        }
+       },
+       "LambdaFunctionArn": {
+        "Fn::GetAtt": [
+         "DocumentProcessingFunctionC72C6344",
+         "Arn"
+        ]
+       }
+      }
+     ]
+    },
+    "Managed": true,
+    "SkipDestinationValidation": false
+   },
+   "DependsOn": [
+    "DocumentsBucketAllowBucketNotificationsToragappdevelopmentDocumentProcessingFunctionF2D5CF6685809947",
+    "DocumentsBucketPolicy1F991BD4"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentsBucket/Notifications/Resource"
+   }
+  },
+  "DocumentsBucketAllowBucketNotificationsToragappdevelopmentDocumentProcessingFunctionF2D5CF6685809947": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "DocumentProcessingFunctionC72C6344",
+      "Arn"
+     ]
+    },
+    "Principal": "s3.amazonaws.com",
+    "SourceAccount": "450683699755",
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "DocumentsBucket9EC9DEB9",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentsBucket/AllowBucketNotificationsToragappdevelopmentDocumentProcessingFunctionF2D5CF66"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Description": {
+     "Fn::Join": [
+      "",
+      [
+       "Lambda function for auto-deleting objects in ",
+       {
+        "Ref": "DocumentsBucket9EC9DEB9"
+       },
+       " S3 bucket."
+      ]
+     ]
+    }
+   },
+   "DependsOn": [
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6",
+    "aws:asset:property": "Code"
+   }
+  },
+  "ProcessingDLQ145B1707": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 1209600,
+    "SqsManagedSseEnabled": true,
+    "VisibilityTimeout": 1800
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ProcessingDLQ/Resource"
+   }
+  },
+  "ProcessingQueue6DC600C3": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 1209600,
+    "RedrivePolicy": {
+     "deadLetterTargetArn": {
+      "Fn::GetAtt": [
+       "ProcessingDLQ145B1707",
+       "Arn"
+      ]
+     },
+     "maxReceiveCount": 3
+    },
+    "SqsManagedSseEnabled": true,
+    "VisibilityTimeout": 900
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ProcessingQueue/Resource"
+   }
+  },
+  "CustomerManagerFunctionC9C8ABCE": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "f99eb3c66f5b20d68e3ede1f41d441f0d45670dc623c47ed788389e1a71ce89c.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "USER_POOL_ID": {
+       "Ref": "UserPoolId"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/CustomerManagerFunction/Resource",
+    "aws:asset:path": "asset.f99eb3c66f5b20d68e3ede1f41d441f0d45670dc623c47ed788389e1a71ce89c",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentUploadFunction21736EC4": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "f77ba1ccc522ce3db64a5083eb9498ab6a7952b7a3b824115a5246414e88b9cf.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "USER_POOL_ID": {
+       "Ref": "UserPoolId"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 60
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentUploadFunction/Resource",
+    "aws:asset:path": "asset.f77ba1ccc522ce3db64a5083eb9498ab6a7952b7a3b824115a5246414e88b9cf",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentProcessingFunctionC72C6344": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "07c13a21fdf300b4dfa1edc8d987b8b786e7674f0bac43e561f1a352a4cb6a77.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "KNOWLEDGE_BASE_ID": {
+       "Ref": "KnowledgeBaseId"
+      },
+      "VECTOR_DB_ENDPOINT": {
+       "Ref": "VectorDbEndpoint"
+      },
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 1024,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 300
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentProcessingFunction/Resource",
+    "aws:asset:path": "asset.07c13a21fdf300b4dfa1edc8d987b8b786e7674f0bac43e561f1a352a4cb6a77",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentSummaryFunction55333843": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "13df43ee41d7f30f8eefe2f3dc390bc4a39f786df8d3927da98dbaf9de6afcdf.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 120
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentSummaryFunction/Resource",
+    "aws:asset:path": "asset.13df43ee41d7f30f8eefe2f3dc390bc4a39f786df8d3927da98dbaf9de6afcdf",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentRetryFunctionE1A018C4": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "a323ab175d67b7f1c5ac667ed94518dfe9df7beadd0c36fecbdc4b4457130a1f.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 1024,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 300
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentRetryFunction/Resource",
+    "aws:asset:path": "asset.a323ab175d67b7f1c5ac667ed94518dfe9df7beadd0c36fecbdc4b4457130a1f",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentDeleteFunction345A2AF1": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "763d3df0ded6e812660cbe88f5b69e44ec1f7c804b3e8145c6f88a74f5aab3de.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentDeleteFunction/Resource",
+    "aws:asset:path": "asset.763d3df0ded6e812660cbe88f5b69e44ec1f7c804b3e8145c6f88a74f5aab3de",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentSummarySelectiveFunctionFFFF0C02": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "dbc0047c9941e5a7d5e8f32bfff644d2977543b14175fa6d81bcbec4d733c830.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 180
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentSummarySelectiveFunction/Resource",
+    "aws:asset:path": "asset.dbc0047c9941e5a7d5e8f32bfff644d2977543b14175fa6d81bcbec4d733c830",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkingConfigGetFunction60794C55": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "0aedc8f0889524771b2ed51de9c3332e9d20a48ee193672656498488f48a2f62.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkingConfigGetFunction/Resource",
+    "aws:asset:path": "asset.0aedc8f0889524771b2ed51de9c3332e9d20a48ee193672656498488f48a2f62",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkingConfigUpdateFunction095349E1": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "e28b149b4b03af695fc96ef474d938e06e3d459e1baba7d6b961aa04e24b9465.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "KNOWLEDGE_BASE_ID": {
+       "Ref": "KnowledgeBaseId"
+      },
+      "VECTOR_DB_ENDPOINT": {
+       "Ref": "VectorDbEndpoint"
+      },
+      "PROCESSING_QUEUE_URL": {
+       "Ref": "ProcessingQueue6DC600C3"
+      },
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 1024,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 600
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkingConfigUpdateFunction/Resource",
+    "aws:asset:path": "asset.e28b149b4b03af695fc96ef474d938e06e3d459e1baba7d6b961aa04e24b9465",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkingMethodsListFunctionC23F662A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "946c21990e6113b1718551d844da8f999f8c5e635a18d9030347562f8689e648.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkingMethodsListFunction/Resource",
+    "aws:asset:path": "asset.946c21990e6113b1718551d844da8f999f8c5e635a18d9030347562f8689e648",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkingCleanupTriggerFunctionE1DBA83F": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "8faf11a8bbb2d035f6264bb268b905412b8cd3aa27b0592ccf4d169bb83a9c0a.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "KNOWLEDGE_BASE_ID": {
+       "Ref": "KnowledgeBaseId"
+      },
+      "VECTOR_DB_ENDPOINT": {
+       "Ref": "VectorDbEndpoint"
+      },
+      "PROCESSING_QUEUE_URL": {
+       "Ref": "ProcessingQueue6DC600C3"
+      },
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 1024,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 900
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkingCleanupTriggerFunction/Resource",
+    "aws:asset:path": "asset.8faf11a8bbb2d035f6264bb268b905412b8cd3aa27b0592ccf4d169bb83a9c0a",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkingCleanupStatusFunction71702D49": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "f614280a6d7fd6183d6acc590b2c3835dd8db690b1e30c17a24aac02de36a6cc.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkingCleanupStatusFunction/Resource",
+    "aws:asset:path": "asset.f614280a6d7fd6183d6acc590b2c3835dd8db690b1e30c17a24aac02de36a6cc",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ChunkVisualizationFunctionC0A6130C": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "ae91ca1a02d8c560db200324b0a3c6b4013c6ea81446a76f507664e1d34f0bdc.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 2048,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 300
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ChunkVisualizationFunction/Resource",
+    "aws:asset:path": "asset.ae91ca1a02d8c560db200324b0a3c6b4013c6ea81446a76f507664e1d34f0bdc",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "EmbeddingsGenerateFunctionE4B21481": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "44e2aa39b7a03d9ee0316de80dcc2b31ab90f637593d11eb8f3089787c95363e.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "CUSTOMERS_TABLE_NAME": "rag-app-customers-dev",
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "BEDROCK_REGION": "us-east-1",
+      "VECTOR_DB_ENDPOINT": {
+       "Ref": "VectorDbEndpoint"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 1024,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 900
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/EmbeddingsGenerateFunction/Resource",
+    "aws:asset:path": "asset.44e2aa39b7a03d9ee0316de80dcc2b31ab90f637593d11eb8f3089787c95363e",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PatientListFunction8B6B832D": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "4fab9d40874a473c0f34c111b12bf6854058da1e3964373e492817675de6c117.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "SOURCE_BUCKET": {
+       "Ref": "SourceBucket"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/PatientListFunction/Resource",
+    "aws:asset:path": "asset.4fab9d40874a473c0f34c111b12bf6854058da1e3964373e492817675de6c117",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PatientDetailFunctionBC017CB1": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "61d551112afd7fccad73c79d05286c8ab73b5b1cb07bc846ee54bba4dcb21cb4.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "SOURCE_BUCKET": {
+       "Ref": "SourceBucket"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/PatientDetailFunction/Resource",
+    "aws:asset:path": "asset.61d551112afd7fccad73c79d05286c8ab73b5b1cb07bc846ee54bba4dcb21cb4",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ClaimLoaderFunctionD1F8E0B0": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "a30b4005ae6f7fe49fc77070b48b73225e0481ce18d7f8a0cdb7bb98b53c06ea.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "SOURCE_BUCKET": {
+       "Ref": "SourceBucket"
+      },
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 300
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimLoaderFunction/Resource",
+    "aws:asset:path": "asset.a30b4005ae6f7fe49fc77070b48b73225e0481ce18d7f8a0cdb7bb98b53c06ea",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ClaimStatusFunction0843561A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "fe57f38a23c2fef23f9b893db8437c6d9d15b9bf732b3c2032d61e4e54dc7f8d.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimStatusFunction/Resource",
+    "aws:asset:path": "asset.fe57f38a23c2fef23f9b893db8437c6d9d15b9bf732b3c2032d61e4e54dc7f8d",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "DocumentRetrievalFunctionB8EA4614": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "b9afefda72e93d69a615d4fc02f433349c7d0a50b03e19b3848da9e7eda2bf42.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "DOCUMENTS_BUCKET": {
+       "Ref": "DocumentsBucket9EC9DEB9"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentRetrievalFunction/Resource",
+    "aws:asset:path": "asset.b9afefda72e93d69a615d4fc02f433349c7d0a50b03e19b3848da9e7eda2bf42",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ProcessingQueueDepthAlarm16C5E97B": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmDescription": "Processing queue has more than 100 visible messages",
+    "ComparisonOperator": "GreaterThanThreshold",
+    "Dimensions": [
+     {
+      "Name": "QueueName",
+      "Value": {
+       "Fn::GetAtt": [
+        "ProcessingQueue6DC600C3",
+        "QueueName"
+       ]
+      }
+     }
+    ],
+    "EvaluationPeriods": 1,
+    "MetricName": "ApproximateNumberOfMessagesVisible",
+    "Namespace": "AWS/SQS",
+    "Period": 300,
+    "Statistic": "Maximum",
+    "Threshold": 100
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ProcessingQueueDepthAlarm/Resource"
+   }
+  },
+  "ProcessingDLQAlarm0DA142AB": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmDescription": "Messages detected in processing dead letter queue - processing failures occurring",
+    "ComparisonOperator": "GreaterThanThreshold",
+    "Dimensions": [
+     {
+      "Name": "QueueName",
+      "Value": {
+       "Fn::GetAtt": [
+        "ProcessingDLQ145B1707",
+        "QueueName"
+       ]
+      }
+     }
+    ],
+    "EvaluationPeriods": 1,
+    "MetricName": "ApproximateNumberOfMessagesVisible",
+    "Namespace": "AWS/SQS",
+    "Period": 300,
+    "Statistic": "Maximum",
+    "Threshold": 0
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ProcessingDLQAlarm/Resource"
+   }
+  },
+  "DocumentProcessingErrorAlarm462FA0E1": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmDescription": "Document processing Lambda function is producing errors",
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+    "Dimensions": [
+     {
+      "Name": "FunctionName",
+      "Value": {
+       "Ref": "DocumentProcessingFunctionC72C6344"
+      }
+     }
+    ],
+    "EvaluationPeriods": 1,
+    "MetricName": "Errors",
+    "Namespace": "AWS/Lambda",
+    "Period": 300,
+    "Statistic": "Sum",
+    "Threshold": 1
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/DocumentProcessingErrorAlarm/Resource"
+   }
+  },
+  "ApiDeploymentCB9E46ED": {
+   "Type": "AWS::ApiGateway::Deployment",
+   "Properties": {
+    "Description": "Deployment for dev environment - 2026-03-23T20:40:21.178Z",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "DependsOn": [
+    "ImportedApichunkingmethodsGETApiPermissionragappdevelopmentImportedApi7D920770GETchunkingmethodsD840DCE8",
+    "ImportedApichunkingmethodsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETchunkingmethods4137E56D",
+    "ImportedApichunkingmethodsGET6F99918C",
+    "ImportedApichunkingmethodsOPTIONS481BB99E",
+    "ImportedApichunkingmethods54F7D60E",
+    "ImportedApiclaimsclaimIdevaluationsGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations80DEADC9",
+    "ImportedApiclaimsclaimIdevaluationsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations378CA08B",
+    "ImportedApiclaimsclaimIdevaluationsGETA9630698",
+    "ImportedApiclaimsclaimIdevaluationsOPTIONS8155631D",
+    "ImportedApiclaimsclaimIdevaluationsE625AA12",
+    "ImportedApiclaimsclaimIdexportOPTIONSE1130F95",
+    "ImportedApiclaimsclaimIdexportPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexportFA9AF0DD",
+    "ImportedApiclaimsclaimIdexportPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexport9134184B",
+    "ImportedApiclaimsclaimIdexportPOSTD5345476",
+    "ImportedApiclaimsclaimIdexportF294EC95",
+    "ImportedApiclaimsclaimIdhistoryGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory1698DDBA",
+    "ImportedApiclaimsclaimIdhistoryGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory5A7C7256",
+    "ImportedApiclaimsclaimIdhistoryGET945CD9CE",
+    "ImportedApiclaimsclaimIdhistoryOPTIONS4818C29D",
+    "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistory23186B2A",
+    "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistoryF18E707A",
+    "ImportedApiclaimsclaimIdhistoryPOST5770B213",
+    "ImportedApiclaimsclaimIdhistory3E88BB00",
+    "ImportedApiclaimsclaimIdOPTIONSCEDDE2B0",
+    "ImportedApiclaimsclaimId1285E94D",
+    "ImportedApiclaimsclaimIdstatusGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus6308F20A",
+    "ImportedApiclaimsclaimIdstatusGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus08A112E2",
+    "ImportedApiclaimsclaimIdstatusGET71D7CC2A",
+    "ImportedApiclaimsclaimIdstatusOPTIONS51B32BAA",
+    "ImportedApiclaimsclaimIdstatus754C91FC",
+    "ImportedApiclaimsclaimIdsummaryOPTIONS69DDF3E0",
+    "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummaryED375831",
+    "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummary43D9483A",
+    "ImportedApiclaimsclaimIdsummaryPOSTD5CBB46E",
+    "ImportedApiclaimsclaimIdsummary90FC4124",
+    "ImportedApiclaimsloadOPTIONSB7F2E86B",
+    "ImportedApiclaimsloadPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsload3185A567",
+    "ImportedApiclaimsloadPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsloadAD2B6C7A",
+    "ImportedApiclaimsloadPOSTE6FE2A7B",
+    "ImportedApiclaimsloadAB681166",
+    "ImportedApiclaimsOPTIONS56518A4D",
+    "ImportedApiclaims958A6BDD",
+    "ImportedApiclaimssearchOPTIONS4F013CE3",
+    "ImportedApiclaimssearchPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimssearchBB4B25FB",
+    "ImportedApiclaimssearchPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimssearch9D3F69E7",
+    "ImportedApiclaimssearchPOST7E6690E2",
+    "ImportedApiclaimssearchBB3D4998",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobIdE161EE21",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobId7C4A7FCF",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGET7DD7BA75",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdOPTIONS05D787FD",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdFB1132DE",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupOPTIONS449E0191",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanupDC3C42BC",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanup3124F20E",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOST6F77393B",
+    "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4",
+    "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig15B12AB0",
+    "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig32B66276",
+    "ImportedApicustomerscustomerUUIDchunkingconfigGET39FCAD50",
+    "ImportedApicustomerscustomerUUIDchunkingconfigOPTIONS7EB5F73F",
+    "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig82F40069",
+    "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionTestragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig7351875A",
+    "ImportedApicustomerscustomerUUIDchunkingconfigPUT990CEBBA",
+    "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4",
+    "ImportedApicustomerscustomerUUIDOPTIONSF6270039",
+    "ImportedApicustomerscustomerUUID6AAB192B",
+    "ImportedApicustomersOPTIONS47187E36",
+    "ImportedApicustomersPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomers9D48DD34",
+    "ImportedApicustomersPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomers2B1437BC",
+    "ImportedApicustomersPOSTFB7E2FA8",
+    "ImportedApicustomers567EF64D",
+    "ImportedApidocumentsdocumentIdGETApiPermissionragappdevelopmentImportedApi7D920770GETdocumentsdocumentId0D8D997E",
+    "ImportedApidocumentsdocumentIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETdocumentsdocumentIdD36F942B",
+    "ImportedApidocumentsdocumentIdGET500F94BF",
+    "ImportedApidocumentsdocumentIdOPTIONSEA228A4C",
+    "ImportedApidocumentsdocumentId44604C14",
+    "ImportedApidocumentschunksOPTIONS3A24E519",
+    "ImportedApidocumentschunksD95685F5",
+    "ImportedApidocumentschunksvisualizationOPTIONSDE1A7703",
+    "ImportedApidocumentschunksvisualizationPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization928783D8",
+    "ImportedApidocumentschunksvisualizationPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization9059E952",
+    "ImportedApidocumentschunksvisualizationPOST68888CCD",
+    "ImportedApidocumentschunksvisualizationA0AEC56A",
+    "ImportedApidocumentsdeleteDELETEApiPermissionragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEF055F1E",
+    "ImportedApidocumentsdeleteDELETEApiPermissionTestragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEBEDCE78",
+    "ImportedApidocumentsdeleteDELETE898051F5",
+    "ImportedApidocumentsdeleteOPTIONSB1A1F860",
+    "ImportedApidocumentsdelete631F8FC7",
+    "ImportedApidocumentsembeddingsgenerateOPTIONS900658BA",
+    "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate41541285",
+    "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate5131C4A8",
+    "ImportedApidocumentsembeddingsgeneratePOST0E5E35DB",
+    "ImportedApidocumentsembeddingsgenerateD98D1426",
+    "ImportedApidocumentsembeddingsOPTIONSDFCA7F62",
+    "ImportedApidocumentsembeddings7FD96B29",
+    "ImportedApidocumentsOPTIONSFA82FA66",
+    "ImportedApidocumentsPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocuments739347FD",
+    "ImportedApidocumentsPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocuments90AB6E6A",
+    "ImportedApidocumentsPOSTB37F2678",
+    "ImportedApidocumentsprocessOPTIONSB9F5E61C",
+    "ImportedApidocumentsprocessPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsprocess55B36CEB",
+    "ImportedApidocumentsprocessPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsprocess63AA0819",
+    "ImportedApidocumentsprocessPOST4ED70BD4",
+    "ImportedApidocumentsprocessECBA0CA5",
+    "ImportedApidocuments5EDD4A61",
+    "ImportedApidocumentsretryOPTIONS865B8B9C",
+    "ImportedApidocumentsretryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsretry4A654EBC",
+    "ImportedApidocumentsretryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsretry0397746E",
+    "ImportedApidocumentsretryPOST43C98157",
+    "ImportedApidocumentsretry7AC0B983",
+    "ImportedApidocumentssummaryOPTIONSCB2360CF",
+    "ImportedApidocumentssummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummary81EDD0FB",
+    "ImportedApidocumentssummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummary00BB6D4A",
+    "ImportedApidocumentssummaryPOST6BADF130",
+    "ImportedApidocumentssummary1A4322B2",
+    "ImportedApidocumentssummaryselectiveOPTIONS449F69B1",
+    "ImportedApidocumentssummaryselectivePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummaryselectiveAEEFB8AB",
+    "ImportedApidocumentssummaryselectivePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummaryselective77EBBFF2",
+    "ImportedApidocumentssummaryselectivePOSTA82B2F6F",
+    "ImportedApidocumentssummaryselectiveA81F97E1",
+    "ImportedApipatientspatientIdGETApiPermissionragappdevelopmentImportedApi7D920770GETpatientspatientIdE2534D7C",
+    "ImportedApipatientspatientIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatientspatientIdC5A54EE6",
+    "ImportedApipatientspatientIdGETAA50FC60",
+    "ImportedApipatientspatientIdOPTIONS23B86BD2",
+    "ImportedApipatientspatientIdB9AC10D6",
+    "ImportedApipatientsGETApiPermissionragappdevelopmentImportedApi7D920770GETpatients4054DC23",
+    "ImportedApipatientsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatients300F6C7C",
+    "ImportedApipatientsGETC20D2432",
+    "ImportedApipatientsOPTIONS7E28A784",
+    "ImportedApipatients674C44CC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ApiDeployment/Resource",
+    "aws:cdk:do-not-refactor": true
+   }
+  },
+  "GatewayResponseDefault4XX": {
+   "Type": "AWS::ApiGateway::GatewayResponse",
+   "Properties": {
+    "ResponseParameters": {
+     "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+     "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+     "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'"
+    },
+    "ResponseType": "DEFAULT_4XX",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GatewayResponseDefault4XX"
+   }
+  },
+  "GatewayResponseDefault5XX": {
+   "Type": "AWS::ApiGateway::GatewayResponse",
+   "Properties": {
+    "ResponseParameters": {
+     "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+     "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+     "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'"
+    },
+    "ResponseType": "DEFAULT_5XX",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GatewayResponseDefault5XX"
+   }
+  },
+  "GatewayResponseUnauthorized": {
+   "Type": "AWS::ApiGateway::GatewayResponse",
+   "Properties": {
+    "ResponseParameters": {
+     "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+     "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+     "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'"
+    },
+    "ResponseType": "UNAUTHORIZED",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GatewayResponseUnauthorized"
+   }
+  },
+  "GatewayResponseAccessDenied": {
+   "Type": "AWS::ApiGateway::GatewayResponse",
+   "Properties": {
+    "ResponseParameters": {
+     "gatewayresponse.header.Access-Control-Allow-Origin": "'*'",
+     "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-Id'",
+     "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'"
+    },
+    "ResponseType": "ACCESS_DENIED",
+    "RestApiId": "wvbm6ooz1j"
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GatewayResponseAccessDenied"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/Resource"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "s3:PutBucketNotification",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "DocumentsBucket9EC9DEB9",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36",
+    "Roles": [
+     {
+      "Ref": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/DefaultPolicy/Resource"
+   }
+  },
+  "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Description": "AWS CloudFormation handler for \"Custom::S3BucketNotifications\" resources (@aws-cdk/aws-s3)",
+    "Code": {
+     "ZipFile": "import boto3  # type: ignore\nimport json\nimport logging\nimport urllib.request\n\ns3 = boto3.client(\"s3\")\n\nEVENTBRIDGE_CONFIGURATION = 'EventBridgeConfiguration'\nCONFIGURATION_TYPES = [\"TopicConfigurations\", \"QueueConfigurations\", \"LambdaFunctionConfigurations\"]\n\ndef handler(event: dict, context):\n  response_status = \"SUCCESS\"\n  error_message = \"\"\n  try:\n    props = event[\"ResourceProperties\"]\n    notification_configuration = props[\"NotificationConfiguration\"]\n    managed = props.get('Managed', 'true').lower() == 'true'\n    skipDestinationValidation = props.get('SkipDestinationValidation', 'false').lower() == 'true'\n    stack_id = event['StackId']\n    old = event.get(\"OldResourceProperties\", {}).get(\"NotificationConfiguration\", {})\n    if managed:\n      config = handle_managed(event[\"RequestType\"], notification_configuration)\n    else:\n      config = handle_unmanaged(props[\"BucketName\"], stack_id, event[\"RequestType\"], notification_configuration, old)\n    s3.put_bucket_notification_configuration(Bucket=props[\"BucketName\"], NotificationConfiguration=config, SkipDestinationValidation=skipDestinationValidation)\n  except Exception as e:\n    logging.exception(\"Failed to put bucket notification configuration\")\n    response_status = \"FAILED\"\n    error_message = f\"Error: {str(e)}. \"\n  finally:\n    submit_response(event, context, response_status, error_message)\n\ndef handle_managed(request_type, notification_configuration):\n  if request_type == 'Delete':\n    return {}\n  return notification_configuration\n\ndef handle_unmanaged(bucket, stack_id, request_type, notification_configuration, old):\n  def get_id(n):\n    n['Id'] = ''\n    sorted_notifications = sort_filter_rules(n)\n    strToHash=json.dumps(sorted_notifications, sort_keys=True).replace('\"Name\": \"prefix\"', '\"Name\": \"Prefix\"').replace('\"Name\": \"suffix\"', '\"Name\": \"Suffix\"')\n    return f\"{stack_id}-{hash(strToHash)}\"\n  def with_id(n):\n    n['Id'] = get_id(n)\n    return n\n\n  external_notifications = {}\n  existing_notifications = s3.get_bucket_notification_configuration(Bucket=bucket)\n  for t in CONFIGURATION_TYPES:\n    if request_type == 'Update':\n        old_incoming_ids = [get_id(n) for n in old.get(t, [])]\n        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not get_id(n) in old_incoming_ids]      \n    elif request_type == 'Delete':\n        external_notifications[t] = [n for n in existing_notifications.get(t, []) if not n['Id'].startswith(f\"{stack_id}-\")]\n    elif request_type == 'Create':\n        external_notifications[t] = [n for n in existing_notifications.get(t, [])]\n  if EVENTBRIDGE_CONFIGURATION in existing_notifications:\n    external_notifications[EVENTBRIDGE_CONFIGURATION] = existing_notifications[EVENTBRIDGE_CONFIGURATION]\n\n  if request_type == 'Delete':\n    return external_notifications\n\n  notifications = {}\n  for t in CONFIGURATION_TYPES:\n    external = external_notifications.get(t, [])\n    incoming = [with_id(n) for n in notification_configuration.get(t, [])]\n    notifications[t] = external + incoming\n\n  if EVENTBRIDGE_CONFIGURATION in notification_configuration:\n    notifications[EVENTBRIDGE_CONFIGURATION] = notification_configuration[EVENTBRIDGE_CONFIGURATION]\n  elif EVENTBRIDGE_CONFIGURATION in external_notifications:\n    notifications[EVENTBRIDGE_CONFIGURATION] = external_notifications[EVENTBRIDGE_CONFIGURATION]\n\n  return notifications\n\ndef submit_response(event: dict, context, response_status: str, error_message: str):\n  response_body = json.dumps(\n    {\n      \"Status\": response_status,\n      \"Reason\": f\"{error_message}See the details in CloudWatch Log Stream: {context.log_stream_name}\",\n      \"PhysicalResourceId\": event.get(\"PhysicalResourceId\") or event[\"LogicalResourceId\"],\n      \"StackId\": event[\"StackId\"],\n      \"RequestId\": event[\"RequestId\"],\n      \"LogicalResourceId\": event[\"LogicalResourceId\"],\n      \"NoEcho\": False,\n    }\n  ).encode(\"utf-8\")\n  headers = {\"content-type\": \"\", \"content-length\": str(len(response_body))}\n  try:\n    req = urllib.request.Request(url=event[\"ResponseURL\"], headers=headers, data=response_body, method=\"PUT\")\n    with urllib.request.urlopen(req) as response:\n      print(response.read().decode(\"utf-8\"))\n    print(\"Status code: \" + response.reason)\n  except Exception as e:\n      print(\"send(..) failed executing request.urlopen(..): \" + str(e))\n\ndef sort_filter_rules(json_obj):\n  if not isinstance(json_obj, dict):\n      return json_obj\n  for key, value in json_obj.items():\n      if isinstance(value, dict):\n          json_obj[key] = sort_filter_rules(value)\n      elif isinstance(value, list):\n          json_obj[key] = [sort_filter_rules(item) for item in value]\n  if \"Filter\" in json_obj and \"Key\" in json_obj[\"Filter\"] and \"FilterRules\" in json_obj[\"Filter\"][\"Key\"]:\n      filter_rules = json_obj[\"Filter\"][\"Key\"][\"FilterRules\"]\n      sorted_filter_rules = sorted(filter_rules, key=lambda x: x[\"Name\"])\n      json_obj[\"Filter\"][\"Key\"][\"FilterRules\"] = sorted_filter_rules\n  return json_obj"
+    },
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.13",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36",
+    "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Resource"
+   }
+  },
+  "ClaimStatusHistoryTableF06DF48A": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "claimId",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "timestamp",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+     {
+      "AttributeName": "claimId",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "timestamp",
+      "KeyType": "RANGE"
+     }
+    ],
+    "TableName": "rag-app-claim-status-history-dev"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimStatusHistoryTable/Resource"
+   }
+  },
+  "ClaimStatusHistoryFunction49F2AC10": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "b888ccc36832ebf9c75e2a437d0d42341a0a2e08187711630a389fe54289a88d.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "STATUS_HISTORY_TABLE": {
+       "Ref": "ClaimStatusHistoryTableF06DF48A"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimStatusHistoryFunction/Resource",
+    "aws:asset:path": "asset.b888ccc36832ebf9c75e2a437d0d42341a0a2e08187711630a389fe54289a88d",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ClaimSearchFunction8F232E48": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "f289969fe537da33e3cab32791a74c73b446512b69d85aace9fafb40966d5d7f.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "KNOWLEDGE_BASE_ID": {
+       "Ref": "KnowledgeBaseId"
+      },
+      "BEDROCK_REGION": "us-east-1",
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimSearchFunction/Resource",
+    "aws:asset:path": "asset.f289969fe537da33e3cab32791a74c73b446512b69d85aace9fafb40966d5d7f",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ClaimExportFunction1559CA3A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "b419712fff4e6002e86fc4ca8df9488e7a620349d542165449b302b72712fa0b.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE_NAME": "rag-app-documents-dev",
+      "STATUS_HISTORY_TABLE": {
+       "Ref": "ClaimStatusHistoryTableF06DF48A"
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 30
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimExportFunction/Resource",
+    "aws:asset:path": "asset.b419712fff4e6002e86fc4ca8df9488e7a620349d542165449b302b72712fa0b",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "SummaryCacheTable3708E51A": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "cacheKey",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "claimId",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "GlobalSecondaryIndexes": [
+     {
+      "IndexName": "claimId-index",
+      "KeySchema": [
+       {
+        "AttributeName": "claimId",
+        "KeyType": "HASH"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     }
+    ],
+    "KeySchema": [
+     {
+      "AttributeName": "cacheKey",
+      "KeyType": "HASH"
+     }
+    ],
+    "TableName": "rag-app-summary-cache-dev",
+    "TimeToLiveSpecification": {
+     "AttributeName": "ttl",
+     "Enabled": true
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/SummaryCacheTable/Resource"
+   }
+  },
+  "SummaryContentBucket69E458A2": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "BucketName": "rag-app-summary-content-dev",
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "Status": "Enabled",
+       "Transitions": [
+        {
+         "StorageClass": "STANDARD_IA",
+         "TransitionInDays": 90
+        }
+       ]
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/SummaryContentBucket/Resource"
+   }
+  },
+  "SummaryContentBucketPolicy7AAC3AF5": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "SummaryContentBucket69E458A2"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:PutBucketPolicy"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "SummaryContentBucket69E458A2",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "SummaryContentBucket69E458A2",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/SummaryContentBucket/Policy/Resource"
+   }
+  },
+  "SummaryContentBucketAutoDeleteObjectsCustomResourceE94BE8E2": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "SummaryContentBucket69E458A2"
+    }
+   },
+   "DependsOn": [
+    "SummaryContentBucketPolicy7AAC3AF5"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/SummaryContentBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "EvaluationResultsTableBA1A1C0A": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "claimId",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "strategyKey",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "KeySchema": [
+     {
+      "AttributeName": "claimId",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "strategyKey",
+      "KeyType": "RANGE"
+     }
+    ],
+    "TableName": "rag-app-evaluation-results-dev"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/EvaluationResultsTable/Resource"
+   }
+  },
+  "NeptuneAnalyticsGraph": {
+   "Type": "AWS::NeptuneGraph::Graph",
+   "Properties": {
+    "GraphName": "rag-app-graph-dev",
+    "ProvisionedMemory": 32,
+    "VectorSearchConfiguration": {
+     "VectorSearchDimension": 1024
+    },
+    "PublicConnectivity": false,
+    "ReplicaCount": 0,
+    "DeletionProtection": false
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/NeptuneAnalyticsGraph"
+   }
+  },
+  "GraphRagKbRole65291264": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "bedrock.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "s3:GetObject",
+          "s3:ListBucket"
+         ],
+         "Effect": "Allow",
+         "Resource": [
+          {
+           "Fn::GetAtt": [
+            "DocumentsBucket9EC9DEB9",
+            "Arn"
+           ]
+          },
+          {
+           "Fn::Join": [
+            "",
+            [
+             {
+              "Fn::GetAtt": [
+               "DocumentsBucket9EC9DEB9",
+               "Arn"
+              ]
+             },
+             "/*"
+            ]
+           ]
+          }
+         ]
+        },
+        {
+         "Action": [
+          "neptune-graph:DeleteDataViaQuery",
+          "neptune-graph:GetGraph",
+          "neptune-graph:ReadDataViaQuery",
+          "neptune-graph:WriteDataViaQuery"
+         ],
+         "Effect": "Allow",
+         "Resource": {
+          "Fn::GetAtt": [
+           "NeptuneAnalyticsGraph",
+           "GraphArn"
+          ]
+         }
+        },
+        {
+         "Action": "bedrock:InvokeModel",
+         "Effect": "Allow",
+         "Resource": [
+          "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0",
+          "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+         ]
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "BedrockKbPolicy"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GraphRagKbRole/Resource"
+   }
+  },
+  "GraphRagKnowledgeBase": {
+   "Type": "AWS::Bedrock::KnowledgeBase",
+   "Properties": {
+    "Name": "rag-app-graphrag-kb-dev",
+    "RoleArn": {
+     "Fn::GetAtt": [
+      "GraphRagKbRole65291264",
+      "Arn"
+     ]
+    },
+    "KnowledgeBaseConfiguration": {
+     "Type": "VECTOR",
+     "VectorKnowledgeBaseConfiguration": {
+      "EmbeddingModelArn": "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+     }
+    },
+    "StorageConfiguration": {
+     "Type": "NEPTUNE_ANALYTICS",
+     "NeptuneAnalyticsConfiguration": {
+      "GraphArn": {
+       "Fn::GetAtt": [
+        "NeptuneAnalyticsGraph",
+        "GraphArn"
+       ]
+      },
+      "FieldMapping": {
+       "MetadataField": "metadata",
+       "TextField": "text"
+      }
+     }
+    }
+   },
+   "DependsOn": [
+    "NeptuneAnalyticsGraph"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GraphRagKnowledgeBase"
+   }
+  },
+  "GraphRagDataSource29801059": {
+   "Type": "Custom::AWS",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+      "Arn"
+     ]
+    },
+    "Create": {
+     "Fn::Join": [
+      "",
+      [
+       "{\"service\":\"BedrockAgent\",\"action\":\"createDataSource\",\"parameters\":{\"knowledgeBaseId\":\"",
+       {
+        "Fn::GetAtt": [
+         "GraphRagKnowledgeBase",
+         "KnowledgeBaseId"
+        ]
+       },
+       "\",\"name\":\"rag-app-graphrag-ds-dev\",\"dataSourceConfiguration\":{\"type\":\"S3\",\"s3Configuration\":{\"bucketArn\":\"",
+       {
+        "Fn::GetAtt": [
+         "DocumentsBucket9EC9DEB9",
+         "Arn"
+        ]
+       },
+       "\",\"inclusionPrefixes\":[\"uploads/\"]}},\"vectorIngestionConfiguration\":{\"contextEnrichmentConfiguration\":{\"type\":\"BEDROCK_FOUNDATION_MODEL\",\"bedrockFoundationModelConfiguration\":{\"enrichmentStrategyConfiguration\":{\"method\":\"CHUNK_ENTITY_EXTRACTION\"},\"modelArn\":\"arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0\"}}}},\"physicalResourceId\":{\"responsePath\":\"dataSource.dataSourceId\"},\"outputPaths\":[\"dataSource.dataSourceId\"]}"
+      ]
+     ]
+    },
+    "Delete": {
+     "Fn::Join": [
+      "",
+      [
+       "{\"service\":\"BedrockAgent\",\"action\":\"deleteDataSource\",\"parameters\":{\"knowledgeBaseId\":\"",
+       {
+        "Fn::GetAtt": [
+         "GraphRagKnowledgeBase",
+         "KnowledgeBaseId"
+        ]
+       },
+       "\",\"dataSourceId\":\"PHYSICAL:RESOURCEID:\"}}"
+      ]
+     ]
+    },
+    "InstallLatestAwsSdk": false
+   },
+   "DependsOn": [
+    "GraphRagDataSourceCustomResourcePolicy467502EE",
+    "GraphRagKnowledgeBase"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GraphRagDataSource/Resource/Default"
+   }
+  },
+  "GraphRagDataSourceCustomResourcePolicy467502EE": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "bedrock:CreateDataSource",
+        "bedrock:DeleteDataSource",
+        "bedrock:GetDataSource"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "GraphRagDataSourceCustomResourcePolicy467502EE",
+    "Roles": [
+     {
+      "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+     }
+    ]
+   },
+   "DependsOn": [
+    "GraphRagKnowledgeBase"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/GraphRagDataSource/CustomResourcePolicy/Resource"
+   }
+  },
+  "ClaimSummaryOrchestratorFunction5D862AC9": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-east-1",
+     "S3Key": "1bb41da376f980555da59a30498206e2143344c975c467ba4d484023b090102d.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "DOCUMENTS_TABLE": "rag-app-documents-dev",
+      "SUMMARY_CACHE_TABLE": {
+       "Ref": "SummaryCacheTable3708E51A"
+      },
+      "SUMMARY_CONTENT_BUCKET": {
+       "Ref": "SummaryContentBucket69E458A2"
+      },
+      "EVALUATION_RESULTS_TABLE": {
+       "Ref": "EvaluationResultsTableBA1A1C0A"
+      },
+      "BEDROCK_REGION": "us-east-1",
+      "KNOWLEDGE_BASE_ID": {
+       "Ref": "KnowledgeBaseId"
+      },
+      "GRAPH_RAG_KNOWLEDGE_BASE_ID": {
+       "Fn::GetAtt": [
+        "GraphRagKnowledgeBase",
+        "KnowledgeBaseId"
+       ]
+      },
+      "REGION": "us-east-1"
+     }
+    },
+    "Handler": "index.handler",
+    "MemorySize": 512,
+    "Role": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+    "Runtime": "nodejs20.x",
+    "Timeout": 120
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/ClaimSummaryOrchestratorFunction/Resource",
+    "aws:asset:path": "asset.1bb41da376f980555da59a30498206e2143344c975c467ba4d484023b090102d",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/12QT3PCIBDFP4t3pNYceo7ptKdO09i7s4E1ogFSFsxYJt+9E2L9d3q/XWDfY5d8mWV8MYOe5kIe5q2qeVx7EAdWbE0JDjR6dAx62kR5MqCtrHn8hrrFFRCyROPdBANrQdcSeFwr07TorXkLRnhlDbtAsTW3XKLTikhZMzAFmsfStkqc0tFElZ0sRh0YZRsgQk88H4VRxuMqiAP6FGjC8fqZJrkOva0HBp1qwGMPJx4rJJ93Ko2pkGxwAu+KFOKfP9DvrBxbV8qD31mnftGxV+xae9JoUpb76n1yrJA6a2j80w/x+BUwJIsEAxOtDbIHL3Y85i04nRxGGAYmAnmrN+6chnjeU5F617AP5U32C6QVrj00yjQPD0pnj0qiSxsotuYz+C74gRkrke/p6bhc8OcXvpjtSam5C8Yrjbya9A+URtacWAIAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "rag-app-development/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "ApiGatewayUrl": {
+   "Description": "API Gateway endpoint URL",
+   "Value": "https://wvbm6ooz1j.execute-api.us-east-1.amazonaws.com/dev"
+  },
+  "DocumentsBucketName": {
+   "Description": "Documents S3 Bucket Name",
+   "Value": {
+    "Ref": "DocumentsBucket9EC9DEB9"
+   },
+   "Export": {
+    "Name": "rag-app-dev-documents-bucket"
+   }
+  },
+  "ProcessingQueueUrl": {
+   "Description": "Document Processing Queue URL",
+   "Value": {
+    "Ref": "ProcessingQueue6DC600C3"
+   },
+   "Export": {
+    "Name": "rag-app-dev-processing-queue-url"
+   }
+  },
+  "ProcessingDLQUrl": {
+   "Description": "Document Processing Dead Letter Queue URL",
+   "Value": {
+    "Ref": "ProcessingDLQ145B1707"
+   },
+   "Export": {
+    "Name": "rag-app-dev-processing-dlq-url"
+   }
+  },
+  "CustomerManagerFunctionArn": {
+   "Description": "Customer Manager Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "CustomerManagerFunctionC9C8ABCE",
+     "Arn"
+    ]
+   }
+  },
+  "DocumentUploadFunctionArn": {
+   "Description": "Document Upload Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "DocumentUploadFunction21736EC4",
+     "Arn"
+    ]
+   }
+  },
+  "DocumentProcessingFunctionArn": {
+   "Description": "Document Processing Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "DocumentProcessingFunctionC72C6344",
+     "Arn"
+    ]
+   }
+  },
+  "PatientListFunctionArn": {
+   "Description": "Patient List Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "PatientListFunction8B6B832D",
+     "Arn"
+    ]
+   }
+  },
+  "PatientDetailFunctionArn": {
+   "Description": "Patient Detail Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "PatientDetailFunctionBC017CB1",
+     "Arn"
+    ]
+   }
+  },
+  "ClaimLoaderFunctionArn": {
+   "Description": "Claim Loader Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "ClaimLoaderFunctionD1F8E0B0",
+     "Arn"
+    ]
+   }
+  },
+  "ClaimStatusFunctionArn": {
+   "Description": "Claim Status Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "ClaimStatusFunction0843561A",
+     "Arn"
+    ]
+   }
+  },
+  "ClaimStatusHistoryTableName": {
+   "Description": "Claim Status History DynamoDB Table Name",
+   "Value": {
+    "Ref": "ClaimStatusHistoryTableF06DF48A"
+   }
+  },
+  "SummaryCacheTableName": {
+   "Description": "Summary Cache DynamoDB Table Name",
+   "Value": {
+    "Ref": "SummaryCacheTable3708E51A"
+   },
+   "Export": {
+    "Name": "rag-app-dev-summary-cache-table"
+   }
+  },
+  "SummaryContentBucketName": {
+   "Description": "Summary Content S3 Bucket Name",
+   "Value": {
+    "Ref": "SummaryContentBucket69E458A2"
+   },
+   "Export": {
+    "Name": "rag-app-dev-summary-content-bucket"
+   }
+  },
+  "EvaluationResultsTableName": {
+   "Description": "Evaluation Results DynamoDB Table Name",
+   "Value": {
+    "Ref": "EvaluationResultsTableBA1A1C0A"
+   },
+   "Export": {
+    "Name": "rag-app-dev-evaluation-results-table"
+   }
+  },
+  "NeptuneGraphArn": {
+   "Description": "Neptune Analytics Graph ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "NeptuneAnalyticsGraph",
+     "GraphArn"
+    ]
+   }
+  },
+  "GraphRagKnowledgeBaseId": {
+   "Description": "GraphRAG Knowledge Base ID",
+   "Value": {
+    "Fn::GetAtt": [
+     "GraphRagKnowledgeBase",
+     "KnowledgeBaseId"
+    ]
+   }
+  },
+  "ClaimSummaryOrchestratorFunctionName": {
+   "Description": "Claim Summary Orchestrator Lambda Function Name",
+   "Value": {
+    "Ref": "ClaimSummaryOrchestratorFunction5D862AC9"
+   }
+  },
+  "ClaimSummaryOrchestratorFunctionArn": {
+   "Description": "Claim Summary Orchestrator Lambda Function ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "ClaimSummaryOrchestratorFunction5D862AC9",
+     "Arn"
+    ]
+   }
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

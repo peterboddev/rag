@@ -1,0 +1,1886 @@
+{
+  "version": "48.0.0",
+  "artifacts": {
+    "rag-app-development.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "rag-app-development.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "rag-app-development": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://450683699755/us-east-1",
+      "properties": {
+        "templateFile": "rag-app-development.template.json",
+        "terminationProtection": false,
+        "tags": {
+          "Component": "Application",
+          "Environment": "dev",
+          "Project": "RAG-Platform"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-deploy-role-450683699755-us-east-1",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-cfn-exec-role-450683699755-us-east-1",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-450683699755-us-east-1/78b83cb169cba3e16c34acc014e1171564153268f72108023ed816c203d81f1d.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "rag-app-development.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-lookup-role-450683699755-us-east-1",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "rag-app-development.assets"
+      ],
+      "metadata": {
+        "/rag-app-development": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "Component",
+                "Value": "Application"
+              },
+              {
+                "Key": "Environment",
+                "Value": "dev"
+              },
+              {
+                "Key": "Project",
+                "Value": "RAG-Platform"
+              }
+            ]
+          }
+        ],
+        "/rag-app-development/UserPoolId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "UserPoolId"
+          }
+        ],
+        "/rag-app-development/KnowledgeBaseId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "KnowledgeBaseId"
+          }
+        ],
+        "/rag-app-development/VectorDbEndpoint": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "VectorDbEndpoint"
+          }
+        ],
+        "/rag-app-development/SourceBucket": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SourceBucket"
+          }
+        ],
+        "/rag-app-development/GSICustomer/Resource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GSICustomer757DECE4"
+          }
+        ],
+        "/rag-app-development/GSICustomer/CustomResourcePolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GSICustomerCustomResourcePolicy329ECFBF"
+          }
+        ],
+        "/rag-app-development/AWS679f53fac002430cb0da5b7982bd2287": [
+          {
+            "type": "aws:cdk:is-custom-resource-handler-singleton",
+            "data": true
+          },
+          {
+            "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+            "data": 0
+          },
+          {
+            "type": "aws:cdk:is-custom-resource-handler-singleton",
+            "data": true
+          },
+          {
+            "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+            "data": 0
+          },
+          {
+            "type": "aws:cdk:is-custom-resource-handler-singleton",
+            "data": true
+          },
+          {
+            "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+            "data": 0
+          }
+        ],
+        "/rag-app-development/AWS679f53fac002430cb0da5b7982bd2287/ServiceRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ],
+        "/rag-app-development/AWS679f53fac002430cb0da5b7982bd2287/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AWS679f53fac002430cb0da5b7982bd22872D164C4C"
+          }
+        ],
+        "/rag-app-development/GSITenant/Resource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GSITenantA7F27E52"
+          }
+        ],
+        "/rag-app-development/GSITenant/CustomResourcePolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GSITenantCustomResourcePolicyCBA0DD3D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomers567EF64D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomersOPTIONS47187E36"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..customers": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomersPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomers9D48DD34"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..customers": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomersPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomers2B1437BC"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomersPOSTFB7E2FA8"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUID6AAB192B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDOPTIONSF6270039"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigFF5F50B4"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigOPTIONS7EB5F73F"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig15B12AB0"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfig32B66276"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigGET39FCAD50"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/ApiPermission.ragappdevelopmentImportedApi7D920770.PUT..customers.{customerUUID}.chunking-config": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig82F40069"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.PUT..customers.{customerUUID}.chunking-config": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigPUTApiPermissionTestragappdevelopmentImportedApi7D920770PUTcustomerscustomerUUIDchunkingconfig7351875A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/PUT/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigPUT990CEBBA"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupC8099EA4"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupOPTIONS449E0191"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..customers.{customerUUID}.chunking-config.cleanup": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanupDC3C42BC"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..customers.{customerUUID}.chunking-config.cleanup": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTcustomerscustomerUUIDchunkingconfigcleanup3124F20E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupPOST6F77393B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdFB1132DE"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdOPTIONS05D787FD"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config.cleanup.{jobId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobIdE161EE21"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..customers.{customerUUID}.chunking-config.cleanup.{jobId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETcustomerscustomerUUIDchunkingconfigcleanupjobId7C4A7FCF"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/customers/{customerUUID}/chunking-config/cleanup/{jobId}/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApicustomerscustomerUUIDchunkingconfigcleanupjobIdGET7DD7BA75"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/chunking-methods/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApichunkingmethods54F7D60E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/chunking-methods/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApichunkingmethodsOPTIONS481BB99E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/chunking-methods/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..chunking-methods": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApichunkingmethodsGETApiPermissionragappdevelopmentImportedApi7D920770GETchunkingmethodsD840DCE8"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/chunking-methods/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..chunking-methods": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApichunkingmethodsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETchunkingmethods4137E56D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/chunking-methods/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApichunkingmethodsGET6F99918C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocuments5EDD4A61"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsOPTIONSFA82FA66"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocuments739347FD"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocuments90AB6E6A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsPOSTB37F2678"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/{documentId}/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdocumentId44604C14"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/{documentId}/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdocumentIdOPTIONSEA228A4C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/{documentId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..documents.{documentId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdocumentIdGETApiPermissionragappdevelopmentImportedApi7D920770GETdocumentsdocumentId0D8D997E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/{documentId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..documents.{documentId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdocumentIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETdocumentsdocumentIdD36F942B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/{documentId}/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdocumentIdGET500F94BF"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/process/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsprocessECBA0CA5"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/process/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsprocessOPTIONSB9F5E61C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/process/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.process": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsprocessPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsprocess55B36CEB"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/process/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.process": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsprocessPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsprocess63AA0819"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/process/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsprocessPOST4ED70BD4"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummary1A4322B2"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryOPTIONSCB2360CF"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.summary": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummary81EDD0FB"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.summary": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummary00BB6D4A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryPOST6BADF130"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/selective/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryselectiveA81F97E1"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/selective/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryselectiveOPTIONS449F69B1"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/selective/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.summary.selective": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryselectivePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentssummaryselectiveAEEFB8AB"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/selective/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.summary.selective": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryselectivePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentssummaryselective77EBBFF2"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/summary/selective/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentssummaryselectivePOSTA82B2F6F"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/retry/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsretry7AC0B983"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/retry/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsretryOPTIONS865B8B9C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/retry/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.retry": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsretryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsretry4A654EBC"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/retry/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.retry": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsretryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsretry0397746E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/retry/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsretryPOST43C98157"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/delete/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdelete631F8FC7"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/delete/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdeleteOPTIONSB1A1F860"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/delete/DELETE/ApiPermission.ragappdevelopmentImportedApi7D920770.DELETE..documents.delete": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdeleteDELETEApiPermissionragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEF055F1E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/delete/DELETE/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.DELETE..documents.delete": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdeleteDELETEApiPermissionTestragappdevelopmentImportedApi7D920770DELETEdocumentsdeleteEBEDCE78"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/delete/DELETE/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsdeleteDELETE898051F5"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksD95685F5"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksOPTIONS3A24E519"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/visualization/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksvisualizationA0AEC56A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/visualization/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksvisualizationOPTIONSDE1A7703"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.chunks.visualization": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksvisualizationPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization928783D8"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.chunks.visualization": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksvisualizationPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentschunksvisualization9059E952"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/chunks/visualization/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentschunksvisualizationPOST68888CCD"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddings7FD96B29"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsOPTIONSDFCA7F62"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/generate/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsgenerateD98D1426"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/generate/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsgenerateOPTIONS900658BA"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..documents.embeddings.generate": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate41541285"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..documents.embeddings.generate": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsgeneratePOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTdocumentsembeddingsgenerate5131C4A8"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/documents/embeddings/generate/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApidocumentsembeddingsgeneratePOST0E5E35DB"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatients674C44CC"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientsOPTIONS7E28A784"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..patients": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientsGETApiPermissionragappdevelopmentImportedApi7D920770GETpatients4054DC23"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..patients": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatients300F6C7C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientsGETC20D2432"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/{patientId}/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientspatientIdB9AC10D6"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/{patientId}/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientspatientIdOPTIONS23B86BD2"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/{patientId}/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..patients.{patientId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientspatientIdGETApiPermissionragappdevelopmentImportedApi7D920770GETpatientspatientIdE2534D7C"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/{patientId}/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..patients.{patientId}": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientspatientIdGETApiPermissionTestragappdevelopmentImportedApi7D920770GETpatientspatientIdC5A54EE6"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/patients/{patientId}/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApipatientspatientIdGETAA50FC60"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaims958A6BDD"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsOPTIONS56518A4D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/load/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsloadAB681166"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/load/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsloadOPTIONSB7F2E86B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/load/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.load": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsloadPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsload3185A567"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/load/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.load": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsloadPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsloadAD2B6C7A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/load/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsloadPOSTE6FE2A7B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimId1285E94D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdOPTIONSCEDDE2B0"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/status/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdstatus754C91FC"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/status/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdstatusOPTIONS51B32BAA"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.status": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdstatusGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus6308F20A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.status": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdstatusGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdstatus08A112E2"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/status/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdstatusGET71D7CC2A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistory3E88BB00"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryOPTIONS4818C29D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.history": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory1698DDBA"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.history": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdhistory5A7C7256"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryGET945CD9CE"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.history": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistory23186B2A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.history": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdhistoryF18E707A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/history/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdhistoryPOST5770B213"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/export/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdexportF294EC95"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/export/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdexportOPTIONSE1130F95"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.export": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdexportPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexportFA9AF0DD"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.export": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdexportPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdexport9134184B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/export/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdexportPOSTD5345476"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/summary/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdsummary90FC4124"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/summary/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdsummaryOPTIONS69DDF3E0"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.summary": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummaryED375831"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.{claimId}.summary": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdsummaryPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimsclaimIdsummary43D9483A"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/summary/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdsummaryPOSTD5CBB46E"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdevaluationsE625AA12"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdevaluationsOPTIONS8155631D"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/ApiPermission.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.evaluations": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdevaluationsGETApiPermissionragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations80DEADC9"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.GET..claims.{claimId}.evaluations": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdevaluationsGETApiPermissionTestragappdevelopmentImportedApi7D920770GETclaimsclaimIdevaluations378CA08B"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/{claimId}/evaluations/GET/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimsclaimIdevaluationsGETA9630698"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/search/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimssearchBB3D4998"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/search/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimssearchOPTIONS4F013CE3"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/search/POST/ApiPermission.ragappdevelopmentImportedApi7D920770.POST..claims.search": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimssearchPOSTApiPermissionragappdevelopmentImportedApi7D920770POSTclaimssearchBB4B25FB"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/search/POST/ApiPermission.Test.ragappdevelopmentImportedApi7D920770.POST..claims.search": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimssearchPOSTApiPermissionTestragappdevelopmentImportedApi7D920770POSTclaimssearch9D3F69E7"
+          }
+        ],
+        "/rag-app-development/ImportedApi/Default/claims/search/POST/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ImportedApiclaimssearchPOST7E6690E2"
+          }
+        ],
+        "/rag-app-development/ApiAuthorizer": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiAuthorizer"
+          }
+        ],
+        "/rag-app-development/DocumentsBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucket9EC9DEB9"
+          }
+        ],
+        "/rag-app-development/DocumentsBucket/Policy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucketPolicy1F991BD4"
+          }
+        ],
+        "/rag-app-development/DocumentsBucket/AutoDeleteObjectsCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucketAutoDeleteObjectsCustomResourceFE3123FC"
+          }
+        ],
+        "/rag-app-development/DocumentsBucket/Notifications/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucketNotifications871115F2"
+          }
+        ],
+        "/rag-app-development/DocumentsBucket/AllowBucketNotificationsToragappdevelopmentDocumentProcessingFunctionF2D5CF66": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucketAllowBucketNotificationsToragappdevelopmentDocumentProcessingFunctionF2D5CF6685809947"
+          }
+        ],
+        "/rag-app-development/Custom::S3AutoDeleteObjectsCustomResourceProvider": [
+          {
+            "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+            "data": true
+          }
+        ],
+        "/rag-app-development/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+          }
+        ],
+        "/rag-app-development/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
+          }
+        ],
+        "/rag-app-development/ProcessingDLQ/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingDLQ145B1707"
+          }
+        ],
+        "/rag-app-development/ProcessingQueue/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingQueue6DC600C3"
+          }
+        ],
+        "/rag-app-development/CustomerManagerFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomerManagerFunctionC9C8ABCE"
+          }
+        ],
+        "/rag-app-development/DocumentUploadFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentUploadFunction21736EC4"
+          }
+        ],
+        "/rag-app-development/DocumentProcessingFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentProcessingFunctionC72C6344"
+          }
+        ],
+        "/rag-app-development/DocumentSummaryFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentSummaryFunction55333843"
+          }
+        ],
+        "/rag-app-development/DocumentRetryFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentRetryFunctionE1A018C4"
+          }
+        ],
+        "/rag-app-development/DocumentDeleteFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentDeleteFunction345A2AF1"
+          }
+        ],
+        "/rag-app-development/DocumentSummarySelectiveFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentSummarySelectiveFunctionFFFF0C02"
+          }
+        ],
+        "/rag-app-development/ChunkingConfigGetFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkingConfigGetFunction60794C55"
+          }
+        ],
+        "/rag-app-development/ChunkingConfigUpdateFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkingConfigUpdateFunction095349E1"
+          }
+        ],
+        "/rag-app-development/ChunkingMethodsListFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkingMethodsListFunctionC23F662A"
+          }
+        ],
+        "/rag-app-development/ChunkingCleanupTriggerFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkingCleanupTriggerFunctionE1DBA83F"
+          }
+        ],
+        "/rag-app-development/ChunkingCleanupStatusFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkingCleanupStatusFunction71702D49"
+          }
+        ],
+        "/rag-app-development/ChunkVisualizationFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ChunkVisualizationFunctionC0A6130C"
+          }
+        ],
+        "/rag-app-development/EmbeddingsGenerateFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EmbeddingsGenerateFunctionE4B21481"
+          }
+        ],
+        "/rag-app-development/PatientListFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PatientListFunction8B6B832D"
+          }
+        ],
+        "/rag-app-development/PatientDetailFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PatientDetailFunctionBC017CB1"
+          }
+        ],
+        "/rag-app-development/ClaimLoaderFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimLoaderFunctionD1F8E0B0"
+          }
+        ],
+        "/rag-app-development/ClaimStatusFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimStatusFunction0843561A"
+          }
+        ],
+        "/rag-app-development/DocumentRetrievalFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentRetrievalFunctionB8EA4614"
+          }
+        ],
+        "/rag-app-development/ProcessingQueueDepthAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingQueueDepthAlarm16C5E97B"
+          }
+        ],
+        "/rag-app-development/ProcessingDLQAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingDLQAlarm0DA142AB"
+          }
+        ],
+        "/rag-app-development/DocumentProcessingErrorAlarm/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentProcessingErrorAlarm462FA0E1"
+          }
+        ],
+        "/rag-app-development/ApiDeployment/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiDeploymentCB9E46ED"
+          }
+        ],
+        "/rag-app-development/GatewayResponseDefault4XX": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GatewayResponseDefault4XX"
+          }
+        ],
+        "/rag-app-development/GatewayResponseDefault5XX": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GatewayResponseDefault5XX"
+          }
+        ],
+        "/rag-app-development/GatewayResponseUnauthorized": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GatewayResponseUnauthorized"
+          }
+        ],
+        "/rag-app-development/GatewayResponseAccessDenied": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GatewayResponseAccessDenied"
+          }
+        ],
+        "/rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+          }
+        ],
+        "/rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36"
+          }
+        ],
+        "/rag-app-development/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691"
+          }
+        ],
+        "/rag-app-development/ApiGatewayUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiGatewayUrl"
+          }
+        ],
+        "/rag-app-development/DocumentsBucketName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentsBucketName"
+          }
+        ],
+        "/rag-app-development/ProcessingQueueUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingQueueUrl"
+          }
+        ],
+        "/rag-app-development/ProcessingDLQUrl": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessingDLQUrl"
+          }
+        ],
+        "/rag-app-development/CustomerManagerFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomerManagerFunctionArn"
+          }
+        ],
+        "/rag-app-development/DocumentUploadFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentUploadFunctionArn"
+          }
+        ],
+        "/rag-app-development/DocumentProcessingFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "DocumentProcessingFunctionArn"
+          }
+        ],
+        "/rag-app-development/PatientListFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PatientListFunctionArn"
+          }
+        ],
+        "/rag-app-development/PatientDetailFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PatientDetailFunctionArn"
+          }
+        ],
+        "/rag-app-development/ClaimLoaderFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimLoaderFunctionArn"
+          }
+        ],
+        "/rag-app-development/ClaimStatusFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimStatusFunctionArn"
+          }
+        ],
+        "/rag-app-development/ClaimStatusHistoryTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "ClaimStatusHistoryTableF06DF48A"
+            }
+          }
+        ],
+        "/rag-app-development/ClaimStatusHistoryTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimStatusHistoryTableF06DF48A"
+          }
+        ],
+        "/rag-app-development/ClaimStatusHistoryTableName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimStatusHistoryTableName"
+          }
+        ],
+        "/rag-app-development/ClaimStatusHistoryFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimStatusHistoryFunction49F2AC10"
+          }
+        ],
+        "/rag-app-development/ClaimSearchFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimSearchFunction8F232E48"
+          }
+        ],
+        "/rag-app-development/ClaimExportFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimExportFunction1559CA3A"
+          }
+        ],
+        "/rag-app-development/SummaryCacheTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "SummaryCacheTable3708E51A"
+            }
+          }
+        ],
+        "/rag-app-development/SummaryCacheTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryCacheTable3708E51A"
+          }
+        ],
+        "/rag-app-development/SummaryCacheTableName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryCacheTableName"
+          }
+        ],
+        "/rag-app-development/SummaryContentBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryContentBucket69E458A2"
+          }
+        ],
+        "/rag-app-development/SummaryContentBucket/Policy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryContentBucketPolicy7AAC3AF5"
+          }
+        ],
+        "/rag-app-development/SummaryContentBucket/AutoDeleteObjectsCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryContentBucketAutoDeleteObjectsCustomResourceE94BE8E2"
+          }
+        ],
+        "/rag-app-development/SummaryContentBucketName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "SummaryContentBucketName"
+          }
+        ],
+        "/rag-app-development/EvaluationResultsTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "EvaluationResultsTableBA1A1C0A"
+            }
+          }
+        ],
+        "/rag-app-development/EvaluationResultsTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvaluationResultsTableBA1A1C0A"
+          }
+        ],
+        "/rag-app-development/EvaluationResultsTableName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvaluationResultsTableName"
+          }
+        ],
+        "/rag-app-development/NeptuneAnalyticsGraph": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "NeptuneAnalyticsGraph"
+          }
+        ],
+        "/rag-app-development/GraphRagKbRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GraphRagKbRole65291264"
+          }
+        ],
+        "/rag-app-development/GraphRagKnowledgeBase": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GraphRagKnowledgeBase"
+          }
+        ],
+        "/rag-app-development/GraphRagDataSource/Resource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GraphRagDataSource29801059"
+          }
+        ],
+        "/rag-app-development/GraphRagDataSource/CustomResourcePolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GraphRagDataSourceCustomResourcePolicy467502EE"
+          }
+        ],
+        "/rag-app-development/NeptuneGraphArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "NeptuneGraphArn"
+          }
+        ],
+        "/rag-app-development/GraphRagKnowledgeBaseId": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "GraphRagKnowledgeBaseId"
+          }
+        ],
+        "/rag-app-development/ClaimSummaryOrchestratorFunction/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimSummaryOrchestratorFunction5D862AC9"
+          }
+        ],
+        "/rag-app-development/ClaimSummaryOrchestratorFunctionName": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimSummaryOrchestratorFunctionName"
+          }
+        ],
+        "/rag-app-development/ClaimSummaryOrchestratorFunctionArn": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ClaimSummaryOrchestratorFunctionArn"
+          }
+        ],
+        "/rag-app-development/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/rag-app-development/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/rag-app-development/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "rag-app-development"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    },
+    "aws-cdk-lib/feature-flag-report": {
+      "type": "cdk:feature-flag-report",
+      "properties": {
+        "module": "aws-cdk-lib",
+        "flags": {
+          "@aws-cdk/aws-signer:signingProfileNamePassedToCfn": {
+            "recommendedValue": true,
+            "explanation": "Pass signingProfileName to CfnSigningProfile"
+          },
+          "@aws-cdk/core:newStyleStackSynthesis": {
+            "recommendedValue": true,
+            "explanation": "Switch to new stack synthesis method which enables CI/CD",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/core:stackRelativeExports": {
+            "recommendedValue": true,
+            "explanation": "Name exports based on the construct paths relative to the stack, rather than the global construct path",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-ecs-patterns:secGroupsDisablesImplicitOpenListener": {
+            "recommendedValue": true,
+            "explanation": "Disable implicit openListener when custom security groups are provided"
+          },
+          "@aws-cdk/aws-rds:lowercaseDbIdentifier": {
+            "recommendedValue": true,
+            "explanation": "Force lowercasing of RDS Cluster names in CDK",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-apigateway:usagePlanKeyOrderInsensitiveId": {
+            "recommendedValue": true,
+            "explanation": "Allow adding/removing multiple UsagePlanKeys independently",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-lambda:recognizeVersionProps": {
+            "recommendedValue": true,
+            "explanation": "Enable this feature flag to opt in to the updated logical id calculation for Lambda Version created using the  `fn.currentVersion`.",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-lambda:recognizeLayerVersion": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Enable this feature flag to opt in to the updated logical id calculation for Lambda Version created using the `fn.currentVersion`."
+          },
+          "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": {
+            "recommendedValue": true,
+            "explanation": "Enable this feature flag to have cloudfront distributions use the security policy TLSv1.2_2021 by default.",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/core:checkSecretUsage": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Enable this flag to make it impossible to accidentally use SecretValues in unsafe locations"
+          },
+          "@aws-cdk/core:target-partitions": {
+            "userValue": [
+              "aws",
+              "aws-cn"
+            ],
+            "recommendedValue": [
+              "aws",
+              "aws-cn"
+            ],
+            "explanation": "What regions to include in lookup tables of environment agnostic stacks"
+          },
+          "@aws-cdk-containers/ecs-service-extensions:enableDefaultLogDriver": {
+            "recommendedValue": true,
+            "explanation": "ECS extensions will automatically add an `awslogs` driver if no logging is specified"
+          },
+          "@aws-cdk/aws-ec2:uniqueImdsv2TemplateName": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Enable this feature flag to have Launch Templates generated by the `InstanceRequireImdsv2Aspect` use unique names."
+          },
+          "@aws-cdk/aws-ecs:arnFormatIncludesClusterName": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "ARN format used by ECS. In the new ARN format, the cluster name is part of the resource ID."
+          },
+          "@aws-cdk/aws-iam:minimizePolicies": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Minimize IAM policies by combining Statements"
+          },
+          "@aws-cdk/core:validateSnapshotRemovalPolicy": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Error on snapshot removal policies on resources that do not support it."
+          },
+          "@aws-cdk/aws-codepipeline:crossAccountKeyAliasStackSafeResourceName": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Generate key aliases that include the stack name"
+          },
+          "@aws-cdk/aws-s3:createDefaultLoggingPolicy": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Enable this feature flag to create an S3 bucket policy by default in cases where an AWS service would automatically create the Policy if one does not exist."
+          },
+          "@aws-cdk/aws-sns-subscriptions:restrictSqsDescryption": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Restrict KMS key policy for encrypted Queues a bit more"
+          },
+          "@aws-cdk/aws-apigateway:disableCloudWatchRole": {
+            "userValue": false,
+            "recommendedValue": true,
+            "explanation": "Make default CloudWatch Role behavior safe for multiple API Gateways in one environment"
+          },
+          "@aws-cdk/core:enablePartitionLiterals": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Make ARNs concrete if AWS partition is known"
+          },
+          "@aws-cdk/aws-events:eventsTargetQueueSameAccount": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Event Rules may only push to encrypted SQS queues in the same account"
+          },
+          "@aws-cdk/aws-ecs:disableExplicitDeploymentControllerForCircuitBreaker": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Avoid setting the \"ECS\" deployment controller when adding a circuit breaker"
+          },
+          "@aws-cdk/aws-iam:importedRoleStackSafeDefaultPolicyName": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Enable this feature to create default policy names for imported roles that depend on the stack the role is in."
+          },
+          "@aws-cdk/aws-s3:serverAccessLogsUseBucketPolicy": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Use S3 Bucket Policy instead of ACLs for Server Access Logging"
+          },
+          "@aws-cdk/aws-route53-patters:useCertificate": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Use the official `Certificate` resource instead of `DnsValidatedCertificate`"
+          },
+          "@aws-cdk/customresources:installLatestAwsSdkDefault": {
+            "userValue": false,
+            "recommendedValue": false,
+            "explanation": "Whether to install the latest SDK by default in AwsCustomResource"
+          },
+          "@aws-cdk/aws-rds:databaseProxyUniqueResourceName": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Use unique resource name for Database Proxy"
+          },
+          "@aws-cdk/aws-codedeploy:removeAlarmsFromDeploymentGroup": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Remove CloudWatch alarms from deployment group"
+          },
+          "@aws-cdk/aws-apigateway:authorizerChangeDeploymentLogicalId": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Include authorizer configuration in the calculation of the API deployment logical ID."
+          },
+          "@aws-cdk/aws-ec2:launchTemplateDefaultUserData": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Define user data for a launch template by default when a machine image is provided."
+          },
+          "@aws-cdk/aws-secretsmanager:useAttachedSecretResourcePolicyForSecretTargetAttachments": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "SecretTargetAttachments uses the ResourcePolicy of the attached Secret."
+          },
+          "@aws-cdk/aws-redshift:columnId": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Whether to use an ID to track Redshift column changes"
+          },
+          "@aws-cdk/aws-stepfunctions-tasks:enableEmrServicePolicyV2": {
+            "recommendedValue": true,
+            "explanation": "Enable AmazonEMRServicePolicy_v2 managed policies"
+          },
+          "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Restrict access to the VPC default security group"
+          },
+          "@aws-cdk/aws-apigateway:requestValidatorUniqueId": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Generate a unique id for each RequestValidator added to a method"
+          },
+          "@aws-cdk/aws-kms:aliasNameRef": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "KMS Alias name and keyArn will have implicit reference to KMS Key"
+          },
+          "@aws-cdk/aws-kms:applyImportedAliasPermissionsToPrincipal": {
+            "recommendedValue": true,
+            "explanation": "Enable grant methods on Aliases imported by name to use kms:ResourceAliases condition"
+          },
+          "@aws-cdk/aws-autoscaling:generateLaunchTemplateInsteadOfLaunchConfig": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Generate a launch template when creating an AutoScalingGroup"
+          },
+          "@aws-cdk/core:includePrefixInUniqueNameGeneration": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "Include the stack prefix in the stack name generation process"
+          },
+          "@aws-cdk/aws-efs:denyAnonymousAccess": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "EFS denies anonymous clients accesses"
+          },
+          "@aws-cdk/aws-opensearchservice:enableOpensearchMultiAzWithStandby": {
+            "recommendedValue": true,
+            "explanation": "Enables support for Multi-AZ with Standby deployment for opensearch domains"
+          },
+          "@aws-cdk/aws-lambda-nodejs:useLatestRuntimeVersion": {
+            "recommendedValue": true,
+            "explanation": "Enables aws-lambda-nodejs.Function to use the latest available NodeJs runtime as the default"
+          },
+          "@aws-cdk/aws-efs:mountTargetOrderInsensitiveLogicalId": {
+            "recommendedValue": true,
+            "explanation": "When enabled, mount targets will have a stable logicalId that is linked to the associated subnet."
+          },
+          "@aws-cdk/aws-rds:auroraClusterChangeScopeOfInstanceParameterGroupWithEachParameters": {
+            "recommendedValue": true,
+            "explanation": "When enabled, a scope of InstanceParameterGroup for AuroraClusterInstance with each parameters will change."
+          },
+          "@aws-cdk/aws-appsync:useArnForSourceApiAssociationIdentifier": {
+            "recommendedValue": true,
+            "explanation": "When enabled, will always use the arn for identifiers for CfnSourceApiAssociation in the GraphqlApi construct rather than id."
+          },
+          "@aws-cdk/aws-rds:preventRenderingDeprecatedCredentials": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "When enabled, creating an RDS database cluster from a snapshot will only render credentials for snapshot credentials."
+          },
+          "@aws-cdk/aws-codepipeline-actions:useNewDefaultBranchForCodeCommitSource": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the CodeCommit source action is using the default branch name 'main'."
+          },
+          "@aws-cdk/aws-cloudwatch-actions:changeLambdaPermissionLogicalIdForLambdaAction": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the logical ID of a Lambda permission for a Lambda action includes an alarm ID."
+          },
+          "@aws-cdk/aws-codepipeline:crossAccountKeysDefaultValueToFalse": {
+            "recommendedValue": true,
+            "explanation": "Enables Pipeline to set the default value for crossAccountKeys to false."
+          },
+          "@aws-cdk/aws-codepipeline:defaultPipelineTypeToV2": {
+            "recommendedValue": true,
+            "explanation": "Enables Pipeline to set the default pipeline type to V2."
+          },
+          "@aws-cdk/aws-kms:reduceCrossAccountRegionPolicyScope": {
+            "recommendedValue": true,
+            "explanation": "When enabled, IAM Policy created from KMS key grant will reduce the resource scope to this key only."
+          },
+          "@aws-cdk/pipelines:reduceAssetRoleTrustScope": {
+            "recommendedValue": true,
+            "explanation": "Remove the root account principal from PipelineAssetsFileRole trust policy",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-eks:nodegroupNameAttribute": {
+            "recommendedValue": true,
+            "explanation": "When enabled, nodegroupName attribute of the provisioned EKS NodeGroup will not have the cluster name prefix."
+          },
+          "@aws-cdk/aws-ec2:ebsDefaultGp3Volume": {
+            "userValue": true,
+            "recommendedValue": true,
+            "explanation": "When enabled, the default volume type of the EBS volume will be GP3"
+          },
+          "@aws-cdk/aws-ecs:removeDefaultDeploymentAlarm": {
+            "recommendedValue": true,
+            "explanation": "When enabled, remove default deployment alarm settings"
+          },
+          "@aws-cdk/custom-resources:logApiResponseDataPropertyTrueDefault": {
+            "recommendedValue": false,
+            "explanation": "When enabled, the custom resource used for `AwsCustomResource` will configure the `logApiResponseData` property as true by default"
+          },
+          "@aws-cdk/aws-s3:keepNotificationInImportedBucket": {
+            "recommendedValue": false,
+            "explanation": "When enabled, Adding notifications to a bucket in the current stack will not remove notification from imported stack."
+          },
+          "@aws-cdk/aws-stepfunctions-tasks:useNewS3UriParametersForBedrockInvokeModelTask": {
+            "recommendedValue": true,
+            "explanation": "When enabled, use new props for S3 URI field in task definition of state machine for bedrock invoke model.",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/core:explicitStackTags": {
+            "recommendedValue": true,
+            "explanation": "When enabled, stack tags need to be assigned explicitly on a Stack."
+          },
+          "@aws-cdk/aws-ecs:reduceEc2FargateCloudWatchPermissions": {
+            "recommendedValue": true,
+            "explanation": "When enabled, we will only grant the necessary permissions when users specify cloudwatch log group through logConfiguration"
+          },
+          "@aws-cdk/aws-dynamodb:resourcePolicyPerReplica": {
+            "recommendedValue": true,
+            "explanation": "When enabled will allow you to specify a resource policy per replica, and not copy the source table policy to all replicas"
+          },
+          "@aws-cdk/aws-ec2:ec2SumTImeoutEnabled": {
+            "recommendedValue": true,
+            "explanation": "When enabled, initOptions.timeout and resourceSignalTimeout values will be summed together."
+          },
+          "@aws-cdk/aws-appsync:appSyncGraphQLAPIScopeLambdaPermission": {
+            "recommendedValue": true,
+            "explanation": "When enabled, a Lambda authorizer Permission created when using GraphqlApi will be properly scoped with a SourceArn."
+          },
+          "@aws-cdk/aws-rds:setCorrectValueForDatabaseInstanceReadReplicaInstanceResourceId": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the value of property `instanceResourceId` in construct `DatabaseInstanceReadReplica` will be set to the correct value which is `DbiResourceId` instead of currently `DbInstanceArn`"
+          },
+          "@aws-cdk/core:cfnIncludeRejectComplexResourceUpdateCreatePolicyIntrinsics": {
+            "recommendedValue": true,
+            "explanation": "When enabled, CFN templates added with `cfn-include` will error if the template contains Resource Update or Create policies with CFN Intrinsics that include non-primitive values."
+          },
+          "@aws-cdk/aws-lambda-nodejs:sdkV3ExcludeSmithyPackages": {
+            "recommendedValue": true,
+            "explanation": "When enabled, both `@aws-sdk` and `@smithy` packages will be excluded from the Lambda Node.js 18.x runtime to prevent version mismatches in bundled applications."
+          },
+          "@aws-cdk/aws-stepfunctions-tasks:fixRunEcsTaskPolicy": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the resource of IAM Run Ecs policy generated by SFN EcsRunTask will reference the definition, instead of constructing ARN."
+          },
+          "@aws-cdk/aws-ec2:bastionHostUseAmazonLinux2023ByDefault": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the BastionHost construct will use the latest Amazon Linux 2023 AMI, instead of Amazon Linux 2."
+          },
+          "@aws-cdk/core:aspectStabilization": {
+            "recommendedValue": true,
+            "explanation": "When enabled, a stabilization loop will be run when invoking Aspects during synthesis.",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-route53-targets:userPoolDomainNameMethodWithoutCustomResource": {
+            "recommendedValue": true,
+            "explanation": "When enabled, use a new method for DNS Name of user pool domain target without creating a custom resource."
+          },
+          "@aws-cdk/aws-elasticloadbalancingV2:albDualstackWithoutPublicIpv4SecurityGroupRulesDefault": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the default security group ingress rules will allow IPv6 ingress from anywhere"
+          },
+          "@aws-cdk/aws-iam:oidcRejectUnauthorizedConnections": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the default behaviour of OIDC provider will reject unauthorized connections"
+          },
+          "@aws-cdk/core:enableAdditionalMetadataCollection": {
+            "recommendedValue": true,
+            "explanation": "When enabled, CDK will expand the scope of usage data collected to better inform CDK development and improve communication for security concerns and emerging issues."
+          },
+          "@aws-cdk/aws-lambda:createNewPoliciesWithAddToRolePolicy": {
+            "recommendedValue": false,
+            "explanation": "[Deprecated] When enabled, Lambda will create new inline policies with AddToRolePolicy instead of adding to the Default Policy Statement"
+          },
+          "@aws-cdk/aws-s3:setUniqueReplicationRoleName": {
+            "recommendedValue": true,
+            "explanation": "When enabled, CDK will automatically generate a unique role name that is used for s3 object replication."
+          },
+          "@aws-cdk/pipelines:reduceStageRoleTrustScope": {
+            "recommendedValue": true,
+            "explanation": "Remove the root account principal from Stage addActions trust policy",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-events:requireEventBusPolicySid": {
+            "recommendedValue": true,
+            "explanation": "When enabled, grantPutEventsTo() will use resource policies with Statement IDs for service principals."
+          },
+          "@aws-cdk/core:aspectPrioritiesMutating": {
+            "recommendedValue": true,
+            "explanation": "When set to true, Aspects added by the construct library on your behalf will be given a priority of MUTATING."
+          },
+          "@aws-cdk/aws-dynamodb:retainTableReplica": {
+            "recommendedValue": true,
+            "explanation": "When enabled, table replica will be default to the removal policy of source table unless specified otherwise."
+          },
+          "@aws-cdk/cognito:logUserPoolClientSecretValue": {
+            "recommendedValue": false,
+            "explanation": "When disabled, the value of the user pool client secret will not be logged in the custom resource lambda function logs."
+          },
+          "@aws-cdk/pipelines:reduceCrossAccountActionRoleTrustScope": {
+            "recommendedValue": true,
+            "explanation": "When enabled, scopes down the trust policy for the cross-account action role",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-stepfunctions:useDistributedMapResultWriterV2": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the resultWriterV2 property of DistributedMap will be used insted of resultWriter"
+          },
+          "@aws-cdk/s3-notifications:addS3TrustKeyPolicyForSnsSubscriptions": {
+            "recommendedValue": true,
+            "explanation": "Add an S3 trust policy to a KMS key resource policy for SNS subscriptions."
+          },
+          "@aws-cdk/aws-ec2:requirePrivateSubnetsForEgressOnlyInternetGateway": {
+            "recommendedValue": true,
+            "explanation": "When enabled, the EgressOnlyGateway resource is only created if private subnets are defined in the dual-stack VPC."
+          },
+          "@aws-cdk/aws-ec2-alpha:useResourceIdForVpcV2Migration": {
+            "recommendedValue": false,
+            "explanation": "When enabled, use resource IDs for VPC V2 migration"
+          },
+          "@aws-cdk/aws-s3:publicAccessBlockedByDefault": {
+            "recommendedValue": true,
+            "explanation": "When enabled, setting any combination of options for BlockPublicAccess will automatically set true for any options not defined."
+          },
+          "@aws-cdk/aws-lambda:useCdkManagedLogGroup": {
+            "recommendedValue": true,
+            "explanation": "When enabled, CDK creates and manages loggroup for the lambda function"
+          },
+          "@aws-cdk/aws-elasticloadbalancingv2:networkLoadBalancerWithSecurityGroupByDefault": {
+            "recommendedValue": true,
+            "explanation": "When enabled, Network Load Balancer will be created with a security group by default."
+          },
+          "@aws-cdk/aws-stepfunctions-tasks:httpInvokeDynamicJsonPathEndpoint": {
+            "recommendedValue": true,
+            "explanation": "When enabled, allows using a dynamic apiEndpoint with JSONPath format in HttpInvoke tasks.",
+            "unconfiguredBehavesLike": {
+              "v2": true
+            }
+          },
+          "@aws-cdk/aws-ecs-patterns:uniqueTargetGroupId": {
+            "recommendedValue": true,
+            "explanation": "When enabled, ECS patterns will generate unique target group IDs to prevent conflicts during load balancer replacement"
+          },
+          "@aws-cdk/aws-route53-patterns:useDistribution": {
+            "recommendedValue": true,
+            "explanation": "Use the `Distribution` resource instead of `CloudFrontWebDistribution`"
+          }
+        }
+      }
+    }
+  },
+  "minimumCliVersion": "2.1033.0"
+}

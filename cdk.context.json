@@ -1,0 +1,7 @@
+{
+  "ssm:account=450683699755:parameterName=/rag-app/dev/iam/application-role-arn:region=us-east-1": "arn:aws:iam::450683699755:role/rag-app-rag-role-dev",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/apigateway/api-id:region=us-east-1": "wvbm6ooz1j",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/apigateway/root-resource-id:region=us-east-1": "xqmtpb1cr4",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/dynamodb/customers-table-name:region=us-east-1": "rag-app-customers-dev",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/dynamodb/documents-table-name:region=us-east-1": "rag-app-documents-dev"
+}
