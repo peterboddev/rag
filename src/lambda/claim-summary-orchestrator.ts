@@ -818,6 +818,18 @@ async function handlePostSummary(
   // Trigger async evaluation (fire-and-forget)
   const evalTriggerFunction = process.env.EVALUATION_TRIGGER_FUNCTION;
   if (evalTriggerFunction) {
+    // For RAG/GraphRAG strategies, fetch source documents if not already captured
+    if (!sourceDocumentsText) {
+      try {
+        const docs = await queryClaimDocuments(claimId, tenantId);
+        sourceDocumentsText = docs
+          .filter((d) => d.extractedText?.trim())
+          .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
+          .join('\n\n');
+      } catch (e) {
+        console.warn('Failed to fetch source documents for evaluation:', e);
+      }
+    }
     try {
       const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
       await lambdaClient.send(new InvokeCommand({
