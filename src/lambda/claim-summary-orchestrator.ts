@@ -692,6 +692,7 @@ async function handlePostSummary(
   let documentCount: number;
   let documentIds: string[] = [];
   let promptInfo: PromptInfo | undefined;
+  let sourceDocumentsText = '';
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -742,6 +743,9 @@ async function handlePostSummary(
         }
         documentIds = summarizable.map((d) => d.documentId);
         documentCount = summarizable.length;
+        sourceDocumentsText = summarizable
+          .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
+          .join('\n\n');
         const result = await executeFullContextStrategy(summarizable);
         summary = result.summary;
         anomalies = result.anomalies;
@@ -771,6 +775,9 @@ async function handlePostSummary(
       documentCount = summarizableDocuments.length;
 
       console.log('Executing full-context strategy with', documentCount, 'documents');
+      sourceDocumentsText = summarizableDocuments
+        .map((doc) => `--- ${doc.fileName} ---\n${doc.extractedText || ''}`)
+        .join('\n\n');
       const result = await executeFullContextStrategy(summarizableDocuments);
       summary = result.summary;
       anomalies = result.anomalies;
@@ -821,7 +828,7 @@ async function handlePostSummary(
           strategy: request.strategy,
           chunkingMethod: request.chunkingMethod || 'none',
           summary,
-          sourceDocuments: '',
+          sourceDocuments: sourceDocumentsText.substring(0, 50000),
           anomalies,
         }),
       }));
