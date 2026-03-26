@@ -534,6 +534,37 @@ class EvaluationRunner:
         results["evaluatedAt"] = datetime.now(timezone.utc).isoformat()
         return results
 
+    def _evaluate_helpfulness_fallback(self, summary: str, source_documents: str) -> float:
+        """Score helpfulness using Bedrock when SDK is unavailable."""
+        self._last_helpfulness_reasoning = ""
+        try:
+            client = self.bedrock_client or boto3.client(
+                "bedrock-runtime", region_name=BEDROCK_REGION
+            )
+            prompt = (
+                f"{HELPFULNESS_PROMPT}\n\nSource Documents:\n{source_documents[:5000]}"
+                f"\n\nSummary:\n{summary}\n\n"
+                'Respond ONLY with JSON: {{"score": <0-1>, "reasoning": "<brief>"}}'
+            )
+            body = json.dumps({
+                "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                "inferenceConfig": {"max_new_tokens": 300, "temperature": 0.1},
+            })
+            resp = client.invoke_model(modelId="amazon.nova-pro-v1:0", body=body)
+            resp_body = json.loads(resp["body"].read())
+            text = resp_body.get("output", {}).get("message", {}).get("content", [{}])[0].get("text", "")
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+            result = json.loads(text.strip())
+            self._last_helpfulness_reasoning = result.get("reasoning", "")
+            return max(0.0, min(1.0, float(result.get("score", 0.0))))
+        except Exception as e:
+            logger.warning(f"Helpfulness fallback evaluation failed: {e}")
+            self._last_helpfulness_reasoning = f"Evaluation failed: {e}"
+            return 0.0
+
     def _evaluate_direct_fallback(
         self,
         summary: str,
@@ -558,11 +589,11 @@ class EvaluationRunner:
         )
 
         return {
-            "helpfulness": 0.0,
+            "helpfulness": self._evaluate_helpfulness_fallback(summary, source_documents),
             "faithfulness": faithfulness_result["score"],
             "completeness": completeness_result["score"],
             "anomalyAccuracy": anomaly_result["score"],
-            "helpfulnessReasoning": "Custom evaluator fallback does not support helpfulness scoring.",
+            "helpfulnessReasoning": self._last_helpfulness_reasoning,
             "faithfulnessReasoning": faithfulness_result.get("reasoning", ""),
             "completenessReasoning": completeness_result.get("reasoning", ""),
             "anomalyAccuracyReasoning": anomaly_result.get("reasoning", ""),
