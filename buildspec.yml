@@ -12,6 +12,7 @@ phases:
   pre_build:
     commands:
       - echo "Running tests..."
+      - export NODE_OPTIONS="--max-old-space-size=4096"
       - npm run test
   
   build:

@@ -416,10 +416,14 @@ describe('Preservation: determineDocumentType classification', () => {
     fc.assert(
       fc.property(
         fc.constantFrom(...cases),
-        fc.stringMatching(/^[a-z0-9]{1,6}$/),
+        fc.stringMatching(/^[a-z]{1,6}$/).filter(s =>
+          !s.includes('eob') && !s.includes('cms') && !s.includes('note') &&
+          !s.includes('report') && !s.includes('clinical') && !s.includes('radiology')
+        ),
         fc.constantFrom('.pdf', '.txt'),
         ({ keyword, expected }, suffix, ext) => {
-          // Build a filename that contains the keyword
+          // Build a filename that contains the keyword — suffix is
+          // filtered to avoid accidentally containing another keyword.
           const fileName = `${keyword}_${suffix}${ext}`;
 
           // We verify classification by running the handler with this filename

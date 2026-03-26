@@ -21,7 +21,8 @@ module.exports = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 10000,
-  forceExit: true,
+  testTimeout: 10000,
+  maxWorkers: '50%',
   detectOpenHandles: false,
   // Handle ES modules and dynamic imports from AWS SDK v3
   transformIgnorePatterns: [
