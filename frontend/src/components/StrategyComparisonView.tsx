@@ -21,6 +21,15 @@ const CHUNKING_OPTIONS: { value: ChunkingMethod; label: string }[] = [
   { value: 'semantic', label: 'Semantic Chunking' },
 ];
 
+const MODEL_OPTIONS: { value: string; label: string }[] = [
+  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro' },
+  { value: 'amazon.nova-lite-v1:0', label: 'Amazon Nova Lite' },
+  { value: 'amazon.nova-micro-v1:0', label: 'Amazon Nova Micro' },
+  { value: 'anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4' },
+  { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2' },
+  { value: 'anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku' },
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildStrategies(chunkingMethod: ChunkingMethod): StrategyConfig[] {
@@ -53,6 +62,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
   const [columns, setColumns] = useState<Record<Strategy, ColumnState>>(createInitialColumns);
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
   const [useReranker, setUseReranker] = useState(false);
+  const [modelId, setModelId] = useState('amazon.nova-pro-v1:0');
   const [isNarrow, setIsNarrow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +97,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           config.chunkingMethod,
           forceRegenerate,
           true, // includeEvaluation
-          config.key === 'graph-rag' ? useReranker : undefined
+          config.key === 'graph-rag' ? useReranker : undefined,
+          modelId
         );
         setColumns((prev) => ({
           ...prev,
@@ -104,7 +115,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     },
-    [claimId, useReranker]
+    [claimId, useReranker, modelId]
   );
 
   // Generate All: call getClaimSummary concurrently for all three strategies
@@ -126,7 +137,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         config.chunkingMethod,
         false,
         true, // includeEvaluation
-        config.key === 'graph-rag' ? useReranker : undefined
+        config.key === 'graph-rag' ? useReranker : undefined,
+        modelId
       )
     );
 
@@ -150,7 +162,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     });
-  }, [claimId, chunkingMethod, useReranker]);
+  }, [claimId, chunkingMethod, useReranker, modelId]);
 
   // Individual regeneration handler
   const handleRegenerate = useCallback(
@@ -168,6 +180,25 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
 
   return (
     <div ref={containerRef} data-testid="strategy-comparison-view">
+      {/* Model selector */}
+      <div style={{ marginBottom: '12px', textAlign: 'center' }}>
+        <label style={{ fontSize: '14px', fontWeight: 600, marginRight: '8px' }}>
+          LLM Model:
+        </label>
+        <select
+          value={modelId}
+          onChange={(e) => setModelId(e.target.value)}
+          style={{
+            padding: '4px 8px', fontSize: '14px', borderRadius: '4px',
+            border: '1px solid #ccc', cursor: 'pointer',
+          }}
+        >
+          {MODEL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Chunking method selector for RAG strategy */}
       <div style={{ marginBottom: '12px', textAlign: 'center' }}>
         <label style={{ fontSize: '14px', fontWeight: 600, marginRight: '12px' }}>

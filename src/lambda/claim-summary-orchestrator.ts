@@ -202,9 +202,9 @@ async function queryClaimDocuments(claimId: string, tenantId: string): Promise<D
  * Invoke Bedrock Nova Pro for summary generation.
  * Returns the generated summary text.
  */
-async function invokeBedrockNovaPro(prompt: string): Promise<string> {
+async function invokeBedrockNovaPro(prompt: string, modelId: string = 'amazon.nova-pro-v1:0'): Promise<string> {
   const command = new InvokeModelCommand({
-    modelId: 'amazon.nova-pro-v1:0',
+    modelId,
     body: JSON.stringify({
       messages: [
         {
@@ -397,14 +397,15 @@ async function resolvePatientId(claimId: string, tenantId: string): Promise<stri
  * Full Context strategy: concatenate all document text and invoke Bedrock.
  */
 async function executeFullContextStrategy(
-  documents: DocumentRecord[]
+  documents: DocumentRecord[],
+  modelId?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; promptInfo: PromptInfo }> {
   const documentsText = documents
     .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
     .join('\n\n');
 
   const prompt = buildSummaryPrompt(documentsText, 'full-context');
-  const responseText = await invokeBedrockNovaPro(prompt);
+  const responseText = await invokeBedrockNovaPro(prompt, modelId);
   const promptInfo = buildPromptInfo('full-context');
   return { ...parseSummaryResponse(responseText), promptInfo };
 }
@@ -416,7 +417,8 @@ async function executeRagStrategy(
   claimId: string,
   chunkingMethod: string,
   useReranker: boolean = false,
-  patientId?: string | null
+  patientId?: string | null,
+  modelId?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
   // Build retrieval config — prefer patientId filter (scopes to all patient docs), fall back to claimId
   const filterKey = patientId ? 'patientId' : 'claimId';
@@ -479,7 +481,7 @@ async function executeRagStrategy(
   );
 
   const prompt = buildSummaryPrompt(chunksText, `rag (${chunkingMethod} chunking)`);
-  const responseText = await invokeBedrockNovaPro(prompt);
+  const responseText = await invokeBedrockNovaPro(prompt, modelId);
   const parsed = parseSummaryResponse(responseText);
   const promptInfo = buildPromptInfo(`rag (${chunkingMethod} chunking)`, retrievalQueryText);
 
@@ -497,7 +499,8 @@ async function executeRagStrategy(
 async function executeGraphRagStrategy(
   claimId: string,
   useReranker: boolean = false,
-  patientId?: string | null
+  patientId?: string | null,
+  modelId?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
   const filterKey = patientId ? 'patientId' : 'claimId';
   const filterValue = patientId || claimId;
@@ -551,7 +554,7 @@ async function executeGraphRagStrategy(
   );
 
   const prompt = buildSummaryPrompt(chunksText, 'graph-rag (Neptune Analytics GraphRAG)');
-  const responseText = await invokeBedrockNovaPro(prompt);
+  const responseText = await invokeBedrockNovaPro(prompt, modelId);
   const parsed = parseSummaryResponse(responseText);
   const promptInfo = buildPromptInfo('graph-rag (Neptune Analytics GraphRAG)', retrievalQueryText);
 
@@ -569,7 +572,8 @@ async function executeGraphRagStrategy(
 async function executeEnrichedStrategy(
   claimId: string,
   tenantId: string,
-  patientId?: string | null
+  patientId?: string | null,
+  modelId?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
   const enrichedAgentFunction = process.env.ENRICHED_AGENT_FUNCTION;
   if (!enrichedAgentFunction) {
@@ -585,6 +589,7 @@ async function executeEnrichedStrategy(
       claim_id: claimId,
       tenant_id: tenantId,
       patient_id: patientId || undefined,
+      model_id: modelId || undefined,
     }),
   }));
 
@@ -755,7 +760,8 @@ async function handlePostSummary(
         claimId,
         request.chunkingMethod || 'semantic',
         useReranker,
-        patientId
+        patientId,
+        request.modelId
       );
 
       if (ragResult.documentCount === 0) {
@@ -771,7 +777,7 @@ async function handlePostSummary(
       const useReranker = request.useReranker ?? false;
       console.log('Executing graph-rag strategy for claimId:', claimId, 'useReranker:', useReranker);
       try {
-        const graphRagResult = await executeGraphRagStrategy(claimId, useReranker, patientId);
+        const graphRagResult = await executeGraphRagStrategy(claimId, useReranker, patientId, request.modelId);
         if (graphRagResult.documentCount === 0) {
           return errorResponse(404, `No documents found for claim ${claimId}`);
         }
@@ -795,7 +801,7 @@ async function handlePostSummary(
         sourceDocumentsText = summarizable
           .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
           .join('\n\n');
-        const result = await executeFullContextStrategy(summarizable);
+        const result = await executeFullContextStrategy(summarizable, request.modelId);
         summary = result.summary;
         anomalies = result.anomalies;
         promptInfo = result.promptInfo;
@@ -803,7 +809,7 @@ async function handlePostSummary(
     } else if (request.strategy === 'enriched') {
       // Enriched strategy: invoke enriched agent Lambda
       console.log('Executing enriched strategy for claimId:', claimId);
-      const enrichedResult = await executeEnrichedStrategy(claimId, tenantId, patientId);
+      const enrichedResult = await executeEnrichedStrategy(claimId, tenantId, patientId, request.modelId);
       summary = enrichedResult.summary;
       anomalies = enrichedResult.anomalies;
       documentCount = enrichedResult.documentCount;
@@ -846,7 +852,7 @@ async function handlePostSummary(
       sourceDocumentsText = summarizableDocuments
         .map((doc) => `--- ${doc.fileName} ---\n${doc.extractedText || ''}`)
         .join('\n\n');
-      const result = await executeFullContextStrategy(summarizableDocuments);
+      const result = await executeFullContextStrategy(summarizableDocuments, request.modelId);
       summary = result.summary;
       anomalies = result.anomalies;
       promptInfo = result.promptInfo;

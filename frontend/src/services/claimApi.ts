@@ -405,7 +405,8 @@ export function buildSummaryRequest(
   chunkingMethod?: string,
   forceRegenerate?: boolean,
   includeEvaluation?: boolean,
-  useReranker?: boolean
+  useReranker?: boolean,
+  modelId?: string
 ) {
   return {
     endpoint: `/claims/${encodeURIComponent(claimId)}/summary`,
@@ -416,6 +417,7 @@ export function buildSummaryRequest(
       ...(forceRegenerate !== undefined && { forceRegenerate }),
       ...(includeEvaluation !== undefined && { includeEvaluation }),
       ...(useReranker !== undefined && { useReranker }),
+      ...(modelId && { modelId }),
     },
   };
 }
@@ -464,9 +466,10 @@ export async function getClaimSummary(
   chunkingMethod?: string,
   forceRegenerate?: boolean,
   includeEvaluation?: boolean,
-  useReranker?: boolean
+  useReranker?: boolean,
+  modelId?: string
 ): Promise<ClaimSummaryResponse> {
-  const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation, useReranker);
+  const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation, useReranker, modelId);
   return apiRequest<ClaimSummaryResponse>(req.endpoint, {
     method: req.method,
     body: JSON.stringify(req.body),

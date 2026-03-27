@@ -91,6 +91,12 @@ export interface ClaimSummaryRequest {
    * @default false
    */
   useReranker?: boolean;
+
+  /**
+   * The Bedrock model ID to use for summarization.
+   * @default 'amazon.nova-pro-v1:0'
+   */
+  modelId?: string;
 }
 
 /**

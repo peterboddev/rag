@@ -592,7 +592,7 @@ def _build_prompt_info() -> dict:
     }
 
 
-def _invoke_bedrock(prompt: str) -> str:
+def _invoke_bedrock(prompt: str, model_id: str = None) -> str:
     """
     Invoke Bedrock Nova Pro for summary generation.
 
@@ -606,7 +606,7 @@ def _invoke_bedrock(prompt: str) -> str:
         Exception: If Bedrock invocation fails
     """
     response = bedrock_runtime_client.invoke_model(
-        modelId=BEDROCK_MODEL_ID,
+        modelId=model_id or BEDROCK_MODEL_ID,
         body=json.dumps({
             "messages": [
                 {
@@ -739,6 +739,7 @@ def handler(event, context):
 
         tenant_id = event.get("tenant_id", "")
         patient_id = event.get("patient_id")
+        model_id = event.get("model_id", BEDROCK_MODEL_ID)
 
         logger.info(f"Processing enriched strategy for claim {claim_id}")
 
@@ -774,7 +775,7 @@ def handler(event, context):
 
         # 5. Invoke Bedrock Nova Pro for summarization
         prompt = _build_summary_prompt(enriched_context)
-        response_text = _invoke_bedrock(prompt)
+        response_text = _invoke_bedrock(prompt, model_id)
         parsed = _parse_summary_response(response_text)
 
         # Merge LLM-detected anomalies with programmatic anomalies
