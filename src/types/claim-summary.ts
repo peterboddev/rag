@@ -12,8 +12,9 @@
  * - `full-context`: Passes all document text directly to the LLM
  * - `rag`: Uses Knowledge Base retrieval with configurable chunking
  * - `graph-rag`: Uses knowledge graph for entity-relationship-aware retrieval
+ * - `enriched`: Combines Full Context, RAG, and Graph RAG sources into a single deduplicated context
  */
-export type SummaryStrategy = 'full-context' | 'rag' | 'graph-rag';
+export type SummaryStrategy = 'full-context' | 'rag' | 'graph-rag' | 'enriched';
 
 /**
  * Valid chunking methods for RAG-based summarization.

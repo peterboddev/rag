@@ -166,7 +166,7 @@ describe('Claim Summary Orchestrator - Request Validation (Task 4.1)', () => {
       const event = createEvent({ body: JSON.stringify({ strategy: 'invalid-strategy' }) });
       const result = await handler(event);
       expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+      expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
     });
 
     it('should return 400 for empty string strategy', async () => {

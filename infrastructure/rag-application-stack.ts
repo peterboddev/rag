@@ -1430,6 +1430,84 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
+    // Enriched Agent Lambda (Python)
+    // ============================================================
+
+    const enrichedAgentFunction = new lambda.Function(this, 'EnrichedAgentFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'agent.handler',
+      code: lambda.Code.fromAsset('.', {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            'bash', '-c', [
+              'cp agents/enriched_agent/agent.py /asset-output/',
+              'pip install boto3 -t /asset-output/ 2>/dev/null || true',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string) {
+              try {
+                const { execSync } = require('child_process');
+                execSync(`cp agents/enriched_agent/agent.py ${outputDir}/`, { stdio: 'inherit' });
+                try {
+                  execSync(`pip install boto3 -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
+                } catch { /* boto3 available in Lambda runtime */ }
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      role: lambdaExecutionRole,
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 512,
+      environment: {
+        DOCUMENTS_TABLE: documentsTableName,
+        KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
+        GRAPH_RAG_KNOWLEDGE_BASE_ID: graphRagKb.getAtt('KnowledgeBaseId').toString(),
+        BEDROCK_REGION: 'us-east-1',
+        BEDROCK_MODEL_ID: 'amazon.nova-pro-v1:0',
+      },
+    });
+
+    // Grant DynamoDB read on Documents table
+    documentsTableRef.grantReadData(enrichedAgentFunction);
+
+    // Grant Bedrock KB Retrieve permission
+    enrichedAgentFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:Retrieve'],
+      resources: ['*'],
+    }));
+
+    // Grant Bedrock InvokeModel permission for Nova Pro
+    enrichedAgentFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
+      ],
+    }));
+
+    // Grant the orchestrator Lambda permission to invoke the enriched agent
+    enrichedAgentFunction.grantInvoke(claimSummaryOrchestratorFunction);
+
+    // Set ENRICHED_AGENT_FUNCTION env var on the orchestrator Lambda
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'ENRICHED_AGENT_FUNCTION',
+      enrichedAgentFunction.functionName,
+    );
+
+    // Export Enriched Agent Lambda function ARN
+    new cdk.CfnOutput(this, 'EnrichedAgentFunctionArn', {
+      value: enrichedAgentFunction.functionArn,
+      description: 'Enriched Agent Lambda Function ARN',
+    });
+
+    // ============================================================
     // Claim Summary API Gateway Endpoints
     // ============================================================
 

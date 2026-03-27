@@ -188,7 +188,7 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
       const result = await handler(event);
       expect(result.statusCode).toBe(400);
       expect(JSON.parse(result.body).error).toBe(
-        'Invalid strategy. Must be one of: full-context, rag, graph-rag'
+        'Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched'
       );
     });
 

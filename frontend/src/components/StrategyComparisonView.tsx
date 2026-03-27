@@ -28,6 +28,7 @@ function buildStrategies(chunkingMethod: ChunkingMethod): StrategyConfig[] {
     { key: 'full-context', label: 'Full Context' },
     { key: 'rag', label: 'RAG', chunkingMethod },
     { key: 'graph-rag', label: 'Graph RAG' },
+    { key: 'enriched', label: 'Enriched' },
   ];
 }
 
@@ -42,6 +43,7 @@ function createInitialColumns(): Record<Strategy, ColumnState> {
     'full-context': { ...INITIAL_COLUMN_STATE },
     'rag': { ...INITIAL_COLUMN_STATE },
     'graph-rag': { ...INITIAL_COLUMN_STATE },
+    'enriched': { ...INITIAL_COLUMN_STATE },
   };
 }
 
@@ -114,6 +116,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
       'full-context': { status: 'loading', response: null, error: null },
       'rag': { status: 'loading', response: null, error: null },
       'graph-rag': { status: 'loading', response: null, error: null },
+      'enriched': { status: 'loading', response: null, error: null },
     });
 
     const promises = strategies.map((config) =>

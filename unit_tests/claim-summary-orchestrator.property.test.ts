@@ -168,7 +168,7 @@ describe('Property 3: Strategy Validation', () => {
           if (result.statusCode === 400) {
             const body = JSON.parse(result.body);
             // If 400, it should NOT be due to invalid strategy
-            expect(body.error).not.toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+            expect(body.error).not.toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
           }
         }
       ),
@@ -194,7 +194,7 @@ describe('Property 3: Strategy Validation', () => {
         if (invalidStrategy === '' || invalidStrategy === null || invalidStrategy === undefined) {
           expect(body.error).toBe('Missing required field: strategy');
         } else {
-          expect(body.error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+          expect(body.error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
         }
       }),
       { numRuns: 100 }
@@ -242,7 +242,7 @@ describe('Property 3: Strategy Validation', () => {
         if (!numericStrategy) {
           expect(body.error).toBe('Missing required field: strategy');
         } else {
-          expect(body.error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+          expect(body.error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
         }
       }),
       { numRuns: 100 }
@@ -262,7 +262,7 @@ describe('Property 3: Strategy Validation', () => {
           const result = await handler(event);
 
           expect(result.statusCode).toBe(400);
-          expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+          expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
         }
       ),
       { numRuns: 100 }
@@ -280,7 +280,7 @@ describe('Property 3: Strategy Validation', () => {
         const result = await handler(event);
 
         expect(result.statusCode).toBe(400);
-        expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag');
+        expect(JSON.parse(result.body).error).toBe('Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched');
       }),
       { numRuns: 100 }
     );

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Property-based tests for Sentence Boundary Preservation
  * Feature: token-aware-summarization, Property 4: Sentence Boundary Preservation
  * Validates: Requirements 2.2

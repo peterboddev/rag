@@ -4,7 +4,7 @@ import EvaluationScoreDisplay from './EvaluationScoreDisplay';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type Strategy = 'full-context' | 'rag' | 'graph-rag';
+export type Strategy = 'full-context' | 'rag' | 'graph-rag' | 'enriched';
 
 export interface ColumnState {
   status: 'idle' | 'loading' | 'success' | 'error';

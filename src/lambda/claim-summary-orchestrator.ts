@@ -31,7 +31,7 @@ const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: BEDROCK_REGIO
 /**
  * Valid summarization strategies
  */
-const VALID_STRATEGIES: SummaryStrategy[] = ['full-context', 'rag', 'graph-rag'];
+const VALID_STRATEGIES: SummaryStrategy[] = ['full-context', 'rag', 'graph-rag', 'enriched'];
 
 /**
  * Valid chunking methods for RAG strategy
@@ -129,7 +129,7 @@ function validateRequest(body: string | null): { valid: false; error: string } |
 
   // Validate strategy is a valid value
   if (!VALID_STRATEGIES.includes(request.strategy as SummaryStrategy)) {
-    return { valid: false, error: 'Invalid strategy. Must be one of: full-context, rag, graph-rag' };
+    return { valid: false, error: 'Invalid strategy. Must be one of: full-context, rag, graph-rag, enriched' };
   }
 
   const strategy = request.strategy as SummaryStrategy;
@@ -563,6 +563,55 @@ async function executeGraphRagStrategy(
 }
 
 /**
+ * Enriched strategy: invokes the enriched agent Lambda which combines
+ * Full Context, RAG, and Graph RAG sources into a single deduplicated context.
+ */
+async function executeEnrichedStrategy(
+  claimId: string,
+  tenantId: string,
+  patientId?: string | null
+): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
+  const enrichedAgentFunction = process.env.ENRICHED_AGENT_FUNCTION;
+  if (!enrichedAgentFunction) {
+    throw new Error('ENRICHED_AGENT_FUNCTION environment variable is not configured');
+  }
+
+  console.log('Invoking enriched agent Lambda for claimId:', claimId);
+  const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+  const invokeResponse = await lambdaClient.send(new InvokeCommand({
+    FunctionName: enrichedAgentFunction,
+    InvocationType: 'RequestResponse',
+    Payload: JSON.stringify({
+      claim_id: claimId,
+      tenant_id: tenantId,
+      patient_id: patientId || undefined,
+    }),
+  }));
+
+  const responsePayload = JSON.parse(new TextDecoder().decode(invokeResponse.Payload));
+
+  if (responsePayload.error) {
+    throw new Error(`Enriched agent error: ${responsePayload.error}`);
+  }
+
+  const agentAnomalies: DataAnomaly[] = Array.isArray(responsePayload.anomalies)
+    ? responsePayload.anomalies.map((a: any) => ({
+        description: a.description || '',
+        severity: ['critical', 'warning', 'info'].includes(a.severity) ? a.severity : 'info',
+        sourceDocument: a.sourceDocument || 'Unknown',
+        dataValues: a.dataValues || {},
+      }))
+    : [];
+
+  return {
+    summary: responsePayload.summary || '',
+    anomalies: filterFalsePositiveDateAnomalies(agentAnomalies),
+    documentCount: responsePayload.documentCount || 0,
+    promptInfo: responsePayload.promptInfo || buildPromptInfo('Enriched (Full Context + RAG + Graph RAG)'),
+  };
+}
+
+/**
  * Fetch evaluation scores from Evaluation_Results_Table for a given claimId and strategy.
  */
 async function getEvaluationScores(
@@ -750,6 +799,25 @@ async function handlePostSummary(
         summary = result.summary;
         anomalies = result.anomalies;
         promptInfo = result.promptInfo;
+      }
+    } else if (request.strategy === 'enriched') {
+      // Enriched strategy: invoke enriched agent Lambda
+      console.log('Executing enriched strategy for claimId:', claimId);
+      const enrichedResult = await executeEnrichedStrategy(claimId, tenantId, patientId);
+      summary = enrichedResult.summary;
+      anomalies = enrichedResult.anomalies;
+      documentCount = enrichedResult.documentCount;
+      promptInfo = enrichedResult.promptInfo;
+
+      // Fetch source documents for evaluation pipeline
+      try {
+        const docs = await queryClaimDocuments(claimId, tenantId);
+        sourceDocumentsText = docs
+          .filter((d) => d.extractedText?.trim())
+          .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
+          .join('\n\n');
+      } catch (e) {
+        console.warn('Failed to fetch source documents for enriched evaluation:', e);
       }
     } else {
       // Full-context strategy: query documents directly
