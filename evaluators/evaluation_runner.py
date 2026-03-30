@@ -552,7 +552,7 @@ class EvaluationRunner:
                 "max_tokens": 300,
                 "temperature": 0.1,
             })
-            resp = client.invoke_model(modelId="anthropic.claude-sonnet-4-20250514-v1:0", body=body)
+            resp = client.invoke_model(modelId="anthropic.claude-3-5-sonnet-20241022-v2:0", body=body)
             resp_body = json.loads(resp["body"].read())
             text = resp_body.get("content", [{}])[0].get("text", "")
             if "```json" in text:

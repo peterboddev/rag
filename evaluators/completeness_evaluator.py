@@ -37,7 +37,7 @@ logger.setLevel(logging.INFO)
 
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
-EVAL_MODEL_ID = os.environ.get("EVAL_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
+EVAL_MODEL_ID = os.environ.get("EVAL_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 
 KEY_CLAIM_ELEMENTS = [
     "patient",
