@@ -361,10 +361,15 @@ function filterFalsePositiveDateAnomalies(anomalies: DataAnomaly[]): DataAnomaly
           }
         } else {
           // For other comparisons (payment before service, etc):
-          // Sort by key order in description to determine claimed order
+          // The description says "X before Y" — X should be chronologically before Y.
+          // If X is actually after Y, it's a false positive.
+          // We identify X as the first date mentioned in the description.
+          const descNorm = desc.replace(/[_\s]+/g, ''); // normalize spaces/underscores
           const [first, second] = dateEntries;
-          const firstIdx = desc.indexOf(first.key.toLowerCase());
-          const secondIdx = desc.indexOf(second.key.toLowerCase());
+          const firstKeyNorm = first.key.toLowerCase().replace(/[_\s]+/g, '');
+          const secondKeyNorm = second.key.toLowerCase().replace(/[_\s]+/g, '');
+          const firstIdx = descNorm.indexOf(firstKeyNorm);
+          const secondIdx = descNorm.indexOf(secondKeyNorm);
 
           if (firstIdx >= 0 && secondIdx >= 0 && firstIdx < secondIdx) {
             // desc claims first < second, verify
