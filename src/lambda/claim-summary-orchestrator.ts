@@ -203,32 +203,33 @@ async function queryClaimDocuments(claimId: string, tenantId: string): Promise<D
  * Returns the generated summary text.
  */
 async function invokeBedrockNovaPro(prompt: string, modelId: string = 'amazon.nova-pro-v1:0'): Promise<string> {
+  const isClaude = modelId.includes('anthropic');
+
+  const body = isClaude
+    ? {
+        anthropic_version: 'bedrock-2023-05-31',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4000,
+        temperature: 0.3,
+      }
+    : {
+        messages: [{ role: 'user', content: [{ text: prompt }] }],
+        inferenceConfig: { max_new_tokens: 4000, temperature: 0.3 },
+      };
+
   const command = new InvokeModelCommand({
     modelId,
-    body: JSON.stringify({
-      messages: [
-        {
-          role: 'user',
-          content: [{ text: prompt }],
-        },
-      ],
-      inferenceConfig: {
-        max_new_tokens: 4000,
-        temperature: 0.3,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   const response = await bedrockClient.send(command);
   const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-  // Extract text from Nova Pro response format
-  const outputText =
-    responseBody?.output?.message?.content?.[0]?.text ||
-    responseBody?.completion ||
-    '';
+  if (isClaude) {
+    return responseBody?.content?.[0]?.text || '';
+  }
 
-  return outputText;
+  return responseBody?.output?.message?.content?.[0]?.text || responseBody?.completion || '';
 }
 
 /**

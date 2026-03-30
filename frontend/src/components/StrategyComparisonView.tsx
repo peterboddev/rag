@@ -25,9 +25,9 @@ const MODEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro' },
   { value: 'amazon.nova-lite-v1:0', label: 'Amazon Nova Lite' },
   { value: 'amazon.nova-micro-v1:0', label: 'Amazon Nova Micro' },
-  { value: 'anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4' },
-  { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2' },
-  { value: 'anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku' },
+  { value: 'global.anthropic.claude-sonnet-4-20250514-v1:0', label: 'Claude Sonnet 4' },
+  { value: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet' },
+  { value: 'us.anthropic.claude-3-5-haiku-20241022-v1:0', label: 'Claude 3.5 Haiku' },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

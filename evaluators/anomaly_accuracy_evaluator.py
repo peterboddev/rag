@@ -29,7 +29,7 @@ logger.setLevel(logging.INFO)
 
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
-EVAL_MODEL_ID = os.environ.get("EVAL_MODEL_ID", "amazon.nova-pro-v1:0")
+EVAL_MODEL_ID = os.environ.get("EVAL_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20240620-v1:0")
 
 ANOMALY_ACCURACY_PROMPT = """You are evaluating the accuracy of detected anomalies in insurance claim documents.
 
