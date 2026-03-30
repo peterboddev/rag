@@ -239,23 +239,43 @@ function buildSummaryPrompt(documentsText: string, strategy: string): string {
 
 1. A comprehensive summary of the claim including patient information, diagnoses, procedures, service dates, provider information, and amounts.
 
-2. Data anomaly detection - identify any inconsistencies including:
-   - Chronological impossibilities (service dates before birth dates, payment dates before service dates)
-   - Contradictory information across documents
-   - Diagnosis codes inconsistent with patient demographics
-   - Duplicate or conflicting information
-   - Unrealistic data patterns
+2. Data anomaly detection - carefully check for ALL of the following inconsistencies:
+
+   A. DATE ANOMALIES:
+   - Service/encounter dates that fall BEFORE the patient's birth date (year of service < year of birth)
+   - Payment dates that fall BEFORE the service date (year of payment < year of service)
+   - Dates that are in the future relative to other dates in the claim
+
+   B. AGE-PLAUSIBILITY ANOMALIES (IMPORTANT - calculate patient age at time of service):
+   - Calculate the patient's age at each service/encounter date: age = service_year - birth_year
+   - Flag if medical history is implausible for the patient's age (e.g., a child with decades of substance use history, a 5-year-old with 30 pack-years of smoking, a teenager with age-related conditions like dementia)
+   - Flag if procedures are inappropriate for the patient's age (e.g., pediatric procedures on elderly patients, geriatric procedures on children)
+   - Flag if prescribed medications are contraindicated for the patient's age group
+
+   C. CROSS-DOCUMENT CONTRADICTIONS:
+   - Different patient names, birth dates, or genders across documents for the same claim
+   - Conflicting diagnoses or procedures across documents
+   - Inconsistent provider information
+   - Duplicate charges or conflicting amounts
+
+   D. BILLING ANOMALIES:
+   - Charges that seem unreasonable for the procedures listed
+   - Duplicate billing for the same service
+   - Services billed that don't match the diagnosis
+
+   E. CLINICAL AND LOGICAL PLAUSIBILITY:
+   - Any claim detail that contradicts established medical knowledge (e.g., treatments inappropriate for the stated diagnosis, impossible lab values, contradictory clinical findings)
+   - Treatments, procedures, or referrals that don't match the documented diagnosis or symptoms
+   - Lab results, imaging findings, or vital signs inconsistent with the stated condition or patient demographics
+   - Medication prescriptions that conflict with the diagnosis, patient age, or other prescribed medications
+   - Any data point that a trained insurance claims reviewer would flag for further investigation
+   - Use your medical and insurance domain knowledge to identify anything that simply doesn't make sense
 
 CRITICAL DATE COMPARISON RULES:
-- All dates in these documents use MM/DD/YYYY format (month/day/year).
-- To compare two dates, first extract the YEAR (the last 4 digits). A higher year number means a later date.
+- To compare two dates, first extract the YEAR. A higher year number means a later date.
 - A service date is AFTER a birth date if the service year > birth year. This is NOT an anomaly.
-- Only flag "service date before birth date" if the service year is LESS than the birth year.
-- Example: birthDate=08/08/2008 (year 2008), serviceDate=01/16/2015 (year 2015). Since 2015 > 2008, the service date is AFTER the birth date. This is NOT an anomaly.
-- Example: birthDate=08/08/2008, serviceDate=08/05/2016 (year 2016). Since 2016 > 2008, NOT an anomaly.
-- Example: birthDate=03/15/1990, serviceDate=01/10/1985 (year 1985). Since 1985 < 1990, this IS an anomaly.
-- When reporting dates in dataValues, convert to YYYY-MM-DD format.
-- Do NOT flag a date as anomalous unless you are certain the service year is strictly less than the birth year.
+- Only flag "date before" anomalies if the year is strictly less.
+- When reporting dates in dataValues, use YYYY-MM-DD format.
 
 Format your response as JSON with this exact structure:
 {
