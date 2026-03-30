@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, CopyObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand } from '@aws-sdk/client-s3';
-import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, BatchWriteCommand, ScanCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { CloudWatchClient, PutMetricDataCommand, StandardUnit } from '@aws-sdk/client-cloudwatch';
 import { v4 as uuidv4 } from 'uuid';
@@ -298,6 +298,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     logStructured('INFO', 'Loading claim documents', { patientId, claimId, customerUUID, tenantId });
 
+    // Clean up stale documents from previous loads for this claim
+    await cleanupStaleDocuments(claimId, tenantId);
+
     // Load patient mapping to get patient name and TCIA collection ID
     const patientMapping = await loadPatientMapping(patientId);
 
@@ -531,6 +534,48 @@ async function listClaimDocuments(patientId: string, claimId: string): Promise<s
   } catch (error) {
     console.error('Error listing claim documents:', error);
     throw error;
+  }
+}
+
+/**
+ * Delete existing documents for a claim before re-loading.
+ * Uses tenant-documents-index GSI to find documents, then deletes by documentId.
+ */
+async function cleanupStaleDocuments(claimId: string, tenantId: string): Promise<void> {
+  try {
+    const response = await dynamoClient.send(new QueryCommand({
+      TableName: DOCUMENTS_TABLE,
+      IndexName: 'tenant-documents-index',
+      KeyConditionExpression: 'tenantId = :tenantId',
+      FilterExpression: 'claimMetadata.claimId = :claimId',
+      ExpressionAttributeValues: {
+        ':tenantId': tenantId,
+        ':claimId': claimId,
+      },
+      ProjectionExpression: 'documentId',
+    }));
+
+    const items = response.Items || [];
+    if (items.length === 0) return;
+
+    logStructured('INFO', 'Cleaning up stale documents before reload', {
+      claimId, documentCount: items.length,
+    });
+
+    for (const item of items) {
+      await dynamoClient.send(new DeleteCommand({
+        TableName: DOCUMENTS_TABLE,
+        Key: { documentId: item.documentId },
+      }));
+    }
+
+    logStructured('INFO', 'Stale documents cleaned up', {
+      claimId, deletedCount: items.length,
+    });
+  } catch (error) {
+    logStructured('WARN', 'Failed to cleanup stale documents, continuing with load', {
+      claimId, error: String(error),
+    });
   }
 }
 
