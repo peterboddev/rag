@@ -350,6 +350,26 @@ function filterFalsePositiveDateAnomalies(anomalies: DataAnomaly[]): DataAnomaly
     const desc = anomaly.description.toLowerCase();
     const dv = anomaly.dataValues;
 
+    // Filter "service date in the future relative to birth date" — a service date
+    // AFTER birth is normal, not an anomaly. The LLM sometimes flags this incorrectly.
+    if (desc.includes('future') && desc.includes('birth')) {
+      const dateEntries: { key: string; date: Date }[] = [];
+      for (const [key, val] of Object.entries(dv)) {
+        if (typeof val === 'string') {
+          const parsed = parseFlexibleDate(val);
+          if (parsed) dateEntries.push({ key, date: parsed });
+        }
+      }
+      if (dateEntries.length === 2) {
+        const birthKeys = ['birthdate', 'birth_date', 'dob', 'dateofbirth', 'patientbirthdate'];
+        const birthEntry = dateEntries.find(e => birthKeys.includes(e.key.toLowerCase().replace(/[_\s]+/g, '')));
+        const otherEntry = dateEntries.find(e => !birthKeys.includes(e.key.toLowerCase().replace(/[_\s]+/g, '')));
+        if (birthEntry && otherEntry && otherEntry.date > birthEntry.date) {
+          return false; // Service after birth is normal
+        }
+      }
+    }
+
     // Generic "X date before Y date" false positive filter.
     // The LLM often claims date A is before date B when it's actually after.
     // We check all "before" anomalies by finding two parseable dates in dataValues
