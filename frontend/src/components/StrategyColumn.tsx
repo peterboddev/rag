@@ -158,7 +158,7 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             </div>
 
             {/* Anomalies */}
-            {renderAnomalies(response, strategyKey)}
+            <AnomalySection response={response} strategyKey={strategyKey} />
 
             {/* Evaluation scores */}
             {response.evaluation && (
@@ -284,8 +284,9 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
 
 // ─── Anomaly sub-render ──────────────────────────────────────────────────────
 
-function renderAnomalies(response: ClaimSummaryResponse, strategyKey: Strategy) {
+function AnomalySection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
   const anomalies = response.anomalies ?? [];
+  const [expanded, setExpanded] = React.useState(false);
 
   if (anomalies.length === 0) {
     return (
@@ -309,104 +310,109 @@ function renderAnomalies(response: ClaimSummaryResponse, strategyKey: Strategy) 
 
   return (
     <div data-testid={`anomalies-${strategyKey}`} style={{ marginBottom: '10px' }}>
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '6px',
-        padding: '8px 10px',
-        backgroundColor: '#fff3cd',
-        borderRadius: '4px',
-        fontSize: '12px',
-      }}>
-        <span style={{ fontWeight: 600 }}>⚠️ Anomalies:</span>
-        {summary.critical > 0 && (
-          <span
-            data-testid={`anomaly-critical-count-${strategyKey}`}
-            style={{
-              padding: '1px 6px',
-              borderRadius: '3px',
-              backgroundColor: getAnomalySeverityColor('critical'),
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: '11px',
-            }}
-          >
-            {summary.critical} critical
-          </span>
-        )}
-        {summary.warning > 0 && (
-          <span
-            data-testid={`anomaly-warning-count-${strategyKey}`}
-            style={{
-              padding: '1px 6px',
-              borderRadius: '3px',
-              backgroundColor: getAnomalySeverityColor('warning'),
-              color: '#000',
-              fontWeight: 600,
-              fontSize: '11px',
-            }}
-          >
-            {summary.warning} warning
-          </span>
-        )}
-        {summary.info > 0 && (
-          <span
-            data-testid={`anomaly-info-count-${strategyKey}`}
-            style={{
-              padding: '1px 6px',
-              borderRadius: '3px',
-              backgroundColor: getAnomalySeverityColor('info'),
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: '11px',
-            }}
-          >
-            {summary.info} info
-          </span>
-        )}
-      </div>
-      {/* Anomaly details */}
-      <div style={{ marginTop: '6px', fontSize: '12px' }}>
-        {anomalies.map((a, i) => (
-          <div
-            key={i}
-            data-testid={`anomaly-detail-${strategyKey}-${i}`}
-            style={{
-              padding: '6px 10px',
-              marginBottom: '4px',
-              borderLeft: `3px solid ${getAnomalySeverityColor(a.severity)}`,
-              backgroundColor: '#fafafa',
-              borderRadius: '0 4px 4px 0',
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: '2px' }}>{a.description}</div>
-            <div style={{ color: '#666', fontSize: '11px' }}>
-              <span style={{
-                display: 'inline-block',
-                padding: '0 4px',
-                borderRadius: '2px',
-                backgroundColor: getAnomalySeverityColor(a.severity),
-                color: a.severity === 'warning' ? '#000' : '#fff',
-                fontSize: '10px',
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+          padding: '8px 10px',
+          backgroundColor: '#fff3cd',
+          borderRadius: '4px',
+          fontSize: '12px',
+          cursor: 'pointer',
+        }}>
+          <span style={{ fontWeight: 600 }}>{expanded ? '▼' : '▶'} ⚠️ Anomalies:</span>
+          {summary.critical > 0 && (
+            <span
+              data-testid={`anomaly-critical-count-${strategyKey}`}
+              style={{
+                padding: '1px 6px',
+                borderRadius: '3px',
+                backgroundColor: getAnomalySeverityColor('critical'),
+                color: '#fff',
                 fontWeight: 600,
-                marginRight: '6px',
-              }}>
-                {a.severity}
-              </span>
-              {a.sourceDocument && <span>Source: {a.sourceDocument}</span>}
-            </div>
-            {a.dataValues && Object.keys(a.dataValues).length > 0 && (
-              <div style={{ marginTop: '3px', color: '#555', fontSize: '11px' }}>
-                {Object.entries(a.dataValues).map(([k, v]) => (
-                  <span key={k} style={{ marginRight: '10px' }}>
-                    {k}: <strong>{v}</strong>
-                  </span>
-                ))}
+                fontSize: '11px',
+              }}
+            >
+              {summary.critical} critical
+            </span>
+          )}
+          {summary.warning > 0 && (
+            <span
+              data-testid={`anomaly-warning-count-${strategyKey}`}
+              style={{
+                padding: '1px 6px',
+                borderRadius: '3px',
+                backgroundColor: getAnomalySeverityColor('warning'),
+                color: '#000',
+                fontWeight: 600,
+                fontSize: '11px',
+              }}
+            >
+              {summary.warning} warning
+            </span>
+          )}
+          {summary.info > 0 && (
+            <span
+              data-testid={`anomaly-info-count-${strategyKey}`}
+              style={{
+                padding: '1px 6px',
+                borderRadius: '3px',
+                backgroundColor: getAnomalySeverityColor('info'),
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '11px',
+              }}
+            >
+              {summary.info} info
+            </span>
+          )}
+        </div>
+        {/* Anomaly details */}
+        {expanded && (
+        <div style={{ marginTop: '6px', fontSize: '12px' }}>
+          {anomalies.map((a, i) => (
+            <div
+              key={i}
+              data-testid={`anomaly-detail-${strategyKey}-${i}`}
+              style={{
+                padding: '6px 10px',
+                marginBottom: '4px',
+                borderLeft: `3px solid ${getAnomalySeverityColor(a.severity)}`,
+                backgroundColor: '#fafafa',
+                borderRadius: '0 4px 4px 0',
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: '2px' }}>{a.description}</div>
+              <div style={{ color: '#666', fontSize: '11px' }}>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '0 4px',
+                  borderRadius: '2px',
+                  backgroundColor: getAnomalySeverityColor(a.severity),
+                  color: a.severity === 'warning' ? '#000' : '#fff',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  marginRight: '6px',
+                }}>
+                  {a.severity}
+                </span>
+                {a.sourceDocument && <span>Source: {a.sourceDocument}</span>}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              {a.dataValues && Object.keys(a.dataValues).length > 0 && (
+                <div style={{ marginTop: '3px', color: '#555', fontSize: '11px' }}>
+                  {Object.entries(a.dataValues).map(([k, v]) => (
+                    <span key={k} style={{ marginRight: '10px' }}>
+                      {k}: <strong>{v}</strong>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        )}
     </div>
   );
 }
