@@ -249,7 +249,7 @@ def _build_evaluator_config(prompt: str) -> dict:
         "llmAsAJudge": {
             "modelConfig": {
                 "bedrockEvaluatorModelConfig": {
-                    "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                    "modelId": "global.us.anthropic.claude-sonnet-4-6",
                     "inferenceConfig": {
                         "maxTokens": 500,
                         "temperature": 1.0,
