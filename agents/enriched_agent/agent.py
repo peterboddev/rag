@@ -63,12 +63,12 @@ def _retrieve_full_context(claim_id: str, tenant_id: str = None) -> list[dict]:
     """
     Retrieve all documents for a claim from DynamoDB Documents table.
 
-    Uses scan with filter on claimMetadata.claimId since the table
-    has documentId as partition key with no sort key.
+    Uses tenant-documents-index GSI with filter on claimMetadata.claimId,
+    matching the orchestrator's queryClaimDocuments pattern.
 
     Args:
         claim_id: The claim identifier to query
-        tenant_id: Optional tenant ID (unused in scan, kept for interface consistency)
+        tenant_id: Tenant ID for GSI partition key
 
     Returns:
         List of document records with extractedText
@@ -77,18 +77,34 @@ def _retrieve_full_context(claim_id: str, tenant_id: str = None) -> list[dict]:
         DocumentRetrievalError: If no documents found or none have extractedText
     """
     try:
-        response = documents_table.scan(
+        if not tenant_id:
+            raise DocumentRetrievalError(
+                "tenant_id is required for document retrieval",
+                status_code=400,
+            )
+
+        response = documents_table.query(
+            IndexName="tenant-documents-index",
+            KeyConditionExpression="tenantId = :tenantId",
             FilterExpression="claimMetadata.claimId = :claimId",
-            ExpressionAttributeValues={":claimId": claim_id},
+            ExpressionAttributeValues={
+                ":tenantId": tenant_id,
+                ":claimId": claim_id,
+            },
         )
 
         documents = response.get("Items", [])
 
         # Handle pagination
         while "LastEvaluatedKey" in response:
-            response = documents_table.scan(
+            response = documents_table.query(
+                IndexName="tenant-documents-index",
+                KeyConditionExpression="tenantId = :tenantId",
                 FilterExpression="claimMetadata.claimId = :claimId",
-                ExpressionAttributeValues={":claimId": claim_id},
+                ExpressionAttributeValues={
+                    ":tenantId": tenant_id,
+                    ":claimId": claim_id,
+                },
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
             documents.extend(response.get("Items", []))
@@ -135,14 +151,12 @@ def _retrieve_rag_chunks(claim_id: str, patient_id: str = None) -> list[dict]:
         Returns empty list on failure (graceful degradation).
     """
     try:
-        filter_key = "patientId" if patient_id else "claimId"
-        filter_value = patient_id or claim_id
-
+        # Use claimId filter to avoid mixed-patient data from KB
         retrieval_config = {
             "vectorSearchConfiguration": {
                 "numberOfResults": 20,
                 "filter": {
-                    "equals": {"key": filter_key, "value": filter_value},
+                    "equals": {"key": "claimId", "value": claim_id},
                 },
             }
         }
@@ -206,14 +220,12 @@ def _retrieve_graph_rag_chunks(claim_id: str, patient_id: str = None) -> list[di
             logger.warning("GRAPH_RAG_KNOWLEDGE_BASE_ID not configured, skipping Graph RAG retrieval")
             return []
 
-        filter_key = "patientId" if patient_id else "claimId"
-        filter_value = patient_id or claim_id
-
+        # Use claimId filter to avoid mixed-patient data from KB
         retrieval_config = {
             "vectorSearchConfiguration": {
                 "numberOfResults": 20,
                 "filter": {
-                    "equals": {"key": filter_key, "value": filter_value},
+                    "equals": {"key": "claimId", "value": claim_id},
                 },
             }
         }
