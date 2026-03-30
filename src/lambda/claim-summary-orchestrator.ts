@@ -327,29 +327,38 @@ function parseSummaryResponse(responseText: string): { summary: string; anomalie
  */
 function filterFalsePositiveDateAnomalies(anomalies: DataAnomaly[]): DataAnomaly[] {
   return anomalies.filter((anomaly) => {
-    // Only validate chronological date anomalies
     const desc = anomaly.description.toLowerCase();
-    if (!desc.includes('service date') || !desc.includes('birth')) {
-      return true; // Keep non-date anomalies as-is
-    }
-
     const dv = anomaly.dataValues;
-    const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
-    const birthDateStr = dv.birthDate || dv.birth_date || dv.BirthDate || dv.dateOfBirth || dv.DateOfBirth;
 
-    if (!serviceDateStr || !birthDateStr) {
-      return true; // Can't validate without both dates, keep the anomaly
+    // Filter false positive "service date before birth date" anomalies
+    if (desc.includes('service date') && desc.includes('birth')) {
+      const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
+      const birthDateStr = dv.birthDate || dv.birth_date || dv.BirthDate || dv.dateOfBirth || dv.DateOfBirth || dv.dob || dv.DOB;
+
+      if (serviceDateStr && birthDateStr) {
+        const serviceDate = parseFlexibleDate(serviceDateStr);
+        const birthDate = parseFlexibleDate(birthDateStr);
+        if (serviceDate && birthDate && serviceDate >= birthDate) {
+          return false; // False positive — service is after birth
+        }
+      }
     }
 
-    const serviceDate = parseFlexibleDate(serviceDateStr);
-    const birthDate = parseFlexibleDate(birthDateStr);
+    // Filter false positive "payment date before service date" anomalies
+    if (desc.includes('payment') && desc.includes('service')) {
+      const paymentDateStr = dv.paymentDate || dv.payment_date || dv.PaymentDate || dv.paidDate;
+      const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
 
-    if (!serviceDate || !birthDate) {
-      return true; // Can't parse, keep the anomaly
+      if (paymentDateStr && serviceDateStr) {
+        const paymentDate = parseFlexibleDate(paymentDateStr);
+        const serviceDate = parseFlexibleDate(serviceDateStr);
+        if (paymentDate && serviceDate && paymentDate >= serviceDate) {
+          return false; // False positive — payment is after service
+        }
+      }
     }
 
-    // If service date is actually on or after birth date, it's a false positive — remove it
-    return serviceDate < birthDate;
+    return true;
   });
 }
 
