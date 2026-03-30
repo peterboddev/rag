@@ -365,8 +365,51 @@ function renderAnomalies(response: ClaimSummaryResponse, strategyKey: Strategy) 
           </span>
         )}
       </div>
+      {/* Anomaly details */}
+      <div style={{ marginTop: '6px', fontSize: '12px' }}>
+        {anomalies.map((a, i) => (
+          <div
+            key={i}
+            data-testid={`anomaly-detail-${strategyKey}-${i}`}
+            style={{
+              padding: '6px 10px',
+              marginBottom: '4px',
+              borderLeft: `3px solid ${getAnomalySeverityColor(a.severity)}`,
+              backgroundColor: '#fafafa',
+              borderRadius: '0 4px 4px 0',
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: '2px' }}>{a.description}</div>
+            <div style={{ color: '#666', fontSize: '11px' }}>
+              <span style={{
+                display: 'inline-block',
+                padding: '0 4px',
+                borderRadius: '2px',
+                backgroundColor: getAnomalySeverityColor(a.severity),
+                color: a.severity === 'warning' ? '#000' : '#fff',
+                fontSize: '10px',
+                fontWeight: 600,
+                marginRight: '6px',
+              }}>
+                {a.severity}
+              </span>
+              {a.sourceDocument && <span>Source: {a.sourceDocument}</span>}
+            </div>
+            {a.dataValues && Object.keys(a.dataValues).length > 0 && (
+              <div style={{ marginTop: '3px', color: '#555', fontSize: '11px' }}>
+                {Object.entries(a.dataValues).map(([k, v]) => (
+                  <span key={k} style={{ marginRight: '10px' }}>
+                    {k}: <strong>{v}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
+
 
 export default StrategyColumn;
