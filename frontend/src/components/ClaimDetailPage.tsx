@@ -482,6 +482,21 @@ const ClaimDetailPage: React.FC<ClaimDetailPageProps> = ({ patientId, onBack }) 
                         📄 View Documents
                       </button>
                       <button
+                        onClick={() => handleLoadClaim(claim.claimId)}
+                        disabled={isLoadingThisClaim}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: isLoadingThisClaim ? '#6c757d' : '#fd7e14',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: isLoadingThisClaim ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {isLoadingThisClaim ? '⏳ Reloading...' : '🔄 Reload Claim'}
+                      </button>
+                      <button
                         onClick={() => handleSummarizeClaim(claim.claimId)}
                         style={{
                           padding: '8px 16px',
