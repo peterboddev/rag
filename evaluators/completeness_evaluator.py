@@ -37,6 +37,7 @@ logger.setLevel(logging.INFO)
 
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
+EVAL_MODEL_ID = os.environ.get("EVAL_MODEL_ID", "anthropic.claude-sonnet-4-20250514-v1:0")
 
 KEY_CLAIM_ELEMENTS = [
     "patient",
@@ -98,7 +99,7 @@ class CompletenessEvaluator:
         self.bedrock = bedrock_client or boto3.client(
             "bedrock-runtime", region_name=BEDROCK_REGION
         )
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = EVAL_MODEL_ID
 
     def evaluate(self, summary: str) -> dict:
         """
@@ -134,43 +135,35 @@ class CompletenessEvaluator:
             }
 
     def _invoke_model(self, prompt: str) -> str:
-        """
-        Invoke Bedrock Nova Pro for evaluation.
+        """Invoke Bedrock model for evaluation. Supports both Nova and Claude formats."""
+        is_claude = "anthropic" in self.model_id
 
-        Args:
-            prompt: The evaluation prompt
-
-        Returns:
-            Raw model response text
-
-        Raises:
-            Exception: If model invocation fails
-        """
-        request_body = json.dumps({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [{"text": prompt}],
-                }
-            ],
-            "inferenceConfig": {
-                "max_new_tokens": 500,
+        if is_claude:
+            request_body = json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 500,
                 "temperature": 0.1,
-            },
-        })
+            })
+        else:
+            request_body = json.dumps({
+                "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                "inferenceConfig": {"max_new_tokens": 500, "temperature": 0.1},
+            })
 
-        response = self.bedrock.invoke_model(
-            modelId=self.model_id,
-            body=request_body,
-        )
-
+        response = self.bedrock.invoke_model(modelId=self.model_id, body=request_body)
         response_body = json.loads(response["body"].read())
-        output = response_body.get("output", {})
-        message = output.get("message", {})
-        content = message.get("content", [])
 
-        if content and isinstance(content, list):
-            return content[0].get("text", "")
+        if is_claude:
+            content = response_body.get("content", [])
+            if content and isinstance(content, list):
+                return content[0].get("text", "")
+        else:
+            output = response_body.get("output", {})
+            message = output.get("message", {})
+            content = message.get("content", [])
+            if content and isinstance(content, list):
+                return content[0].get("text", "")
 
         return str(response_body)
 
