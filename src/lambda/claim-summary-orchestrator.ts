@@ -330,30 +330,52 @@ function filterFalsePositiveDateAnomalies(anomalies: DataAnomaly[]): DataAnomaly
     const desc = anomaly.description.toLowerCase();
     const dv = anomaly.dataValues;
 
-    // Filter false positive "service date before birth date" anomalies
-    if (desc.includes('service date') && desc.includes('birth')) {
-      const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
-      const birthDateStr = dv.birthDate || dv.birth_date || dv.BirthDate || dv.dateOfBirth || dv.DateOfBirth || dv.dob || dv.DOB;
-
-      if (serviceDateStr && birthDateStr) {
-        const serviceDate = parseFlexibleDate(serviceDateStr);
-        const birthDate = parseFlexibleDate(birthDateStr);
-        if (serviceDate && birthDate && serviceDate >= birthDate) {
-          return false; // False positive — service is after birth
+    // Generic "X date before Y date" false positive filter.
+    // The LLM often claims date A is before date B when it's actually after.
+    // We check all "before" anomalies by finding two parseable dates in dataValues
+    // and verifying the claimed ordering is actually correct.
+    if (desc.includes('before')) {
+      // Collect all date values from dataValues
+      const dateEntries: { key: string; date: Date }[] = [];
+      for (const [key, val] of Object.entries(dv)) {
+        if (typeof val === 'string') {
+          const parsed = parseFlexibleDate(val);
+          if (parsed) dateEntries.push({ key, date: parsed });
         }
       }
-    }
 
-    // Filter false positive "payment date before service date" anomalies
-    if (desc.includes('payment') && desc.includes('service')) {
-      const paymentDateStr = dv.paymentDate || dv.payment_date || dv.PaymentDate || dv.paidDate;
-      const serviceDateStr = dv.serviceDate || dv.service_date || dv.ServiceDate;
+      // If we have exactly 2 dates, check if the "before" claim is correct
+      if (dateEntries.length === 2) {
+        // Determine which date the description claims comes first
+        // Pattern: "X before Y" means X < Y is the claim
+        // The first date key mentioned in desc is the one claimed to be earlier
+        const birthKeys = ['birthdate', 'birth_date', 'dob', 'dateofbirth'];
+        const isBirthComparison = dateEntries.some(e => birthKeys.includes(e.key.toLowerCase()));
 
-      if (paymentDateStr && serviceDateStr) {
-        const paymentDate = parseFlexibleDate(paymentDateStr);
-        const serviceDate = parseFlexibleDate(serviceDateStr);
-        if (paymentDate && serviceDate && paymentDate >= serviceDate) {
-          return false; // False positive — payment is after service
+        if (isBirthComparison) {
+          // For birth date comparisons: the non-birth date should be BEFORE birth
+          const birthEntry = dateEntries.find(e => birthKeys.includes(e.key.toLowerCase()));
+          const otherEntry = dateEntries.find(e => !birthKeys.includes(e.key.toLowerCase()));
+          if (birthEntry && otherEntry && otherEntry.date >= birthEntry.date) {
+            return false; // False positive — the other date is actually after birth
+          }
+        } else {
+          // For other comparisons (payment before service, etc):
+          // Sort by key order in description to determine claimed order
+          const [first, second] = dateEntries;
+          const firstIdx = desc.indexOf(first.key.toLowerCase());
+          const secondIdx = desc.indexOf(second.key.toLowerCase());
+
+          if (firstIdx >= 0 && secondIdx >= 0 && firstIdx < secondIdx) {
+            // desc claims first < second, verify
+            if (first.date >= second.date) return false;
+          } else if (firstIdx >= 0 && secondIdx >= 0 && secondIdx < firstIdx) {
+            if (second.date >= first.date) return false;
+          } else {
+            // Can't determine order from desc, check if chronologically valid
+            // If the earlier date in dataValues is actually later, it's a false positive
+            if (first.date >= second.date) return false;
+          }
         }
       }
     }
