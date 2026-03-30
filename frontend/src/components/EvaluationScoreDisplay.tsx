@@ -28,8 +28,9 @@ export function getScoreColor(score: number): string {
 }
 
 function ScoreBadge({ label, score }: { label: string; score: number }) {
-  const color = getScoreColor(score);
-  const textColor = score >= 0.5 && score < 0.8 ? '#000' : '#fff';
+  const isNA = label === 'Anomaly Accuracy' && score === 0;
+  const color = isNA ? '#6c757d' : getScoreColor(score);
+  const textColor = isNA ? '#fff' : (score >= 0.5 && score < 0.8 ? '#000' : '#fff');
   return (
     <span
       data-testid={`score-${label.toLowerCase()}`}
@@ -42,7 +43,7 @@ function ScoreBadge({ label, score }: { label: string; score: number }) {
         fontSize: '12px',
       }}
     >
-      {label}: {(score * 100).toFixed(0)}%
+      {label}: {isNA ? 'N/A' : `${(score * 100).toFixed(0)}%`}
     </span>
   );
 }
