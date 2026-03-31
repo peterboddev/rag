@@ -123,7 +123,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     },
-    [claimId, useReranker, modelId]
+    [claimId, useReranker, modelId, customPrompt]
   );
 
   // Generate All: call getClaimSummary concurrently for all three strategies
@@ -171,7 +171,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     });
-  }, [claimId, chunkingMethod, useReranker, modelId]);
+  }, [claimId, chunkingMethod, useReranker, modelId, customPrompt]);
 
   // Individual regeneration handler
   const handleRegenerate = useCallback(
