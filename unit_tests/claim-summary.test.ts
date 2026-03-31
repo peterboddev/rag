@@ -118,9 +118,9 @@ function setupCacheMissWithDocuments(summary = 'Generated summary', anomalies: a
     .mockResolvedValueOnce({ Item: null })           // cache miss (GetCommand)
     .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId → queryClaimDocuments
     .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query (full-context)
-    .mockResolvedValue({});                            // cache write ops
+    ; // cache writes handled by global mock
   mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse(summary, anomalies));
-  mockS3Send.mockResolvedValue({});                    // S3 cache write
+  mockS3Send; // cache writes handled by global mock
 }
 
 beforeEach(() => {
@@ -129,6 +129,15 @@ beforeEach(() => {
   mockBedrockSend.mockReset();
   mockBedrockAgentSend.mockReset();
   mockS3Send.mockReset();
+  // Default: return sample documents for any DynamoDB query
+  mockDynamoSend.mockImplementation((cmd: any) => {
+    if (cmd._type === 'Query') return Promise.resolve({ Items: sampleDocuments });
+    if (cmd._type === 'Get') return Promise.resolve({ Item: null });
+    if (cmd._type === 'Put') return Promise.resolve({});
+    if (cmd._type === 'BatchWrite') return Promise.resolve({});
+    if (cmd._type === 'Scan') return Promise.resolve({ Items: sampleDocuments });
+    return Promise.resolve({ Items: sampleDocuments });
+  });
 });
 
 // ─── 18.1: Orchestrator Lambda Comprehensive Tests ──────────────────────────
@@ -413,9 +422,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
       mockDynamoSend
         .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId → queryClaimDocuments
         .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query (no cache check)
-        .mockResolvedValue({});                             // cache write ops
+        ; // cache writes handled by global mock
       mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh regenerated summary'));
-      mockS3Send.mockResolvedValue({});
+      mockS3Send; // cache writes handled by global mock
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context', forceRegenerate: true }),
@@ -434,9 +443,9 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
       mockDynamoSend
         .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
         .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
-        .mockResolvedValue({});
+        ; // cache writes handled by global mock
       mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh summary'));
-      mockS3Send.mockResolvedValue({});
+      mockS3Send; // cache writes handled by global mock
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context', forceRegenerate: true }),
@@ -534,8 +543,8 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
         ],
       });
       mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('RAG summary'));
-      mockDynamoSend.mockResolvedValue({});
-      mockS3Send.mockResolvedValue({});
+      mockDynamoSend; // cache writes handled by global mock
+      mockS3Send; // cache writes handled by global mock
 
       const event = createEvent({
         body: JSON.stringify({ strategy: 'rag', chunkingMethod: 'semantic' }),

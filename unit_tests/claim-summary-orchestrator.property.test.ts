@@ -79,11 +79,35 @@ function createEvent(overrides: {
   };
 }
 
+const sampleDocuments = [
+  {
+    documentId: 'doc-1',
+    fileName: 'CMS1500_claim_001.pdf',
+    extractedText: 'Patient: John Doe, DOB: 1980-01-15, Service Date: 2024-03-01',
+    processingStatus: 'completed',
+    claimMetadata: { claimId: 'test-claim-001', documentType: 'CMS1500' },
+    tenantId: 'local-dev-tenant',
+  },
+];
+
+function applyDefaultDynamoMock() {
+  mockDynamoSend.mockImplementation((cmd: any) => {
+    if (cmd._type === 'Query') return Promise.resolve({ Items: sampleDocuments });
+    if (cmd._type === 'Get') return Promise.resolve({ Item: null });
+    if (cmd._type === 'Put') return Promise.resolve({});
+    if (cmd._type === 'BatchWrite') return Promise.resolve({});
+    if (cmd._type === 'Scan') return Promise.resolve({ Items: sampleDocuments });
+    return Promise.resolve({ Items: sampleDocuments });
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
   mockBedrockSend.mockReset();
   mockBedrockAgentSend.mockReset();
+  applyDefaultDynamoMock();
 });
 
 /**
@@ -111,6 +135,7 @@ describe('Property 3: Strategy Validation', () => {
         async (validStrategy) => {
           // Reset mocks for each iteration
           mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
           mockBedrockSend.mockReset();
           mockBedrockAgentSend.mockReset();
 
@@ -137,7 +162,7 @@ describe('Property 3: Strategy Validation', () => {
                 tenantId: 'local-dev-tenant',
               }],
             })
-            .mockResolvedValue({}); // cache write ops
+            ; // handled by global mock
 
           // Mock Bedrock response
           mockBedrockSend.mockResolvedValueOnce({
@@ -318,6 +343,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
         async (validChunkingMethod) => {
           // Reset mocks for each iteration
           mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
           mockBedrockSend.mockReset();
           mockBedrockAgentSend.mockReset();
 
@@ -342,7 +368,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
                 tenantId: 'local-dev-tenant',
               }],
             })
-            .mockResolvedValue({}); // cache write ops
+            ; // handled by global mock
 
           // Mock Knowledge Base retrieval
           mockBedrockAgentSend.mockResolvedValueOnce({
@@ -520,6 +546,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
         async (optionalChunkingMethod) => {
           // Reset mocks for each iteration
           mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
           mockBedrockSend.mockReset();
 
           const body: Record<string, unknown> = { strategy: 'full-context' };
@@ -545,7 +572,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
                 tenantId: 'local-dev-tenant',
               }],
             })
-            .mockResolvedValue({}); // cache write ops
+            ; // handled by global mock
 
           // Mock Bedrock response
           mockBedrockSend.mockResolvedValueOnce({
@@ -579,6 +606,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
         async (optionalChunkingMethod) => {
           // Reset mocks for each iteration
           mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
           mockBedrockSend.mockReset();
 
           const body: Record<string, unknown> = { strategy: 'graph-rag' };
@@ -604,7 +632,7 @@ describe('Property 4: Chunking Method Validation for RAG Strategy', () => {
                 tenantId: 'local-dev-tenant',
               }],
             })
-            .mockResolvedValue({}); // cache write ops
+            ; // handled by global mock
 
           // Mock Bedrock response
           mockBedrockSend.mockResolvedValueOnce({
@@ -685,6 +713,7 @@ describe('Property 7: Summary Response Structure Completeness', () => {
     chunkingMethod?: string
   ): void {
     mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
     mockBedrockSend.mockReset();
     mockBedrockAgentSend.mockReset();
 
@@ -717,7 +746,7 @@ describe('Property 7: Summary Response Structure Completeness', () => {
           },
         ],
       })
-      .mockResolvedValue({}); // cache write ops
+      ; // handled by global mock
 
     // Mock Bedrock response with valid summary structure
     const summaryResponse = {
@@ -1078,6 +1107,7 @@ describe('Property 7: Summary Response Structure Completeness', () => {
         validDocumentTextArb,
         async ({ strategy, chunkingMethod }, docCount, documentText) => {
           mockDynamoSend.mockReset();
+          applyDefaultDynamoMock();
           mockBedrockSend.mockReset();
           mockBedrockAgentSend.mockReset();
 
@@ -1095,7 +1125,7 @@ describe('Property 7: Summary Response Structure Completeness', () => {
           mockDynamoSend
             .mockResolvedValueOnce({ Item: null }) // cache miss
             .mockResolvedValueOnce({ Items: documents }) // documents query
-            .mockResolvedValue({}); // cache write ops
+            ; // handled by global mock
 
           // Mock Bedrock response
           const summaryResponse = {
