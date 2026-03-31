@@ -1508,6 +1508,75 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
+    // Full Context Agent Lambda (Python) - Enhanced with Financial/Timeline Analysis
+    // ============================================================
+
+    const fullContextAgentFunction = new lambda.Function(this, 'FullContextAgentFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'agent.handler',
+      code: lambda.Code.fromAsset('.', {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            'bash', '-c', [
+              'cp -r agents/full_context_agent/* /asset-output/',
+              'pip install boto3 strands-agents strands-agents-builder strands-agents-evals bedrock-agentcore opentelemetry-api -t /asset-output/ 2>/dev/null || true',
+            ].join(' && '),
+          ],
+          local: {
+            tryBundle(outputDir: string) {
+              try {
+                const { execSync } = require('child_process');
+                execSync(`cp -r agents/full_context_agent/* ${outputDir}/`, { stdio: 'inherit' });
+                try {
+                  execSync(`pip install boto3 strands-agents strands-agents-builder strands-agents-evals bedrock-agentcore opentelemetry-api -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
+                } catch { /* some dependencies may already be available in Lambda runtime */ }
+                return true;
+              } catch {
+                return false;
+              }
+            },
+          },
+        },
+      }),
+      role: lambdaExecutionRole,
+      timeout: cdk.Duration.seconds(120),
+      memorySize: 512,
+      environment: {
+        DOCUMENTS_TABLE: documentsTableName,
+        BEDROCK_REGION: 'us-east-1',
+        BEDROCK_MODEL_ID: 'amazon.nova-pro-v1:0',
+      },
+    });
+
+    // Grant DynamoDB read on Documents table for Full Context agent
+    documentsTableRef.grantReadData(fullContextAgentFunction);
+
+    // Grant Bedrock InvokeModel permission for Nova Pro
+    fullContextAgentFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
+      ],
+    }));
+
+    // Grant the orchestrator Lambda permission to invoke the Full Context agent
+    fullContextAgentFunction.grantInvoke(claimSummaryOrchestratorFunction);
+
+    // Set FULL_CONTEXT_AGENT_FUNCTION env var on the orchestrator Lambda
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'FULL_CONTEXT_AGENT_FUNCTION',
+      fullContextAgentFunction.functionName,
+    );
+
+    // Export Full Context Agent Lambda function ARN
+    new cdk.CfnOutput(this, 'FullContextAgentFunctionArn', {
+      value: fullContextAgentFunction.functionArn,
+      description: 'Full Context Agent Lambda Function ARN',
+    });
+
+    // ============================================================
     // Claim Summary API Gateway Endpoints
     // ============================================================
 
