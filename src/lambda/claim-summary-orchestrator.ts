@@ -152,6 +152,8 @@ function validateRequest(body: string | null): { valid: false; error: string } |
       forceRegenerate: request.forceRegenerate === true,
       includeEvaluation: request.includeEvaluation === true,
       useReranker: request.useReranker === true,
+      modelId: typeof request.modelId === 'string' ? request.modelId : undefined,
+      customPrompt: typeof request.customPrompt === 'string' ? request.customPrompt : undefined,
     },
   };
 }
@@ -788,8 +790,8 @@ async function handlePostSummary(
 ): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
 
-  // Task 4.2: Cache check logic
-  if (!request.forceRegenerate) {
+  // Task 4.2: Cache check logic — skip cache when custom prompt is provided
+  if (!request.forceRegenerate && !request.customPrompt) {
     const cacheKey = buildCacheKey(claimId, request.strategy, request.chunkingMethod, request.useReranker);
     console.log('Checking cache for key:', cacheKey);
 
