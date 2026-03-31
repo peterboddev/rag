@@ -50,4 +50,5 @@ medical_data
 medical_data.lnk
 
 # Medical claims generator (data already in S3)
-medical-claims-generator/
+medical-claims-generator/__pycache__/
+.claude/

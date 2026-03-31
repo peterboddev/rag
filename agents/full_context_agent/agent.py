@@ -200,6 +200,143 @@ def _parse_date(date_str: str) -> datetime | None:
     return None
 
 
+def _extract_financial_data_impl(documents: list[dict]) -> dict:
+    """
+    Extract financial information from documents.
+
+    Extracts payment amounts, claim values, and calculates min/max ranges.
+
+    Args:
+        documents: List of document records
+
+    Returns:
+        Dict with minPayment, maxPayment, totalValue, and payments list
+    """
+    payments = []
+
+    # Currency patterns to match various formats
+    currency_patterns = [
+        # Standard currency formats
+        r'\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',  # $1,234.56
+        r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)',  # 1,234.56 USD
+
+        # Labeled amounts
+        r'(?:amount|total|payment|charge|cost|fee|copay|deductible|balance|claim):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+        r'(?:paid|billed|charged|owed|due|allowed):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+
+        # Insurance-specific terms
+        r'(?:coinsurance|copayment|premium|benefit):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+        r'(?:reimbursement|adjustment|write[- ]?off):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+
+        # Medical billing terms
+        r'(?:procedure|service|office visit|consultation)\s+(?:cost|fee|charge):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
+
+        # Line item patterns
+        r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:\$|dollars?|USD)\s*(?:each|per|total)',
+    ]
+
+    for doc in documents:
+        file_name = doc.get("fileName", doc.get("documentId", "Unknown"))
+        text = doc.get("extractedText", "")
+
+        for pattern in currency_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                try:
+                    # Remove commas and convert to float
+                    amount = float(match.replace(',', ''))
+                    if amount > 0:  # Only positive amounts
+                        payments.append({
+                            "amount": amount,
+                            "sourceDocument": file_name,
+                            "rawText": match
+                        })
+                except ValueError:
+                    continue
+
+    if not payments:
+        return {
+            "minPayment": 0.0,
+            "maxPayment": 0.0,
+            "totalValue": 0.0,
+            "payments": []
+        }
+
+    amounts = [p["amount"] for p in payments]
+    return {
+        "minPayment": min(amounts),
+        "maxPayment": max(amounts),
+        "totalValue": sum(amounts),
+        "payments": payments
+    }
+
+
+def _extract_timeline_data_impl(documents: list[dict]) -> dict:
+    """
+    Extract timeline information from documents.
+
+    Finds earliest and latest dates to determine care history duration.
+
+    Args:
+        documents: List of document records
+
+    Returns:
+        Dict with startYear, endYear, durationYears
+    """
+    all_dates = []
+
+    date_labels = [
+        # Patient dates
+        "birth date", "dob", "date of birth", "born",
+
+        # Service dates
+        "service date", "date of service", "dos", "encounter date", "visit date",
+        "appointment date", "consultation date", "examination date",
+
+        # Medical procedure dates
+        "procedure date", "treatment date", "surgery date", "operation date",
+        "test date", "lab date", "imaging date", "x-ray date", "mri date",
+
+        # Facility dates
+        "admission date", "discharge date", "admission", "discharge",
+        "check-in date", "check-out date",
+
+        # Billing dates
+        "payment date", "paid date", "date paid", "billing date", "invoice date",
+        "claim date", "processed date", "adjudicated", "submitted",
+
+        # Insurance dates
+        "effective date", "coverage date", "policy date", "expiration date",
+        "authorization date", "approval date"
+    ]
+
+    for doc in documents:
+        text = doc.get("extractedText", "")
+        dates = _find_dates(text, date_labels)
+
+        for date_str in dates:
+            parsed_date = _parse_date(date_str)
+            if parsed_date:
+                all_dates.append(parsed_date)
+
+    if not all_dates:
+        return {
+            "startYear": None,
+            "endYear": None,
+            "durationYears": None
+        }
+
+    earliest = min(all_dates)
+    latest = max(all_dates)
+    duration = latest.year - earliest.year
+
+    return {
+        "startYear": earliest.year,
+        "endYear": latest.year,
+        "durationYears": duration
+    }
+
+
 def _detect_anomalies_impl(documents: list[dict]) -> list[dict]:
     """
     Analyze documents for data anomalies.
@@ -401,6 +538,46 @@ def combine_document_text(documents: str) -> str:
 
 
 @tool
+def extract_financial_data(documents: str) -> str:
+    """Extract financial information from insurance claim documents.
+
+    Analyzes documents to find payment amounts, claim values, and calculate
+    financial summaries including minimum and maximum payment amounts.
+
+    Args:
+        documents: A JSON string containing a list of document records,
+            each with 'extractedText' and 'fileName' fields.
+
+    Returns:
+        A JSON string containing financial summary with keys
+        'minPayment', 'maxPayment', 'totalValue', and 'payments'.
+    """
+    docs = json.loads(documents)
+    result = _extract_financial_data_impl(docs)
+    return json.dumps(result, default=str)
+
+
+@tool
+def extract_timeline_data(documents: str) -> str:
+    """Extract timeline information from insurance claim documents.
+
+    Analyzes documents to find earliest and latest dates to determine
+    the duration of the patient's care history.
+
+    Args:
+        documents: A JSON string containing a list of document records,
+            each with 'extractedText' and 'fileName' fields.
+
+    Returns:
+        A JSON string containing timeline data with keys
+        'startYear', 'endYear', and 'durationYears'.
+    """
+    docs = json.loads(documents)
+    result = _extract_timeline_data_impl(docs)
+    return json.dumps(result, default=str)
+
+
+@tool
 def detect_anomalies(documents: str) -> str:
     """Detect data anomalies in insurance claim documents.
 
@@ -428,14 +605,66 @@ def detect_anomalies(documents: str) -> str:
 SYSTEM_PROMPT = """You are an insurance claims analyst agent. For each claim, you MUST:
 1. Call retrieve_claim_documents with the claim_id to get all documents
 2. Call combine_document_text with the retrieved documents to get the full text
-3. Call detect_anomalies with the retrieved documents to find data inconsistencies
-4. Generate a comprehensive summary of the claim
+3. Call extract_financial_data with the retrieved documents to get payment information
+4. Call extract_timeline_data with the retrieved documents to get care history timeline
+5. Call detect_anomalies with the retrieved documents to find data inconsistencies
+6. Generate a comprehensive summary following the structured format below
+
+## SUMMARY REQUIREMENTS
+
+Your summary MUST include these sections using markdown headers:
+
+### **PATIENT & TIMELINE OVERVIEW**
+- Patient demographics (name, age, gender)
+- **History Timeline**: First recorded date (YYYY) to most recent date (YYYY)
+- Total duration of care relationship
+
+### **FINANCIAL SUMMARY**
+- **Payment Range**: Minimum to maximum claim amounts ($X.XX to $X.XX)
+- Total claims value across all documents
+- Key payment dates and amounts by service
+
+### **CLINICAL SUMMARY**
+- Primary and secondary diagnoses
+- Procedures performed
+- Treatment timeline and progression
+- Provider information and facilities
+
+### **KEY DATES & SERVICES**
+- Service date range with associated costs
+- Payment processing timeline
+- Any gaps in care or unusual patterns
+
+## ANALYSIS INSTRUCTIONS
+
+**FINANCIAL EXTRACTION**: Use the extract_financial_data results to highlight:
+- Payment amount ranges (min/max)
+- Unusual or outlier amounts
+- Payment patterns over time
+
+**TIMELINE ANALYSIS**: Use the extract_timeline_data results to identify:
+- Care history duration
+- Frequency of services
+- Gaps or intensive treatment periods
+
+**ANOMALY DETECTION**: Combine detect_anomalies results with your own analysis to identify:
+- Financial inconsistencies (duplicate charges, unusual amounts)
+- Clinical implausibilities for patient age/condition
+- Timeline conflicts or impossible sequences
+- Cross-document contradictions
+
+**CLINICAL EXPERTISE**: Apply medical and insurance domain knowledge to flag:
+- Treatments inappropriate for diagnosis
+- Procedures inconsistent with patient age
+- Billing patterns that warrant investigation
 
 Return your final response as JSON with these exact keys:
-- "summary": your generated summary text
-- "anomalies": the anomalies from detect_anomalies
+- "summary": your structured summary text (use markdown headers as shown above)
+- "anomalies": the anomalies from detect_anomalies plus your additional findings
 - "documentCount": number of documents retrieved
 - "strategy": "full-context"
+- "financialSummary": the complete result from extract_financial_data
+- "timeline": the complete result from extract_timeline_data
 """
 
 model = BedrockModel(
@@ -447,7 +676,13 @@ model = BedrockModel(
 
 agent = Agent(
     model=model,
-    tools=[retrieve_claim_documents, combine_document_text, detect_anomalies],
+    tools=[
+        retrieve_claim_documents,
+        combine_document_text,
+        extract_financial_data,
+        extract_timeline_data,
+        detect_anomalies
+    ],
     system_prompt=SYSTEM_PROMPT,
 )
 
@@ -469,23 +704,97 @@ def parse_agent_response(result, strategy="full-context", default_count=0):
         default_count: Default document count if not found in response.
 
     Returns:
-        A dict with keys summary, anomalies, documentCount, and strategy.
+        A dict with keys summary, anomalies, documentCount, strategy,
+        financialSummary, and timeline.
     """
     try:
         response_text = result.message
         parsed = json.loads(response_text)
-        return parsed
+
+        # Ensure all expected keys are present with defaults
+        response = {
+            "summary": parsed.get("summary", str(result)),
+            "anomalies": parsed.get("anomalies", []),
+            "documentCount": parsed.get("documentCount", default_count),
+            "strategy": parsed.get("strategy", strategy),
+            "financialSummary": parsed.get("financialSummary", {
+                "minPayment": 0.0,
+                "maxPayment": 0.0,
+                "totalValue": 0.0,
+                "payments": []
+            }),
+            "timeline": parsed.get("timeline", {
+                "startYear": None,
+                "endYear": None,
+                "durationYears": None
+            })
+        }
+        return response
     except (json.JSONDecodeError, AttributeError):
         return {
             "summary": str(result),
             "anomalies": [],
             "documentCount": default_count,
             "strategy": strategy,
+            "financialSummary": {
+                "minPayment": 0.0,
+                "maxPayment": 0.0,
+                "totalValue": 0.0,
+                "payments": []
+            },
+            "timeline": {
+                "startYear": None,
+                "endYear": None,
+                "durationYears": None
+            }
         }
 
 
 # ---------------------------------------------------------------------------
-# BedrockAgentCoreApp entry point
+# Lambda Handler entry point
+# ---------------------------------------------------------------------------
+
+def handler(event, context):
+    """
+    Lambda handler for the Enhanced Full Context Summary Agent.
+
+    Receives payload with claim_id and uses tools to extract financial and
+    timeline data, then generates a comprehensive summary.
+
+    Args:
+        event: Dict containing 'claim_id' and optionally 'tenant_id', 'model_id'
+        context: Lambda context (unused)
+
+    Returns:
+        Dict with summary, anomalies, documentCount, strategy, financialSummary, and timeline
+    """
+    try:
+        claim_id = event.get("claim_id")
+        if not claim_id:
+            return {"error": "claim_id is required", "statusCode": 400}
+
+        # Set OpenTelemetry attributes if span is available
+        try:
+            span = trace.get_current_span()
+            span.set_attribute("claim.id", claim_id or "")
+            span.set_attribute("claim.strategy", "full-context")
+            span.set_attribute("claim.chunking_method", "none")
+        except:
+            pass  # OpenTelemetry may not be available in all environments
+
+        # Invoke the Strands Agent with enhanced tools
+        result = agent(
+            f"Process claim {claim_id} and return the structured JSON response with financial and timeline analysis"
+        )
+
+        return parse_agent_response(result)
+    except Exception as e:
+        logger.error(f"Full Context agent invocation failed: {e}")
+        return {"error": str(e), "statusCode": 500}
+
+
+# ---------------------------------------------------------------------------
+# BedrockAgentCoreApp entry point (for compatibility)
 # ---------------------------------------------------------------------------
 
 app = BedrockAgentCoreApp()
@@ -495,30 +804,16 @@ app = BedrockAgentCoreApp()
 def invoke(payload):
     """AgentCore Runtime entry point for the Full Context Summary Agent.
 
-    Extracts the claim_id from the payload and invokes the Strands Agent
-    to process the claim.
+    Compatibility wrapper that calls the main handler logic.
 
     Args:
         payload: Dict containing at least 'claim_id'.
 
     Returns:
-        A dict with summary, anomalies, documentCount, and strategy.
+        A dict with summary, anomalies, documentCount, strategy,
+        financialSummary, and timeline.
     """
-    try:
-        claim_id = payload.get("claim_id")
-        if not claim_id:
-            return {"error": "claim_id is required", "statusCode": 400}
-        span = trace.get_current_span()
-        span.set_attribute("claim.id", claim_id or "")
-        span.set_attribute("claim.strategy", "full-context")
-        span.set_attribute("claim.chunking_method", "none")
-        result = agent(
-            f"Process claim {claim_id} and return the structured JSON response"
-        )
-        return parse_agent_response(result)
-    except Exception as e:
-        logger.error(f"Agent invocation failed: {e}")
-        return {"error": str(e), "statusCode": 500}
+    return handler(payload, None)
 
 
 if __name__ == "__main__":
