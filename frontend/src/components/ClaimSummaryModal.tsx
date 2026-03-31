@@ -30,6 +30,25 @@ interface PromptInfo {
   retrievalQuery?: string;
 }
 
+interface PaymentEntry {
+  amount: number;
+  sourceDocument: string;
+  rawText: string;
+}
+
+interface FinancialSummary {
+  minPayment: number;
+  maxPayment: number;
+  totalValue: number;
+  payments: PaymentEntry[];
+}
+
+interface TimelineData {
+  startYear: number | null;
+  endYear: number | null;
+  durationYears: number | null;
+}
+
 interface ClaimSummaryResponse {
   summary: string;
   anomalies: DataAnomaly[];
@@ -42,6 +61,8 @@ interface ClaimSummaryResponse {
   cachedAt?: string;
   evaluation?: EvaluationScores;
   promptInfo?: PromptInfo;
+  financialSummary?: FinancialSummary;
+  timeline?: TimelineData;
 }
 
 // ─── Pure helper functions (exported for testing) ────────────────────────────

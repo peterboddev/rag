@@ -160,6 +160,11 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             {/* Anomalies */}
             <AnomalySection response={response} strategyKey={strategyKey} />
 
+            {/* Enhanced Analysis for Full Context Strategy */}
+            {strategyKey === 'full-context' && (response.financialSummary || response.timeline) && (
+              <EnhancedAnalysisSection response={response} strategyKey={strategyKey} />
+            )}
+
             {/* Evaluation scores */}
             {response.evaluation && (
               <EvaluationScoreDisplay scores={response.evaluation} strategy={label} />
@@ -417,5 +422,115 @@ function AnomalySection({ response, strategyKey }: { response: ClaimSummaryRespo
   );
 }
 
+
+// ─── Enhanced Analysis sub-render ────────────────────────────────────────────
+
+function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
+  const [expanded, setExpanded] = React.useState(false);
+
+  if (!response.financialSummary && !response.timeline) {
+    return null;
+  }
+
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          background: 'none',
+          border: '1px solid #28a745',
+          borderRadius: '4px',
+          padding: '6px 10px',
+          cursor: 'pointer',
+          fontSize: '13px',
+          fontWeight: 600,
+          color: '#28a745',
+          width: '100%',
+          textAlign: 'left',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>💰📅 Enhanced Analysis</span>
+        <span>{expanded ? '▼' : '▶'}</span>
+      </button>
+
+      {expanded && (
+        <div
+          style={{
+            marginTop: '6px',
+            padding: '10px 12px',
+            backgroundColor: '#f8fff9',
+            borderRadius: '4px',
+            border: '1px solid #28a745',
+            fontSize: '13px',
+          }}
+        >
+          {/* Financial Summary */}
+          {response.financialSummary && (
+            <div style={{ marginBottom: response.timeline ? '12px' : '0' }}>
+              <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
+                💰 Financial Summary
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                <div>
+                  <strong>Payment Range:</strong><br />
+                  ${response.financialSummary.minPayment.toFixed(2)} - ${response.financialSummary.maxPayment.toFixed(2)}
+                </div>
+                <div>
+                  <strong>Total Value:</strong><br />
+                  ${response.financialSummary.totalValue.toFixed(2)}
+                </div>
+              </div>
+              {response.financialSummary.payments.length > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <strong style={{ fontSize: '12px' }}>Payments Found: {response.financialSummary.payments.length}</strong>
+                  <div style={{ maxHeight: '100px', overflowY: 'auto', marginTop: '4px' }}>
+                    {response.financialSummary.payments.slice(0, 5).map((payment, idx) => (
+                      <div key={idx} style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>
+                        ${payment.amount.toFixed(2)} ({payment.sourceDocument})
+                      </div>
+                    ))}
+                    {response.financialSummary.payments.length > 5 && (
+                      <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
+                        +{response.financialSummary.payments.length - 5} more...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Timeline Data */}
+          {response.timeline && (
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
+                📅 Care History Timeline
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                <div>
+                  <strong>Start Year:</strong><br />
+                  {response.timeline.startYear || 'N/A'}
+                </div>
+                <div>
+                  <strong>End Year:</strong><br />
+                  {response.timeline.endYear || 'N/A'}
+                </div>
+                <div>
+                  <strong>Duration:</strong><br />
+                  {response.timeline.durationYears !== null
+                    ? `${response.timeline.durationYears} years`
+                    : 'N/A'}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default StrategyColumn;

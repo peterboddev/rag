@@ -371,6 +371,25 @@ export interface PromptInfo {
   retrievalQuery?: string;
 }
 
+export interface PaymentEntry {
+  amount: number;
+  sourceDocument: string;
+  rawText: string;
+}
+
+export interface FinancialSummary {
+  minPayment: number;
+  maxPayment: number;
+  totalValue: number;
+  payments: PaymentEntry[];
+}
+
+export interface TimelineData {
+  startYear: number | null;
+  endYear: number | null;
+  durationYears: number | null;
+}
+
 export interface ClaimSummaryResponse {
   summary: string;
   anomalies: DataAnomaly[];
@@ -383,6 +402,8 @@ export interface ClaimSummaryResponse {
   cachedAt?: string;
   evaluation?: EvaluationScores;
   promptInfo?: PromptInfo;
+  financialSummary?: FinancialSummary;
+  timeline?: TimelineData;
 }
 
 export interface ClaimEvaluationsResponse {
