@@ -118,7 +118,18 @@ export interface ClaimSummaryRequest {
  *   documentCount: 4,
  *   processingTime: 2345,
  *   generatedAt: "2024-01-15T10:30:00Z",
- *   cached: false
+ *   cached: false,
+ *   financialSummary: {
+ *     minPayment: 25.00,
+ *     maxPayment: 1250.75,
+ *     totalValue: 2437.50,
+ *     payments: []
+ *   },
+ *   timeline: {
+ *     startYear: 2020,
+ *     endYear: 2024,
+ *     durationYears: 4
+ *   }
  * };
  * ```
  */
@@ -185,6 +196,18 @@ export interface ClaimSummaryResponse {
    * Prompt metadata for transparency. Present on all successful summaries.
    */
   promptInfo?: PromptInfo;
+
+  /**
+   * Financial analysis summary extracted from claim documents.
+   * Only present for full-context strategy with enhanced agent.
+   */
+  financialSummary?: FinancialSummary;
+
+  /**
+   * Timeline analysis showing duration of patient care history.
+   * Only present for full-context strategy with enhanced agent.
+   */
+  timeline?: TimelineData;
 }
 
 /**
@@ -356,4 +379,96 @@ export interface CachedSummary {
    * The cache entry will be automatically deleted after this time.
    */
   ttl: number;
+}
+
+/**
+ * Financial analysis summary extracted from claim documents.
+ * Provides payment amount ranges and total values across all documents.
+ *
+ * @example
+ * ```typescript
+ * const financial: FinancialSummary = {
+ *   minPayment: 25.00,
+ *   maxPayment: 1250.75,
+ *   totalValue: 2437.50,
+ *   payments: [
+ *     { amount: 250.00, sourceDocument: "EOB_001.pdf", rawText: "250.00" },
+ *     { amount: 1250.75, sourceDocument: "Invoice_002.pdf", rawText: "1,250.75" }
+ *   ]
+ * };
+ * ```
+ */
+export interface FinancialSummary {
+  /**
+   * The minimum payment amount found across all documents.
+   */
+  minPayment: number;
+
+  /**
+   * The maximum payment amount found across all documents.
+   */
+  maxPayment: number;
+
+  /**
+   * The total sum of all payment amounts found.
+   */
+  totalValue: number;
+
+  /**
+   * Array of individual payment entries with source tracking.
+   */
+  payments: PaymentEntry[];
+}
+
+/**
+ * Individual payment entry extracted from documents.
+ */
+export interface PaymentEntry {
+  /**
+   * The monetary amount as a number.
+   */
+  amount: number;
+
+  /**
+   * The document where this payment amount was found.
+   */
+  sourceDocument: string;
+
+  /**
+   * The original text string that was matched and parsed.
+   */
+  rawText: string;
+}
+
+/**
+ * Timeline analysis showing the span of patient care history.
+ * Calculated from the earliest to latest dates found in claim documents.
+ *
+ * @example
+ * ```typescript
+ * const timeline: TimelineData = {
+ *   startYear: 2020,
+ *   endYear: 2024,
+ *   durationYears: 4
+ * };
+ * ```
+ */
+export interface TimelineData {
+  /**
+   * The earliest year found in any document date (e.g., birth date, first service).
+   * Null if no valid dates were found.
+   */
+  startYear: number | null;
+
+  /**
+   * The latest year found in any document date (e.g., recent service, payment).
+   * Null if no valid dates were found.
+   */
+  endYear: number | null;
+
+  /**
+   * The calculated duration in years from startYear to endYear.
+   * Null if startYear or endYear are null.
+   */
+  durationYears: number | null;
 }

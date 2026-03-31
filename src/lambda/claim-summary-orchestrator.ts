@@ -12,6 +12,8 @@ import {
   SummaryStrategy,
   ChunkingMethod,
   PromptInfo,
+  FinancialSummary,
+  TimelineData,
 } from '../types/claim-summary';
 import { buildCacheKey, getCachedSummary, cacheSummary } from '../services/summary-cache';
 
@@ -473,25 +475,102 @@ async function resolvePatientId(claimId: string, tenantId: string): Promise<stri
 }
 
 /**
- * Full Context strategy: concatenate all document text and invoke Bedrock.
+ * Full Context strategy: invoke the enhanced Full Context agent Lambda.
+ * The agent uses tools to extract financial and timeline data, then generates
+ * a comprehensive summary with structured financial and timeline analysis.
  */
 async function executeFullContextStrategy(
-  documents: DocumentRecord[],
+  claimId: string,
+  tenantId: string,
   modelId?: string,
   customPrompt?: string
-): Promise<{ summary: string; anomalies: DataAnomaly[]; promptInfo: PromptInfo }> {
-  const documentsText = documents
-    .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
-    .join('\n\n');
+): Promise<{
+  summary: string;
+  anomalies: DataAnomaly[];
+  documentCount: number;
+  promptInfo: PromptInfo;
+  financialSummary?: FinancialSummary;
+  timeline?: TimelineData;
+}> {
+  const fullContextAgentFunction = process.env.FULL_CONTEXT_AGENT_FUNCTION;
+  if (!fullContextAgentFunction) {
+    // Fallback to legacy direct Bedrock invocation if agent function not configured
+    console.warn('FULL_CONTEXT_AGENT_FUNCTION not configured, using legacy direct Bedrock approach');
+    const documents = await queryClaimDocuments(claimId, tenantId);
+    if (documents.length === 0) {
+      throw new Error(`No documents found for claim ${claimId}`);
+    }
+    const summarizable = documents.filter((d) => d.extractedText?.trim());
+    if (summarizable.length === 0) {
+      throw new Error('No summarizable content available.');
+    }
 
-  const prompt = customPrompt
-    ? customPrompt.replace('{documentsText}', documentsText).replace('[DOCUMENTS]', documentsText)
-    : buildSummaryPrompt(documentsText, 'full-context');
-  const responseText = await invokeBedrockNovaPro(prompt, modelId);
-  const promptInfo = customPrompt
-    ? { promptTemplate: customPrompt, strategyLabel: 'full-context (custom prompt)' }
-    : buildPromptInfo('full-context');
-  return { ...parseSummaryResponse(responseText), promptInfo };
+    const documentsText = summarizable
+      .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
+      .join('\n\n');
+
+    const prompt = customPrompt
+      ? customPrompt.replace('{documentsText}', documentsText).replace('[DOCUMENTS]', documentsText)
+      : buildSummaryPrompt(documentsText, 'full-context');
+    const responseText = await invokeBedrockNovaPro(prompt, modelId);
+    const promptInfo = customPrompt
+      ? { promptTemplate: customPrompt, strategyLabel: 'full-context (custom prompt)' }
+      : buildPromptInfo('full-context');
+
+    return {
+      ...parseSummaryResponse(responseText),
+      documentCount: summarizable.length,
+      promptInfo
+    };
+  }
+
+  console.log('Invoking enhanced Full Context agent Lambda for claimId:', claimId);
+  const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+  const invokeResponse = await lambdaClient.send(new InvokeCommand({
+    FunctionName: fullContextAgentFunction,
+    InvocationType: 'RequestResponse',
+    Payload: JSON.stringify({
+      claim_id: claimId,
+      tenant_id: tenantId,
+      model_id: modelId || undefined,
+      custom_prompt: customPrompt || undefined,
+    }),
+  }));
+
+  if (!invokeResponse.Payload) {
+    throw new Error('Full Context agent returned empty response');
+  }
+
+  const responseText = Buffer.from(invokeResponse.Payload).toString('utf-8');
+  console.log('Full Context agent response length:', responseText.length);
+
+  let agentResult: any;
+  try {
+    agentResult = JSON.parse(responseText);
+  } catch (error) {
+    console.error('Failed to parse Full Context agent response:', error);
+    throw new Error('Full Context agent returned invalid JSON response');
+  }
+
+  // Handle error responses from the agent
+  if (agentResult.error || agentResult.statusCode >= 400) {
+    const errorMessage = agentResult.error || 'Full Context agent invocation failed';
+    console.error('Full Context agent error:', errorMessage);
+    throw new Error(errorMessage);
+  }
+
+  // Return the enhanced agent response with financial and timeline data
+  return {
+    summary: agentResult.summary || '',
+    anomalies: agentResult.anomalies || [],
+    documentCount: agentResult.documentCount || 0,
+    promptInfo: agentResult.promptInfo || {
+      promptTemplate: 'Enhanced Full Context Agent',
+      strategyLabel: 'full-context (enhanced agent)'
+    },
+    financialSummary: agentResult.financialSummary,
+    timeline: agentResult.timeline,
+  };
 }
 
 /**
@@ -831,6 +910,8 @@ async function handlePostSummary(
   let documentIds: string[] = [];
   let promptInfo: PromptInfo | undefined;
   let sourceDocumentsText = '';
+  let financialSummary: FinancialSummary | undefined;
+  let timeline: TimelineData | undefined;
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -885,9 +966,10 @@ async function handlePostSummary(
         sourceDocumentsText = summarizable
           .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
           .join('\n\n');
-        const result = await executeFullContextStrategy(summarizable, request.modelId);
+        const result = await executeFullContextStrategy(claimId, tenantId, request.modelId);
         summary = result.summary;
         anomalies = result.anomalies;
+        documentCount = result.documentCount;
         promptInfo = result.promptInfo;
       }
     } else if (request.strategy === 'enriched') {
@@ -932,14 +1014,25 @@ async function handlePostSummary(
       documentIds = summarizableDocuments.map((doc) => doc.documentId);
       documentCount = summarizableDocuments.length;
 
-      console.log('Executing full-context strategy with', documentCount, 'documents');
-      sourceDocumentsText = summarizableDocuments
-        .map((doc) => `--- ${doc.fileName} ---\n${doc.extractedText || ''}`)
-        .join('\n\n');
-      const result = await executeFullContextStrategy(summarizableDocuments, request.modelId, request.customPrompt);
+      console.log('Executing full-context strategy');
+      const result = await executeFullContextStrategy(claimId, tenantId, request.modelId, request.customPrompt);
       summary = result.summary;
       anomalies = result.anomalies;
+      documentCount = result.documentCount;
       promptInfo = result.promptInfo;
+      financialSummary = result.financialSummary;
+      timeline = result.timeline;
+
+      // Fetch source documents for evaluation pipeline
+      try {
+        const docs = await queryClaimDocuments(claimId, tenantId);
+        sourceDocumentsText = docs
+          .filter((d) => d.extractedText?.trim())
+          .map((d) => `--- ${d.fileName} ---\n${d.extractedText || ''}`)
+          .join('\n\n');
+      } catch (e) {
+        console.warn('Failed to fetch source documents for evaluation:', e);
+      }
     }
   } catch (error) {
     // Task 4.4: Return 502 when Bedrock/AgentCore invocation fails
@@ -962,6 +1055,8 @@ async function handlePostSummary(
     cached: false,
     useReranker: (request.strategy === 'graph-rag' || request.strategy === 'rag') ? request.useReranker : undefined,
     promptInfo,
+    financialSummary: financialSummary,
+    timeline: timeline,
   };
 
   // Include evaluation scores if requested
