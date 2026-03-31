@@ -475,15 +475,20 @@ async function resolvePatientId(claimId: string, tenantId: string): Promise<stri
  */
 async function executeFullContextStrategy(
   documents: DocumentRecord[],
-  modelId?: string
+  modelId?: string,
+  customPrompt?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; promptInfo: PromptInfo }> {
   const documentsText = documents
     .map((doc) => `--- Document: ${doc.fileName} ---\n${doc.extractedText || ''}`)
     .join('\n\n');
 
-  const prompt = buildSummaryPrompt(documentsText, 'full-context');
+  const prompt = customPrompt
+    ? customPrompt.replace('{documentsText}', documentsText).replace('[DOCUMENTS]', documentsText)
+    : buildSummaryPrompt(documentsText, 'full-context');
   const responseText = await invokeBedrockNovaPro(prompt, modelId);
-  const promptInfo = buildPromptInfo('full-context');
+  const promptInfo = customPrompt
+    ? { promptTemplate: customPrompt, strategyLabel: 'full-context (custom prompt)' }
+    : buildPromptInfo('full-context');
   return { ...parseSummaryResponse(responseText), promptInfo };
 }
 
@@ -929,7 +934,7 @@ async function handlePostSummary(
       sourceDocumentsText = summarizableDocuments
         .map((doc) => `--- ${doc.fileName} ---\n${doc.extractedText || ''}`)
         .join('\n\n');
-      const result = await executeFullContextStrategy(summarizableDocuments, request.modelId);
+      const result = await executeFullContextStrategy(summarizableDocuments, request.modelId, request.customPrompt);
       summary = result.summary;
       anomalies = result.anomalies;
       promptInfo = result.promptInfo;

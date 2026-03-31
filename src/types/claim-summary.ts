@@ -97,6 +97,12 @@ export interface ClaimSummaryRequest {
    * @default 'amazon.nova-pro-v1:0'
    */
   modelId?: string;
+
+  /**
+   * Custom prompt template to use instead of the default.
+   * Must contain {documentsText} placeholder for document content.
+   */
+  customPrompt?: string;
 }
 
 /**

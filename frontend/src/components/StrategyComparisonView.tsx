@@ -68,6 +68,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
   const [useReranker, setUseReranker] = useState(false);
   const [modelId, setModelId] = useState('amazon.nova-pro-v1:0');
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [promptExpanded, setPromptExpanded] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +105,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           forceRegenerate,
           true, // includeEvaluation
           config.key === 'graph-rag' ? useReranker : undefined,
-          modelId
+          modelId,
+          config.key === 'full-context' && customPrompt ? customPrompt : undefined
         );
         setColumns((prev) => ({
           ...prev,
@@ -143,7 +146,8 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         false,
         true, // includeEvaluation
         config.key === 'graph-rag' ? useReranker : undefined,
-        modelId
+        modelId,
+        config.key === 'full-context' && customPrompt ? customPrompt : undefined
       )
     );
 
@@ -235,6 +239,37 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           />
           Graph RAG: Use Reranker (Cohere Rerank 3.5)
         </label>
+      </div>
+
+      {/* Editable prompt for Full Context strategy */}
+      <div style={{ marginBottom: '12px' }}>
+        <button
+          onClick={() => setPromptExpanded(!promptExpanded)}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '14px', fontWeight: 600, color: '#333', padding: '4px 0',
+          }}
+        >
+          {promptExpanded ? '▼' : '▶'} Custom Prompt (Full Context)
+        </button>
+        {promptExpanded && (
+          <div style={{ marginTop: '6px' }}>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="Enter custom prompt... Use [DOCUMENTS] as placeholder for document text. Leave empty to use default prompt."
+              style={{
+                width: '100%', minHeight: '150px', padding: '8px',
+                fontSize: '12px', fontFamily: 'monospace',
+                border: '1px solid #ccc', borderRadius: '4px',
+                resize: 'vertical',
+              }}
+            />
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+              Use <code>[DOCUMENTS]</code> where document text should be inserted. Leave empty for default prompt.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Generate All button */}
