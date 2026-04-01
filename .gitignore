@@ -52,3 +52,7 @@ medical_data.lnk
 # Medical claims generator (data already in S3)
 medical-claims-generator/__pycache__/
 .claude/
+
+# AgentCore deployment config (local)
+.bedrock_agentcore/
+.bedrock_agentcore.yaml

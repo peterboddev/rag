@@ -1439,15 +1439,24 @@ export class RAGApplicationStack extends cdk.Stack {
     // AgentCore Runtime Endpoint Configuration
     // ============================================================
 
-    // Set AgentCore Runtime endpoint env vars on the orchestrator Lambda
-    // Actual endpoint URLs will be set after `agentcore launch` deploys the agents
+    // Read AgentCore Runtime endpoint ARNs from SSM Parameter Store
+    // These are set by `agentcore deploy` and stored via aws ssm put-parameter
+    const fullContextAgentEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      `/${applicationName}/${environment}/agentcore/full-context-agent-endpoint`
+    );
+    const enrichedAgentEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      `/${applicationName}/${environment}/agentcore/enriched-agent-endpoint`
+    );
+
     claimSummaryOrchestratorFunction.addEnvironment(
       'FULL_CONTEXT_AGENT_ENDPOINT',
-      '',
+      fullContextAgentEndpoint,
     );
     claimSummaryOrchestratorFunction.addEnvironment(
       'ENRICHED_AGENT_ENDPOINT',
-      '',
+      enrichedAgentEndpoint,
     );
 
     // ============================================================

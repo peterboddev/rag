@@ -4,11 +4,7 @@ import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { SignatureV4 } from '@aws-sdk/signature-v4';
-import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import { HttpRequest } from '@smithy/protocol-http';
-import { Sha256 } from '@aws-crypto/sha256-js';
-import * as https from 'https';
+import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from '@aws-sdk/client-bedrock-agentcore';
 import {
   ClaimSummaryRequest,
   ClaimSummaryResponse,
@@ -40,88 +36,84 @@ const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: BEDROCK_REGIO
  */
 const AGENTCORE_TIMEOUT_MS = parseInt(process.env.AGENTCORE_TIMEOUT_MS || '120000', 10);
 
+// AgentCore client (lazy-initialized)
+let agentCoreClient: BedrockAgentCoreClient | null = null;
+
+function getAgentCoreClient(): BedrockAgentCoreClient {
+  if (!agentCoreClient) {
+    agentCoreClient = new BedrockAgentCoreClient({
+      region: process.env.AWS_REGION || BEDROCK_REGION,
+      requestHandler: { requestTimeout: AGENTCORE_TIMEOUT_MS } as any,
+    });
+  }
+  return agentCoreClient;
+}
+
 /**
- * Invoke an AgentCore Runtime endpoint with SigV4-signed HTTP POST.
+ * Invoke an AgentCore Runtime agent using the AWS SDK.
  *
- * @param endpoint - Full AgentCore Runtime endpoint URL (e.g. https://…/agents/…/invoke)
+ * @param agentRuntimeArn - The ARN or agent ID of the AgentCore Runtime agent
  * @param payload  - JSON-serializable request payload
- * @param timeoutMs - Request timeout in milliseconds (default: AGENTCORE_TIMEOUT_MS)
  * @returns Parsed JSON response from the agent
  */
 async function invokeAgentCoreRuntime(
-  endpoint: string,
+  agentRuntimeArn: string,
   payload: Record<string, unknown>,
-  timeoutMs: number = AGENTCORE_TIMEOUT_MS
 ): Promise<any> {
-  const url = new URL(endpoint);
   const body = JSON.stringify(payload);
+  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
 
-  const request = new HttpRequest({
-    method: 'POST',
-    protocol: url.protocol,
-    hostname: url.hostname,
-    port: url.port ? Number(url.port) : undefined,
-    path: url.pathname,
-    headers: {
-      'Content-Type': 'application/json',
-      host: url.hostname,
-    },
-    body,
+  const command = new InvokeAgentRuntimeCommand({
+    agentRuntimeArn,
+    payload: new TextEncoder().encode(body),
+    contentType: 'application/json',
+    accept: 'application/json',
   });
 
-  const signer = new SignatureV4({
-    service: 'bedrock-agentcore',
-    region: process.env.AWS_REGION || BEDROCK_REGION,
-    credentials: defaultProvider(),
-    sha256: Sha256,
-  });
+  const response = await getAgentCoreClient().send(command);
 
-  const signed = await signer.sign(request);
+  // Collect the streaming response
+  const chunks: string[] = [];
+  const responseStream = response.response;
 
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      {
-        hostname: signed.hostname,
-        port: signed.port,
-        path: signed.path,
-        method: signed.method,
-        headers: signed.headers,
-        timeout: timeoutMs,
-      },
-      (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          const responseBody = Buffer.concat(chunks).toString('utf-8');
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(
-              new Error(
-                `AgentCore Runtime error: HTTP ${res.statusCode} — ${responseBody.substring(0, 500)}`
-              )
-            );
-            return;
-          }
-          try {
-            resolve(JSON.parse(responseBody));
-          } catch {
-            reject(new Error(`AgentCore Runtime returned invalid JSON: ${responseBody.substring(0, 200)}`));
-          }
-        });
+  if (responseStream) {
+    // Handle ReadableStream / async iterable
+    if (Symbol.asyncIterator in Object(responseStream)) {
+      for await (const chunk of responseStream as AsyncIterable<Uint8Array>) {
+        chunks.push(new TextDecoder().decode(chunk));
       }
-    );
+    } else if (typeof (responseStream as any).transformToString === 'function') {
+      chunks.push(await (responseStream as any).transformToString());
+    } else if (typeof (responseStream as any).read === 'function') {
+      // Node.js Readable stream
+      for await (const chunk of responseStream as any) {
+        chunks.push(typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk));
+      }
+    }
+  }
 
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error(`AgentCore Runtime request timed out after ${timeoutMs}ms`));
-    });
+  const responseBody = chunks.join('');
 
-    req.on('error', (err) => {
-      reject(new Error(`AgentCore Runtime request failed: ${err.message}`));
-    });
+  // Handle text/event-stream format (SSE)
+  if (response.contentType?.includes('text/event-stream')) {
+    const dataLines = responseBody
+      .split('\n')
+      .filter(line => line.startsWith('data: '))
+      .map(line => line.substring(6));
+    const fullContent = dataLines.join('');
+    try {
+      return JSON.parse(fullContent);
+    } catch {
+      return { summary: fullContent, anomalies: [], documentCount: 0, strategy: 'unknown' };
+    }
+  }
 
-    req.write(body);
-    req.end();
-  });
+  // Handle plain JSON response
+  try {
+    return JSON.parse(responseBody);
+  } catch {
+    throw new Error(`AgentCore Runtime returned invalid JSON: ${responseBody.substring(0, 200)}`);
+  }
 }
 
 /**
