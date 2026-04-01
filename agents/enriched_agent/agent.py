@@ -23,6 +23,8 @@ import logging
 from datetime import datetime
 
 import boto3
+from opentelemetry import trace
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -44,6 +46,10 @@ bedrock_agent_client = boto3.client(
 bedrock_runtime_client = boto3.client(
     "bedrock-runtime", region_name=BEDROCK_REGION
 )
+
+
+# BedrockAgentCoreApp for AgentCore Runtime deployment
+app = BedrockAgentCoreApp()
 
 
 class DocumentRetrievalError(Exception):
@@ -735,6 +741,7 @@ def parse_agent_response(result, strategy="enriched", default_count=0):
 # ---------------------------------------------------------------------------
 
 
+@app.entrypoint
 def invoke(payload):
     """
     Agent entry point accepting { claim_id, tenant_id, patient_id }.
@@ -831,3 +838,7 @@ def handler(event, context):
     except Exception as e:
         logger.error(f"Enriched agent invocation failed: {e}")
         return {"error": str(e), "statusCode": 500}
+
+
+if __name__ == "__main__":
+    app.run()

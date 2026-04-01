@@ -4,6 +4,11 @@ import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { HttpRequest } from '@smithy/protocol-http';
+import { Sha256 } from '@aws-crypto/sha256-js';
+import * as https from 'https';
 import {
   ClaimSummaryRequest,
   ClaimSummaryResponse,
@@ -29,6 +34,95 @@ const dynamoClient = new DynamoDBClient({ region: process.env.REGION || 'us-east
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const bedrockClient = new BedrockRuntimeClient({ region: BEDROCK_REGION });
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: BEDROCK_REGION });
+
+/**
+ * Default timeout for AgentCore Runtime API calls (in milliseconds).
+ */
+const AGENTCORE_TIMEOUT_MS = parseInt(process.env.AGENTCORE_TIMEOUT_MS || '120000', 10);
+
+/**
+ * Invoke an AgentCore Runtime endpoint with SigV4-signed HTTP POST.
+ *
+ * @param endpoint - Full AgentCore Runtime endpoint URL (e.g. https://…/agents/…/invoke)
+ * @param payload  - JSON-serializable request payload
+ * @param timeoutMs - Request timeout in milliseconds (default: AGENTCORE_TIMEOUT_MS)
+ * @returns Parsed JSON response from the agent
+ */
+async function invokeAgentCoreRuntime(
+  endpoint: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number = AGENTCORE_TIMEOUT_MS
+): Promise<any> {
+  const url = new URL(endpoint);
+  const body = JSON.stringify(payload);
+
+  const request = new HttpRequest({
+    method: 'POST',
+    protocol: url.protocol,
+    hostname: url.hostname,
+    port: url.port ? Number(url.port) : undefined,
+    path: url.pathname,
+    headers: {
+      'Content-Type': 'application/json',
+      host: url.hostname,
+    },
+    body,
+  });
+
+  const signer = new SignatureV4({
+    service: 'bedrock-agentcore',
+    region: process.env.AWS_REGION || BEDROCK_REGION,
+    credentials: defaultProvider(),
+    sha256: Sha256,
+  });
+
+  const signed = await signer.sign(request);
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: signed.hostname,
+        port: signed.port,
+        path: signed.path,
+        method: signed.method,
+        headers: signed.headers,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const responseBody = Buffer.concat(chunks).toString('utf-8');
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(
+              new Error(
+                `AgentCore Runtime error: HTTP ${res.statusCode} — ${responseBody.substring(0, 500)}`
+              )
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(responseBody));
+          } catch {
+            reject(new Error(`AgentCore Runtime returned invalid JSON: ${responseBody.substring(0, 200)}`));
+          }
+        });
+      }
+    );
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error(`AgentCore Runtime request timed out after ${timeoutMs}ms`));
+    });
+
+    req.on('error', (err) => {
+      reject(new Error(`AgentCore Runtime request failed: ${err.message}`));
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
 
 /**
  * Valid summarization strategies
@@ -492,10 +586,10 @@ async function executeFullContextStrategy(
   financialSummary?: FinancialSummary;
   timeline?: TimelineData;
 }> {
-  const fullContextAgentFunction = process.env.FULL_CONTEXT_AGENT_FUNCTION;
-  if (!fullContextAgentFunction) {
-    // Fallback to legacy direct Bedrock invocation if agent function not configured
-    console.warn('FULL_CONTEXT_AGENT_FUNCTION not configured, using legacy direct Bedrock approach');
+  const fullContextAgentEndpoint = process.env.FULL_CONTEXT_AGENT_ENDPOINT;
+  if (!fullContextAgentEndpoint) {
+    // Fallback to legacy direct Bedrock invocation if agent endpoint not configured
+    console.warn('FULL_CONTEXT_AGENT_ENDPOINT not configured, using legacy direct Bedrock approach');
     const documents = await queryClaimDocuments(claimId, tenantId);
     if (documents.length === 0) {
       throw new Error(`No documents found for claim ${claimId}`);
@@ -524,33 +618,13 @@ async function executeFullContextStrategy(
     };
   }
 
-  console.log('Invoking enhanced Full Context agent Lambda for claimId:', claimId);
-  const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-  const invokeResponse = await lambdaClient.send(new InvokeCommand({
-    FunctionName: fullContextAgentFunction,
-    InvocationType: 'RequestResponse',
-    Payload: JSON.stringify({
-      claim_id: claimId,
-      tenant_id: tenantId,
-      model_id: modelId || undefined,
-      custom_prompt: customPrompt || undefined,
-    }),
-  }));
-
-  if (!invokeResponse.Payload) {
-    throw new Error('Full Context agent returned empty response');
-  }
-
-  const responseText = Buffer.from(invokeResponse.Payload).toString('utf-8');
-  console.log('Full Context agent response length:', responseText.length);
-
-  let agentResult: any;
-  try {
-    agentResult = JSON.parse(responseText);
-  } catch (error) {
-    console.error('Failed to parse Full Context agent response:', error);
-    throw new Error('Full Context agent returned invalid JSON response');
-  }
+  console.log('Invoking Full Context agent via AgentCore Runtime for claimId:', claimId);
+  const agentResult = await invokeAgentCoreRuntime(fullContextAgentEndpoint, {
+    claim_id: claimId,
+    tenant_id: tenantId,
+    model_id: modelId || undefined,
+    custom_prompt: customPrompt || undefined,
+  });
 
   // Handle error responses from the agent
   if (agentResult.error || agentResult.statusCode >= 400) {
@@ -738,25 +812,18 @@ async function executeEnrichedStrategy(
   patientId?: string | null,
   modelId?: string
 ): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
-  const enrichedAgentFunction = process.env.ENRICHED_AGENT_FUNCTION;
-  if (!enrichedAgentFunction) {
-    throw new Error('ENRICHED_AGENT_FUNCTION environment variable is not configured');
+  const enrichedAgentEndpoint = process.env.ENRICHED_AGENT_ENDPOINT;
+  if (!enrichedAgentEndpoint) {
+    throw new Error('ENRICHED_AGENT_ENDPOINT environment variable is not configured');
   }
 
-  console.log('Invoking enriched agent Lambda for claimId:', claimId);
-  const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-  const invokeResponse = await lambdaClient.send(new InvokeCommand({
-    FunctionName: enrichedAgentFunction,
-    InvocationType: 'RequestResponse',
-    Payload: JSON.stringify({
-      claim_id: claimId,
-      tenant_id: tenantId,
-      patient_id: patientId || undefined,
-      model_id: modelId || undefined,
-    }),
-  }));
-
-  const responsePayload = JSON.parse(new TextDecoder().decode(invokeResponse.Payload));
+  console.log('Invoking enriched agent via AgentCore Runtime for claimId:', claimId);
+  const responsePayload = await invokeAgentCoreRuntime(enrichedAgentEndpoint, {
+    claim_id: claimId,
+    tenant_id: tenantId,
+    patient_id: patientId || undefined,
+    model_id: modelId || undefined,
+  });
 
   if (responsePayload.error) {
     throw new Error(`Enriched agent error: ${responsePayload.error}`);

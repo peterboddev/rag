@@ -1429,152 +1429,26 @@ export class RAGApplicationStack extends cdk.Stack {
       description: 'Evaluation Trigger Lambda Function ARN',
     });
 
+    // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
+    // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
+
+    // Full Context Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
+    // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
+
     // ============================================================
-    // Enriched Agent Lambda (Python)
+    // AgentCore Runtime Endpoint Configuration
     // ============================================================
 
-    const enrichedAgentFunction = new lambda.Function(this, 'EnrichedAgentFunction', {
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'agent.handler',
-      code: lambda.Code.fromAsset('.', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
-          command: [
-            'bash', '-c', [
-              'cp agents/enriched_agent/agent.py /asset-output/',
-              'pip install boto3 -t /asset-output/ 2>/dev/null || true',
-            ].join(' && '),
-          ],
-          local: {
-            tryBundle(outputDir: string) {
-              try {
-                const { execSync } = require('child_process');
-                execSync(`cp agents/enriched_agent/agent.py ${outputDir}/`, { stdio: 'inherit' });
-                try {
-                  execSync(`pip install boto3 -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
-                } catch { /* boto3 available in Lambda runtime */ }
-                return true;
-              } catch {
-                return false;
-              }
-            },
-          },
-        },
-      }),
-      role: lambdaExecutionRole,
-      timeout: cdk.Duration.seconds(120),
-      memorySize: 512,
-      environment: {
-        DOCUMENTS_TABLE: documentsTableName,
-        KNOWLEDGE_BASE_ID: knowledgeBaseIdParam.valueAsString,
-        GRAPH_RAG_KNOWLEDGE_BASE_ID: graphRagKb.getAtt('KnowledgeBaseId').toString(),
-        BEDROCK_REGION: 'us-east-1',
-        BEDROCK_MODEL_ID: 'amazon.nova-pro-v1:0',
-      },
-    });
-
-    // Grant DynamoDB read on Documents table
-    documentsTableRef.grantReadData(enrichedAgentFunction);
-
-    // Grant Bedrock KB Retrieve permission
-    enrichedAgentFunction.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['bedrock:Retrieve'],
-      resources: ['*'],
-    }));
-
-    // Grant Bedrock InvokeModel permission for Nova Pro
-    enrichedAgentFunction.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel'],
-      resources: [
-        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
-      ],
-    }));
-
-    // Grant the orchestrator Lambda permission to invoke the enriched agent
-    enrichedAgentFunction.grantInvoke(claimSummaryOrchestratorFunction);
-
-    // Set ENRICHED_AGENT_FUNCTION env var on the orchestrator Lambda
+    // Set AgentCore Runtime endpoint env vars on the orchestrator Lambda
+    // Actual endpoint URLs will be set after `agentcore launch` deploys the agents
     claimSummaryOrchestratorFunction.addEnvironment(
-      'ENRICHED_AGENT_FUNCTION',
-      enrichedAgentFunction.functionName,
+      'FULL_CONTEXT_AGENT_ENDPOINT',
+      '',
     );
-
-    // Export Enriched Agent Lambda function ARN
-    new cdk.CfnOutput(this, 'EnrichedAgentFunctionArn', {
-      value: enrichedAgentFunction.functionArn,
-      description: 'Enriched Agent Lambda Function ARN',
-    });
-
-    // ============================================================
-    // Full Context Agent Lambda (Python) - Enhanced with Financial/Timeline Analysis
-    // ============================================================
-
-    const fullContextAgentFunction = new lambda.Function(this, 'FullContextAgentFunction', {
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'agent.handler',
-      code: lambda.Code.fromAsset('.', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
-          command: [
-            'bash', '-c', [
-              'cp -r agents/full_context_agent/* /asset-output/',
-              'pip install boto3 strands-agents strands-agents-builder strands-agents-evals bedrock-agentcore opentelemetry-api -t /asset-output/ 2>/dev/null || true',
-            ].join(' && '),
-          ],
-          local: {
-            tryBundle(outputDir: string) {
-              try {
-                const { execSync } = require('child_process');
-                execSync(`cp -r agents/full_context_agent/* ${outputDir}/`, { stdio: 'inherit' });
-                try {
-                  execSync(`pip install boto3 strands-agents strands-agents-builder strands-agents-evals bedrock-agentcore opentelemetry-api -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
-                } catch { /* some dependencies may already be available in Lambda runtime */ }
-                return true;
-              } catch {
-                return false;
-              }
-            },
-          },
-        },
-      }),
-      role: lambdaExecutionRole,
-      timeout: cdk.Duration.seconds(120),
-      memorySize: 512,
-      environment: {
-        DOCUMENTS_TABLE: documentsTableName,
-        BEDROCK_REGION: 'us-east-1',
-        BEDROCK_MODEL_ID: 'amazon.nova-pro-v1:0',
-      },
-    });
-
-    // Grant DynamoDB read on Documents table for Full Context agent
-    documentsTableRef.grantReadData(fullContextAgentFunction);
-
-    // Grant Bedrock InvokeModel permission for Nova Pro
-    fullContextAgentFunction.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel'],
-      resources: [
-        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
-      ],
-    }));
-
-    // Grant the orchestrator Lambda permission to invoke the Full Context agent
-    fullContextAgentFunction.grantInvoke(claimSummaryOrchestratorFunction);
-
-    // Set FULL_CONTEXT_AGENT_FUNCTION env var on the orchestrator Lambda
     claimSummaryOrchestratorFunction.addEnvironment(
-      'FULL_CONTEXT_AGENT_FUNCTION',
-      fullContextAgentFunction.functionName,
+      'ENRICHED_AGENT_ENDPOINT',
+      '',
     );
-
-    // Export Full Context Agent Lambda function ARN
-    new cdk.CfnOutput(this, 'FullContextAgentFunctionArn', {
-      value: fullContextAgentFunction.functionArn,
-      description: 'Full Context Agent Lambda Function ARN',
-    });
 
     // ============================================================
     // Claim Summary API Gateway Endpoints
