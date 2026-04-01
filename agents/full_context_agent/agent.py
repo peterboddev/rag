@@ -603,36 +603,37 @@ def detect_anomalies(documents: str) -> str:
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """You are an insurance claims analyst agent. For each claim, you MUST:
+
 1. Call retrieve_claim_documents with the claim_id to get all documents
 2. Call combine_document_text with the retrieved documents to get the full text
 3. Call extract_financial_data with the retrieved documents to get payment information
 4. Call extract_timeline_data with the retrieved documents to get care history timeline
 5. Call detect_anomalies with the retrieved documents to find data inconsistencies
-6. Generate a comprehensive summary following the structured format below
 
-## SUMMARY REQUIREMENTS
+Then generate a comprehensive summary that includes:
 
-Your summary MUST include these sections using markdown headers:
+## PATIENT & TIMELINE OVERVIEW
+- Patient demographics (name, age, gender, date of birth)
+- Care history timeline from earliest to most recent engagement
+- Duration of care relationship and key milestones
 
-### **PATIENT & TIMELINE OVERVIEW**
-- Patient demographics (name, age, gender)
-- **History Timeline**: First recorded date (YYYY) to most recent date (YYYY)
-- Total duration of care relationship
+## FINANCIAL SUMMARY
+- Payment amounts found across all documents (minimum to maximum range)
+- Total claim values and payment patterns
+- Key financial dates and transaction details
 
-### **FINANCIAL SUMMARY**
-- **Payment Range**: Minimum to maximum claim amounts ($X.XX to $X.XX)
-- Total claims value across all documents
-- Key payment dates and amounts by service
+## CLINICAL SUMMARY
+- Primary and secondary diagnoses with ICD codes
+- Procedures performed with CPT codes and dates
+- Treatment progression and outcomes
+- Provider information and healthcare facilities
 
-### **CLINICAL SUMMARY**
-- Primary and secondary diagnoses
-- Procedures performed
-- Treatment timeline and progression
-- Provider information and facilities
+## DATA QUALITY & ANOMALIES
+- Any inconsistencies found in dates, amounts, or patient information
+- Cross-document contradictions or unusual patterns
+- Data completeness assessment
 
-### **KEY DATES & SERVICES**
-- Service date range with associated costs
-- Payment processing timeline
+Include specific dollar amounts, dates, and medical codes where available. Base your analysis on the actual tool results from extract_financial_data and extract_timeline_data calls.
 - Any gaps in care or unusual patterns
 
 ## ANALYSIS INSTRUCTIONS
@@ -707,47 +708,72 @@ def parse_agent_response(result, strategy="full-context", default_count=0):
         A dict with keys summary, anomalies, documentCount, strategy,
         financialSummary, and timeline.
     """
-    try:
-        response_text = result.message
-        parsed = json.loads(response_text)
+    # Default response structure
+    default_response = {
+        "summary": "",
+        "anomalies": [],
+        "documentCount": default_count,
+        "strategy": strategy,
+        "promptInfo": {
+            "promptTemplate": SYSTEM_PROMPT,
+            "strategyLabel": "Enhanced Full Context Agent",
+        },
+        "financialSummary": {
+            "minPayment": 0.0,
+            "maxPayment": 0.0,
+            "totalValue": 0.0,
+            "payments": []
+        },
+        "timeline": {
+            "startYear": None,
+            "endYear": None,
+            "durationYears": None
+        }
+    }
 
-        # Ensure all expected keys are present with defaults
-        response = {
-            "summary": parsed.get("summary", str(result)),
-            "anomalies": parsed.get("anomalies", []),
-            "documentCount": parsed.get("documentCount", default_count),
-            "strategy": parsed.get("strategy", strategy),
-            "financialSummary": parsed.get("financialSummary", {
-                "minPayment": 0.0,
-                "maxPayment": 0.0,
-                "totalValue": 0.0,
-                "payments": []
-            }),
-            "timeline": parsed.get("timeline", {
-                "startYear": None,
-                "endYear": None,
-                "durationYears": None
+    try:
+        response_text = result.message if hasattr(result, 'message') else str(result)
+
+        # First try to parse as JSON (backward compatibility)
+        try:
+            parsed = json.loads(response_text)
+            default_response.update({
+                "summary": parsed.get("summary", response_text),
+                "anomalies": parsed.get("anomalies", []),
+                "documentCount": parsed.get("documentCount", default_count),
+                "financialSummary": parsed.get("financialSummary", default_response["financialSummary"]),
+                "timeline": parsed.get("timeline", default_response["timeline"])
             })
-        }
-        return response
-    except (json.JSONDecodeError, AttributeError):
-        return {
-            "summary": str(result),
-            "anomalies": [],
-            "documentCount": default_count,
-            "strategy": strategy,
-            "financialSummary": {
-                "minPayment": 0.0,
-                "maxPayment": 0.0,
-                "totalValue": 0.0,
-                "payments": []
-            },
-            "timeline": {
-                "startYear": None,
-                "endYear": None,
-                "durationYears": None
-            }
-        }
+            return default_response
+        except json.JSONDecodeError:
+            # Handle markdown format - use the full response as summary
+            default_response["summary"] = response_text
+
+        # Try to extract financial and timeline data from tool results if available
+        if hasattr(result, 'tool_results') and result.tool_results:
+            for tool_result in result.tool_results:
+                if hasattr(tool_result, 'name'):
+                    if tool_result.name == 'extract_financial_data' and hasattr(tool_result, 'result'):
+                        try:
+                            financial_data = tool_result.result
+                            if isinstance(financial_data, dict):
+                                default_response["financialSummary"] = financial_data
+                        except Exception:
+                            pass
+                    elif tool_result.name == 'extract_timeline_data' and hasattr(tool_result, 'result'):
+                        try:
+                            timeline_data = tool_result.result
+                            if isinstance(timeline_data, dict):
+                                default_response["timeline"] = timeline_data
+                        except Exception:
+                            pass
+
+        return default_response
+
+    except Exception as e:
+        logger.error(f"Error parsing agent response: {e}")
+        default_response["summary"] = str(result)
+        return default_response
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +810,7 @@ def handler(event, context):
 
         # Invoke the Strands Agent with enhanced tools
         result = agent(
-            f"Process claim {claim_id} and return the structured JSON response with financial and timeline analysis"
+            f"Process claim {claim_id} and provide a comprehensive analysis with financial and timeline data in the structured format specified"
         )
 
         return parse_agent_response(result)
