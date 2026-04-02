@@ -249,6 +249,23 @@ export async function getDocument(documentId: string): Promise<DocumentRetrieval
   );
 }
 
+/**
+ * Poll for agent-predicted financial/timeline analysis
+ */
+export interface FinancialAnalysisResponse {
+  claimId: string;
+  status: 'pending' | 'completed';
+  agentFinancialSummary?: FinancialSummary | null;
+  agentTimeline?: TimelineData | null;
+  agentConfidence?: number | null;
+  agentReasoning?: string | null;
+  evaluatedAt?: string;
+}
+
+export async function getFinancialAnalysis(claimId: string): Promise<FinancialAnalysisResponse> {
+  return apiRequest<FinancialAnalysisResponse>(`/claims/${encodeURIComponent(claimId)}/financial-analysis`);
+}
+
 // Claim Status History Types
 
 export type ClaimStatusValue = 'Submitted' | 'Under Review' | 'Approved' | 'Denied' | 'Pending Information';

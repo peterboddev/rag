@@ -1492,8 +1492,18 @@ export class RAGApplicationStack extends cdk.Stack {
       methodOptions
     );
 
+    // GET /claims/{claimId}/financial-analysis - Poll for agent-predicted financial/timeline data
+    const claimFinancialAnalysisResource = claimResource.addResource('financial-analysis');
+    addCorsOptions(claimFinancialAnalysisResource);
+    claimFinancialAnalysisResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(claimSummaryOrchestratorFunction, { proxy: true }),
+      methodOptions
+    );
+
     // Ensure deployment depends on new claim summary resources
     deployment.node.addDependency(claimSummaryResource);
     deployment.node.addDependency(claimEvaluationsResource);
+    deployment.node.addDependency(claimFinancialAnalysisResource);
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClaimSummaryResponse } from '../services/claimApi';
+import { ClaimSummaryResponse, getFinancialAnalysis } from '../services/claimApi';
 import EvaluationScoreDisplay from './EvaluationScoreDisplay';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ export interface StrategyColumnProps {
   label: string;
   data: ColumnState;
   onRegenerate: () => void;
+  claimId?: string;
 }
 
 interface AnomalySummary {
@@ -58,7 +59,7 @@ function computeAnomalySummary(anomalies: ClaimSummaryResponse['anomalies']): An
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, data, onRegenerate }) => {
+const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, data, onRegenerate, claimId }) => {
   const { status, response, error } = data;
   const [promptExpanded, setPromptExpanded] = React.useState(false);
 
@@ -170,7 +171,7 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
 
             {/* Enhanced Analysis for Full Context Strategy */}
             {strategyKey === 'full-context' && (response.financialSummary || response.timeline || response.agentFinancialSummary || response.agentTimeline) && (
-              <EnhancedAnalysisSection response={response} strategyKey={strategyKey} />
+              <EnhancedAnalysisSection response={response} strategyKey={strategyKey} claimId={claimId} />
             )}
 
             {/* Evaluation scores */}
@@ -455,15 +456,70 @@ function ComparisonRow({ label, deterministic, agentPredicted, isYear }: {
   );
 }
 
-function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
+function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response: ClaimSummaryResponse; strategyKey: Strategy; claimId?: string }) {
   const [expanded, setExpanded] = React.useState(false);
   const [reasoningExpanded, setReasoningExpanded] = React.useState(false);
+  const [agentData, setAgentData] = React.useState<{
+    agentFinancialSummary?: any;
+    agentTimeline?: any;
+    agentConfidence?: number | null;
+    agentReasoning?: string | null;
+  } | null>(null);
+  const [polling, setPolling] = React.useState(false);
 
-  if (!response.financialSummary && !response.timeline && !response.agentFinancialSummary && !response.agentTimeline) {
+  // Poll for agent-predicted data when it's not in the response
+  React.useEffect(() => {
+    if (!claimId || response.agentFinancialSummary != null || response.agentTimeline != null) return;
+    if (agentData) return; // already fetched
+
+    setPolling(true);
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 12; // 60 seconds max (5s intervals)
+
+    const poll = async () => {
+      while (!cancelled && attempts < maxAttempts) {
+        attempts++;
+        try {
+          const result = await getFinancialAnalysis(claimId);
+          if (result.status === 'completed' && (result.agentFinancialSummary || result.agentTimeline)) {
+            if (!cancelled) {
+              setAgentData({
+                agentFinancialSummary: result.agentFinancialSummary,
+                agentTimeline: result.agentTimeline,
+                agentConfidence: result.agentConfidence,
+                agentReasoning: result.agentReasoning,
+              });
+              setPolling(false);
+            }
+            return;
+          }
+        } catch {
+          // ignore polling errors
+        }
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      if (!cancelled) setPolling(false);
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [claimId, response.agentFinancialSummary, response.agentTimeline, agentData]);
+
+  // Merge agent data from response or polling
+  const mergedResponse = {
+    ...response,
+    agentFinancialSummary: response.agentFinancialSummary ?? agentData?.agentFinancialSummary ?? null,
+    agentTimeline: response.agentTimeline ?? agentData?.agentTimeline ?? null,
+    agentConfidence: response.agentConfidence ?? agentData?.agentConfidence ?? null,
+    agentReasoning: response.agentReasoning ?? agentData?.agentReasoning ?? null,
+  };
+
+  if (!mergedResponse.financialSummary && !mergedResponse.timeline && !mergedResponse.agentFinancialSummary && !mergedResponse.agentTimeline) {
     return null;
   }
 
-  const hasAgentData = response.agentFinancialSummary != null || response.agentTimeline != null;
+  const hasAgentData = mergedResponse.agentFinancialSummary != null || mergedResponse.agentTimeline != null;
 
   return (
     <div style={{ marginBottom: '10px' }}>
@@ -485,7 +541,7 @@ function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSum
           justifyContent: 'space-between',
         }}
       >
-        <span>💰📅 Enhanced Analysis</span>
+        <span>💰📅 Enhanced Analysis{polling ? ' ⏳' : ''}</span>
         <span>{expanded ? '▼' : '▶'}</span>
       </button>
 
@@ -509,9 +565,9 @@ function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSum
                 <div>Extracted (Deterministic)</div>
                 <div>
                   Agent-Predicted (LLM)
-                  {response.agentConfidence != null && (
+                  {mergedResponse.agentConfidence != null && (
                     <span style={{ fontWeight: 400, marginLeft: '4px', color: '#6c757d' }}>
-                      — {Math.round(response.agentConfidence * 100)}% confidence
+                      — {Math.round(mergedResponse.agentConfidence * 100)}% confidence
                     </span>
                   )}
                 </div>
@@ -519,58 +575,58 @@ function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSum
               </div>
 
               {/* Financial comparison rows */}
-              {(response.financialSummary || response.agentFinancialSummary) && (
+              {(mergedResponse.financialSummary || mergedResponse.agentFinancialSummary) && (
                 <div style={{ marginBottom: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
                     💰 Financial Summary
                   </div>
                   <ComparisonRow
                     label="Min Payment"
-                    deterministic={response.financialSummary?.minPayment ?? null}
-                    agentPredicted={response.agentFinancialSummary?.minPayment ?? null}
+                    deterministic={mergedResponse.financialSummary?.minPayment ?? null}
+                    agentPredicted={mergedResponse.agentFinancialSummary?.minPayment ?? null}
                   />
                   <ComparisonRow
                     label="Max Payment"
-                    deterministic={response.financialSummary?.maxPayment ?? null}
-                    agentPredicted={response.agentFinancialSummary?.maxPayment ?? null}
+                    deterministic={mergedResponse.financialSummary?.maxPayment ?? null}
+                    agentPredicted={mergedResponse.agentFinancialSummary?.maxPayment ?? null}
                   />
                   <ComparisonRow
                     label="Total Value"
-                    deterministic={response.financialSummary?.totalValue ?? null}
-                    agentPredicted={response.agentFinancialSummary?.totalValue ?? null}
+                    deterministic={mergedResponse.financialSummary?.totalValue ?? null}
+                    agentPredicted={mergedResponse.agentFinancialSummary?.totalValue ?? null}
                   />
                 </div>
               )}
 
               {/* Timeline comparison rows */}
-              {(response.timeline || response.agentTimeline) && (
+              {(mergedResponse.timeline || mergedResponse.agentTimeline) && (
                 <div style={{ marginBottom: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
                     📅 Care History Timeline
                   </div>
                   <ComparisonRow
                     label="Start Year"
-                    deterministic={response.timeline?.startYear ?? null}
-                    agentPredicted={response.agentTimeline?.startYear ?? null}
+                    deterministic={mergedResponse.timeline?.startYear ?? null}
+                    agentPredicted={mergedResponse.agentTimeline?.startYear ?? null}
                     isYear
                   />
                   <ComparisonRow
                     label="End Year"
-                    deterministic={response.timeline?.endYear ?? null}
-                    agentPredicted={response.agentTimeline?.endYear ?? null}
+                    deterministic={mergedResponse.timeline?.endYear ?? null}
+                    agentPredicted={mergedResponse.agentTimeline?.endYear ?? null}
                     isYear
                   />
                   <ComparisonRow
                     label="Duration (years)"
-                    deterministic={response.timeline?.durationYears ?? null}
-                    agentPredicted={response.agentTimeline?.durationYears ?? null}
+                    deterministic={mergedResponse.timeline?.durationYears ?? null}
+                    agentPredicted={mergedResponse.agentTimeline?.durationYears ?? null}
                     isYear
                   />
                 </div>
               )}
 
               {/* Agent reasoning collapsible */}
-              {response.agentReasoning && (
+              {mergedResponse.agentReasoning && (
                 <div style={{ marginTop: '6px' }}>
                   <button
                     onClick={() => setReasoningExpanded(!reasoningExpanded)}
@@ -600,7 +656,7 @@ function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSum
                       lineHeight: 1.5,
                       whiteSpace: 'pre-wrap',
                     }}>
-                      {response.agentReasoning}
+                      {mergedResponse.agentReasoning}
                     </div>
                   )}
                 </div>

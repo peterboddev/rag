@@ -312,6 +312,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
               label={config.label}
               data={columns[config.key]}
               onRegenerate={() => handleRegenerate(config.key)}
+              claimId={claimId}
             />
           </div>
         ))}

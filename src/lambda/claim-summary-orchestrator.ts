@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, ScanCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
@@ -629,20 +629,32 @@ async function executeFullContextStrategy(
   });
 
   // Fire-and-forget the Financial Timeline Agent (if endpoint is configured)
-  // Don't block the response — the financial agent result is non-critical
-  // and the API Gateway 29s timeout can't accommodate two sequential agent calls
+  // Results are stored in DynamoDB for polling by the frontend
   if (financialTimelineAgentEndpoint) {
     invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
       claim_id: claimId,
       tenant_id: tenantId,
       model_id: modelId || undefined,
-    }).then((financialResult) => {
+    }).then(async (financialResult) => {
       if (!financialResult.error && !(financialResult.statusCode >= 400)) {
-        console.log('Financial Timeline Agent completed successfully (fire-and-forget)', {
-          claimId,
-          confidence: financialResult.confidence,
-          paymentsFound: financialResult.financialSummary?.payments?.length ?? 0,
-        });
+        // Store result in evaluation results table for polling
+        try {
+          await docClient.send(new PutCommand({
+            TableName: EVALUATION_RESULTS_TABLE,
+            Item: {
+              claimId,
+              strategyKey: 'financial-analysis#full-context',
+              agentFinancialSummary: financialResult.financialSummary ?? null,
+              agentTimeline: financialResult.timeline ?? null,
+              agentConfidence: financialResult.confidence ?? null,
+              agentReasoning: financialResult.reasoning ?? null,
+              evaluatedAt: new Date().toISOString(),
+            },
+          }));
+          console.log('Financial Timeline Agent result stored for polling', { claimId });
+        } catch (storeErr) {
+          console.warn('Failed to store financial timeline result:', storeErr);
+        }
       } else {
         console.warn('Financial Timeline Agent returned error (fire-and-forget):', financialResult.error);
       }
@@ -962,6 +974,52 @@ async function handleGetEvaluations(claimId: string): Promise<APIGatewayProxyRes
 }
 
 /**
+ * Handle GET /claims/{claimId}/financial-analysis
+ * Returns agent-predicted financial/timeline data if available (polling endpoint).
+ */
+async function handleGetFinancialAnalysis(claimId: string): Promise<APIGatewayProxyResult> {
+  console.log('Handling GET /financial-analysis for claimId:', claimId);
+
+  try {
+    const command = new QueryCommand({
+      TableName: EVALUATION_RESULTS_TABLE,
+      KeyConditionExpression: 'claimId = :claimId AND strategyKey = :sk',
+      ExpressionAttributeValues: {
+        ':claimId': claimId,
+        ':sk': 'financial-analysis#full-context',
+      },
+    });
+
+    const response = await docClient.send(command);
+    const item = response.Items?.[0] as any;
+
+    if (!item) {
+      return successResponse(200, {
+        claimId,
+        status: 'pending',
+        agentFinancialSummary: null,
+        agentTimeline: null,
+        agentConfidence: null,
+        agentReasoning: null,
+      });
+    }
+
+    return successResponse(200, {
+      claimId,
+      status: 'completed',
+      agentFinancialSummary: item.agentFinancialSummary ?? null,
+      agentTimeline: item.agentTimeline ?? null,
+      agentConfidence: item.agentConfidence ?? null,
+      agentReasoning: item.agentReasoning ?? null,
+      evaluatedAt: item.evaluatedAt,
+    });
+  } catch (error) {
+    console.error('Error fetching financial analysis:', error);
+    return errorResponse(500, 'Failed to retrieve financial analysis');
+  }
+}
+
+/**
  * Handle POST /claims/{claimId}/summary
  * Orchestrates claim summarization with cache check, agent routing, and response handling.
  */
@@ -1261,6 +1319,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Task 4.5: Route GET /evaluations requests
     if (event.httpMethod === 'GET' && (event.path?.endsWith('/evaluations') || event.resource?.endsWith('/evaluations'))) {
       return handleGetEvaluations(claimId);
+    }
+
+    // Route GET /financial-analysis requests (polling for agent-predicted data)
+    if (event.httpMethod === 'GET' && (event.path?.endsWith('/financial-analysis') || event.resource?.endsWith('/financial-analysis'))) {
+      return handleGetFinancialAnalysis(claimId);
     }
 
     // POST /summary - validate request body
