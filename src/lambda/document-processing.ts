@@ -6,6 +6,7 @@ import { DocumentProcessingResponse, isTextDocument, requiresTextract, Processin
 import { EnhancedTextractService } from '../services/enhanced-textract';
 import { EmbeddingGenerationService } from '../services/embedding-generation';
 import { ChunkingConfigurationService } from '../services/chunking-configuration';
+import { extractFinancialData, extractDates, extractMedicalCodes, ExtractedFinancials, ExtractedDates, ExtractedCodes } from '../services/document-extractors';
 
 const s3Client = new S3Client({ region: process.env.REGION });
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.REGION }));
@@ -114,6 +115,29 @@ async function processDocument(record: S3EventRecord): Promise<void> {
       throw new Error(`Unsupported content type: ${contentType}`);
     }
 
+    // Run document extractors (non-fatal — failures default to empty values)
+    let extractedFinancials: ExtractedFinancials = { payments: [], totalValue: 0, minPayment: 0, maxPayment: 0 };
+    let extractedDates: ExtractedDates = { dates: [], earliestDate: null, latestDate: null };
+    let extractedCodes: ExtractedCodes = { diagnosisCodes: [], procedureCodes: [], providerNames: [] };
+
+    try {
+      extractedFinancials = extractFinancialData(extractedText);
+    } catch (extractorError) {
+      console.warn('Financial data extraction failed (non-fatal)', { documentId, error: extractorError instanceof Error ? extractorError.message : 'Unknown error' });
+    }
+
+    try {
+      extractedDates = extractDates(extractedText);
+    } catch (extractorError) {
+      console.warn('Date extraction failed (non-fatal)', { documentId, error: extractorError instanceof Error ? extractorError.message : 'Unknown error' });
+    }
+
+    try {
+      extractedCodes = extractMedicalCodes(extractedText);
+    } catch (extractorError) {
+      console.warn('Medical code extraction failed (non-fatal)', { documentId, error: extractorError instanceof Error ? extractorError.message : 'Unknown error' });
+    }
+
     // Upload processed document to platform bucket
     const platformKey = `processed/${tenantId}/${customerUUID}/${documentId}.txt`;
     
@@ -135,7 +159,7 @@ async function processDocument(record: S3EventRecord): Promise<void> {
     const processingDuration = Date.now() - processingStartTime;
 
     // Update document record with extracted text and completion status
-    await updateDocumentWithText(documentId, customerUUID, extractedText, textLength, confidence, pageCount, 'completed', processingDuration);
+    await updateDocumentWithText(documentId, customerUUID, extractedText, textLength, confidence, pageCount, 'completed', processingDuration, extractedFinancials, extractedDates, extractedCodes);
 
     try {
       console.log('Document text extraction completed', { 
@@ -272,7 +296,10 @@ async function updateDocumentWithText(
   confidence: number,
   pageCount: number,
   status: 'completed',
-  processingDuration: number
+  processingDuration: number,
+  extractedFinancials: ExtractedFinancials,
+  extractedDates: ExtractedDates,
+  extractedCodes: ExtractedCodes
 ): Promise<void> {
   try {
     const timestamp = new Date().toISOString();
@@ -287,7 +314,7 @@ async function updateDocumentWithText(
       Key: {
         documentId: documentId,
       },
-      UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview',
+      UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview, extractedFinancials = :financials, extractedDates = :dates, extractedCodes = :codes',
       ExpressionAttributeValues: {
         ':text': extractedText,
         ':textLength': textLength,
@@ -298,6 +325,9 @@ async function updateDocumentWithText(
         ':pageCount': pageCount,
         ':duration': processingDuration,
         ':preview': textPreview,
+        ':financials': extractedFinancials,
+        ':dates': extractedDates,
+        ':codes': extractedCodes,
       },
     }));
 

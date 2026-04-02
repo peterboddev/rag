@@ -777,6 +777,95 @@ def parse_agent_response(result, strategy="full-context", default_count=0):
 
 
 # ---------------------------------------------------------------------------
+# Deterministic aggregation helpers — read pre-extracted data from DynamoDB
+# ---------------------------------------------------------------------------
+
+
+def _aggregate_financial_data(documents: list[dict]) -> dict:
+    """Aggregate extractedFinancials from all documents into a single FinancialSummary.
+
+    Reads the ``extractedFinancials`` attribute that was written at ingestion
+    time by ``document-processing.ts``.  Documents processed before this
+    feature was deployed will lack the attribute — they are silently skipped.
+
+    Args:
+        documents: List of DynamoDB document records.
+
+    Returns:
+        Dict with keys ``minPayment``, ``maxPayment``, ``totalValue``,
+        and ``payments`` (list of payment dicts).
+    """
+    all_payments: list[dict] = []
+    for doc in documents:
+        financials = doc.get("extractedFinancials") or {}
+        file_name = doc.get("fileName", doc.get("documentId", "Unknown"))
+        for p in financials.get("payments", []):
+            try:
+                amount = float(p.get("amount", 0))
+            except (TypeError, ValueError):
+                continue
+            all_payments.append({
+                "amount": amount,
+                "sourceDocument": file_name,
+                "rawText": p.get("rawText", ""),
+            })
+
+    if not all_payments:
+        return {
+            "minPayment": 0.0,
+            "maxPayment": 0.0,
+            "totalValue": 0.0,
+            "payments": [],
+        }
+
+    amounts = [p["amount"] for p in all_payments]
+    return {
+        "minPayment": min(amounts),
+        "maxPayment": max(amounts),
+        "totalValue": sum(amounts),
+        "payments": all_payments,
+    }
+
+
+def _aggregate_timeline_data(documents: list[dict]) -> dict:
+    """Aggregate extractedDates from all documents into a single TimelineData.
+
+    Reads the ``extractedDates`` attribute that was written at ingestion time
+    by ``document-processing.ts``.  Documents processed before this feature
+    was deployed will lack the attribute — they are silently skipped.
+
+    Args:
+        documents: List of DynamoDB document records.
+
+    Returns:
+        Dict with keys ``startYear``, ``endYear``, and ``durationYears``.
+    """
+    all_dates: list[datetime] = []
+    for doc in documents:
+        dates_data = doc.get("extractedDates") or {}
+        for d in dates_data.get("dates", []):
+            date_str = d.get("date", "") if isinstance(d, dict) else ""
+            parsed = _parse_date(date_str)
+            if parsed:
+                all_dates.append(parsed)
+
+    if not all_dates:
+        return {
+            "startYear": None,
+            "endYear": None,
+            "durationYears": None,
+        }
+
+    earliest = min(all_dates)
+    latest = max(all_dates)
+    return {
+        "startYear": earliest.year,
+        "endYear": latest.year,
+        "durationYears": latest.year - earliest.year,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Lambda Handler entry point
 # ---------------------------------------------------------------------------
 
@@ -784,8 +873,11 @@ def handler(event, context):
     """
     Lambda handler for the Enhanced Full Context Summary Agent.
 
-    Receives payload with claim_id and uses tools to extract financial and
-    timeline data, then generates a comprehensive summary.
+    Retrieves documents once, runs deterministic financial and timeline
+    aggregation from pre-extracted DynamoDB attributes, then invokes the
+    Strands Agent for the LLM summary.  The deterministic results always
+    override whatever the agent produces for ``financialSummary`` and
+    ``timeline``, guaranteeing consistent output.
 
     Args:
         event: Dict containing 'claim_id' and optionally 'tenant_id', 'model_id'
@@ -794,29 +886,63 @@ def handler(event, context):
     Returns:
         Dict with summary, anomalies, documentCount, strategy, financialSummary, and timeline
     """
+    claim_id = event.get("claim_id")
+    if not claim_id:
+        return {"error": "claim_id is required", "statusCode": 400}
+
+    # Set OpenTelemetry attributes if span is available
     try:
-        claim_id = event.get("claim_id")
-        if not claim_id:
-            return {"error": "claim_id is required", "statusCode": 400}
+        span = trace.get_current_span()
+        span.set_attribute("claim.id", claim_id or "")
+        span.set_attribute("claim.strategy", "full-context")
+        span.set_attribute("claim.chunking_method", "none")
+    except Exception:
+        pass  # OpenTelemetry may not be available in all environments
 
-        # Set OpenTelemetry attributes if span is available
-        try:
-            span = trace.get_current_span()
-            span.set_attribute("claim.id", claim_id or "")
-            span.set_attribute("claim.strategy", "full-context")
-            span.set_attribute("claim.chunking_method", "none")
-        except:
-            pass  # OpenTelemetry may not be available in all environments
-
-        # Invoke the Strands Agent with enhanced tools
-        result = agent(
-            f"Process claim {claim_id} and provide a comprehensive analysis with financial and timeline data in the structured format specified"
-        )
-
-        return parse_agent_response(result)
+    # 1. Retrieve documents once — fail fast if retrieval fails
+    try:
+        documents = _retrieve_claim_documents_impl(claim_id)
+    except DocumentRetrievalError as e:
+        logger.error(f"Document retrieval failed for claim {claim_id}: {e}")
+        return {"error": str(e), "statusCode": e.status_code}
     except Exception as e:
-        logger.error(f"Full Context agent invocation failed: {e}")
+        logger.error(f"Document retrieval failed for claim {claim_id}: {e}")
         return {"error": str(e), "statusCode": 500}
+
+    # 2. Deterministic aggregation from pre-extracted data
+    financial_summary = _aggregate_financial_data(documents)
+    timeline_data = _aggregate_timeline_data(documents)
+
+    # 3. Strands Agent invocation (may fail — partial results still returned)
+    try:
+        result = agent(
+            f"Process claim {claim_id} and provide a comprehensive analysis "
+            f"with financial and timeline data in the structured format specified"
+        )
+        response = parse_agent_response(result, default_count=len(documents))
+    except Exception as e:
+        logger.warning(
+            f"Strands Agent failed for claim {claim_id}, but deterministic "
+            f"extraction succeeded: {e}"
+        )
+        response = {
+            "summary": f"Agent analysis unavailable: {e}",
+            "anomalies": [],
+            "documentCount": len(documents),
+            "strategy": "full-context",
+            "promptInfo": {
+                "promptTemplate": SYSTEM_PROMPT,
+                "strategyLabel": "Enhanced Full Context Agent",
+            },
+            "financialSummary": {},
+            "timeline": {},
+        }
+
+    # 4. Override with deterministic results — always authoritative
+    response["financialSummary"] = financial_summary
+    response["timeline"] = timeline_data
+
+    return response
 
 
 # ---------------------------------------------------------------------------
