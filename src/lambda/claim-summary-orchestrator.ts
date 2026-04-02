@@ -628,28 +628,31 @@ async function executeFullContextStrategy(
     custom_prompt: customPrompt || undefined,
   });
 
-  // Build the Financial Timeline Agent invocation promise (if endpoint is configured)
-  const financialPromise = financialTimelineAgentEndpoint
-    ? invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
-        claim_id: claimId,
-        tenant_id: tenantId,
-        model_id: modelId || undefined,
-      })
-    : null;
-
-  // Invoke both agents in parallel using Promise.allSettled
-  const promises = financialPromise
-    ? [fullContextPromise, financialPromise]
-    : [fullContextPromise];
-
-  const results = await Promise.allSettled(promises);
-
-  // Process Full Context agent result (index 0) — must succeed
-  const fullContextSettled = results[0];
-  if (fullContextSettled.status === 'rejected') {
-    throw fullContextSettled.reason;
+  // Fire-and-forget the Financial Timeline Agent (if endpoint is configured)
+  // Don't block the response — the financial agent result is non-critical
+  // and the API Gateway 29s timeout can't accommodate two sequential agent calls
+  if (financialTimelineAgentEndpoint) {
+    invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
+      claim_id: claimId,
+      tenant_id: tenantId,
+      model_id: modelId || undefined,
+    }).then((financialResult) => {
+      if (!financialResult.error && !(financialResult.statusCode >= 400)) {
+        console.log('Financial Timeline Agent completed successfully (fire-and-forget)', {
+          claimId,
+          confidence: financialResult.confidence,
+          paymentsFound: financialResult.financialSummary?.payments?.length ?? 0,
+        });
+      } else {
+        console.warn('Financial Timeline Agent returned error (fire-and-forget):', financialResult.error);
+      }
+    }).catch((err) => {
+      console.warn('Financial Timeline Agent failed (fire-and-forget, non-fatal):', err.message || err);
+    });
   }
-  const agentResult = fullContextSettled.value;
+
+  // Await only the Full Context agent
+  const agentResult = await fullContextPromise;
 
   // Handle error responses from the Full Context agent
   if (agentResult.error || agentResult.statusCode >= 400) {
@@ -658,28 +661,9 @@ async function executeFullContextStrategy(
     throw new Error(errorMessage);
   }
 
-  // Process Financial Timeline Agent result (index 1) — failure is non-fatal
-  let agentFinancialSummary: FinancialSummary | null = null;
-  let agentTimeline: TimelineData | null = null;
-  let agentConfidence: number | null = null;
-  let agentReasoning: string | null = null;
-
-  if (financialPromise && results.length > 1) {
-    const financialSettled = results[1];
-    if (financialSettled.status === 'fulfilled') {
-      const financialResult = financialSettled.value;
-      if (!financialResult.error && !(financialResult.statusCode >= 400)) {
-        agentFinancialSummary = financialResult.financialSummary ?? null;
-        agentTimeline = financialResult.timeline ?? null;
-        agentConfidence = financialResult.confidence ?? null;
-        agentReasoning = financialResult.reasoning ?? null;
-      } else {
-        console.warn('Financial Timeline Agent returned error response:', financialResult.error || 'unknown error');
-      }
-    } else {
-      console.warn('Financial Timeline Agent invocation failed (non-fatal):', financialSettled.reason);
-    }
-  }
+  // Financial Timeline Agent runs fire-and-forget — no results to process here
+  // The agent-predicted fields are null for this request; future enhancement
+  // could store results in DynamoDB/cache for retrieval on next request
 
   // Return the enhanced agent response with both deterministic and agent-predicted data
   return {
@@ -692,10 +676,10 @@ async function executeFullContextStrategy(
     },
     financialSummary: agentResult.financialSummary,
     timeline: agentResult.timeline,
-    agentFinancialSummary,
-    agentTimeline,
-    agentConfidence,
-    agentReasoning,
+    agentFinancialSummary: null,
+    agentTimeline: null,
+    agentConfidence: null,
+    agentReasoning: null,
   };
 }
 
