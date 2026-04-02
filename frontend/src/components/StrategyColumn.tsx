@@ -28,6 +28,14 @@ interface AnomalySummary {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Returns true if both values are equal (including both null/undefined), false otherwise.
+ */
+export function valuesAgree(a: number | null | undefined, b: number | null | undefined): boolean {
+  if (a == null && b == null) return true;
+  return a === b;
+}
+
 function getAnomalySeverityColor(severity: string): string {
   switch (severity) {
     case 'critical': return '#dc3545';
@@ -161,7 +169,7 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             <AnomalySection response={response} strategyKey={strategyKey} />
 
             {/* Enhanced Analysis for Full Context Strategy */}
-            {strategyKey === 'full-context' && (response.financialSummary || response.timeline) && (
+            {strategyKey === 'full-context' && (response.financialSummary || response.timeline || response.agentFinancialSummary || response.agentTimeline) && (
               <EnhancedAnalysisSection response={response} strategyKey={strategyKey} />
             )}
 
@@ -425,12 +433,37 @@ function AnomalySection({ response, strategyKey }: { response: ClaimSummaryRespo
 
 // ─── Enhanced Analysis sub-render ────────────────────────────────────────────
 
+function ComparisonRow({ label, deterministic, agentPredicted, isYear }: {
+  label: string;
+  deterministic: number | null | undefined;
+  agentPredicted: number | null | undefined;
+  isYear?: boolean;
+}) {
+  const agree = valuesAgree(deterministic, agentPredicted);
+  const format = (v: number | null | undefined) => {
+    if (v == null) return 'N/A';
+    if (isYear) return `${v}`;
+    return `$${v.toFixed(2)}`;
+  };
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 28px', gap: '4px', padding: '3px 0', fontSize: '12px', alignItems: 'center' }}>
+      <div style={{ fontWeight: 600 }}>{label}</div>
+      <div>{format(deterministic)}</div>
+      <div>{format(agentPredicted)}</div>
+      <div>{agree ? '✅' : '⚠️'}</div>
+    </div>
+  );
+}
+
 function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
   const [expanded, setExpanded] = React.useState(false);
+  const [reasoningExpanded, setReasoningExpanded] = React.useState(false);
 
-  if (!response.financialSummary && !response.timeline) {
+  if (!response.financialSummary && !response.timeline && !response.agentFinancialSummary && !response.agentTimeline) {
     return null;
   }
+
+  const hasAgentData = response.agentFinancialSummary != null || response.agentTimeline != null;
 
   return (
     <div style={{ marginBottom: '10px' }}>
@@ -467,64 +500,175 @@ function EnhancedAnalysisSection({ response, strategyKey }: { response: ClaimSum
             fontSize: '13px',
           }}
         >
-          {/* Financial Summary */}
-          {response.financialSummary && (
-            <div style={{ marginBottom: response.timeline ? '12px' : '0' }}>
-              <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
-                💰 Financial Summary
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+          {hasAgentData ? (
+            /* Side-by-side comparison layout */
+            <div>
+              {/* Column headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 28px', gap: '4px', marginBottom: '8px', fontSize: '11px', fontWeight: 700, color: '#495057' }}>
+                <div></div>
+                <div>Extracted (Deterministic)</div>
                 <div>
-                  <strong>Payment Range:</strong><br />
-                  ${response.financialSummary.minPayment.toFixed(2)} - ${response.financialSummary.maxPayment.toFixed(2)}
+                  Agent-Predicted (LLM)
+                  {response.agentConfidence != null && (
+                    <span style={{ fontWeight: 400, marginLeft: '4px', color: '#6c757d' }}>
+                      — {Math.round(response.agentConfidence * 100)}% confidence
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <strong>Total Value:</strong><br />
-                  ${response.financialSummary.totalValue.toFixed(2)}
-                </div>
+                <div></div>
               </div>
-              {response.financialSummary.payments.length > 0 && (
-                <div style={{ marginTop: '8px' }}>
-                  <strong style={{ fontSize: '12px' }}>Payments Found: {response.financialSummary.payments.length}</strong>
-                  <div style={{ maxHeight: '100px', overflowY: 'auto', marginTop: '4px' }}>
-                    {response.financialSummary.payments.slice(0, 5).map((payment, idx) => (
-                      <div key={idx} style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>
-                        ${payment.amount.toFixed(2)} ({payment.sourceDocument})
-                      </div>
-                    ))}
-                    {response.financialSummary.payments.length > 5 && (
-                      <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
-                        +{response.financialSummary.payments.length - 5} more...
-                      </div>
-                    )}
+
+              {/* Financial comparison rows */}
+              {(response.financialSummary || response.agentFinancialSummary) && (
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
+                    💰 Financial Summary
                   </div>
+                  <ComparisonRow
+                    label="Min Payment"
+                    deterministic={response.financialSummary?.minPayment ?? null}
+                    agentPredicted={response.agentFinancialSummary?.minPayment ?? null}
+                  />
+                  <ComparisonRow
+                    label="Max Payment"
+                    deterministic={response.financialSummary?.maxPayment ?? null}
+                    agentPredicted={response.agentFinancialSummary?.maxPayment ?? null}
+                  />
+                  <ComparisonRow
+                    label="Total Value"
+                    deterministic={response.financialSummary?.totalValue ?? null}
+                    agentPredicted={response.agentFinancialSummary?.totalValue ?? null}
+                  />
+                </div>
+              )}
+
+              {/* Timeline comparison rows */}
+              {(response.timeline || response.agentTimeline) && (
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
+                    📅 Care History Timeline
+                  </div>
+                  <ComparisonRow
+                    label="Start Year"
+                    deterministic={response.timeline?.startYear ?? null}
+                    agentPredicted={response.agentTimeline?.startYear ?? null}
+                    isYear
+                  />
+                  <ComparisonRow
+                    label="End Year"
+                    deterministic={response.timeline?.endYear ?? null}
+                    agentPredicted={response.agentTimeline?.endYear ?? null}
+                    isYear
+                  />
+                  <ComparisonRow
+                    label="Duration (years)"
+                    deterministic={response.timeline?.durationYears ?? null}
+                    agentPredicted={response.agentTimeline?.durationYears ?? null}
+                    isYear
+                  />
+                </div>
+              )}
+
+              {/* Agent reasoning collapsible */}
+              {response.agentReasoning && (
+                <div style={{ marginTop: '6px' }}>
+                  <button
+                    onClick={() => setReasoningExpanded(!reasoningExpanded)}
+                    style={{
+                      background: 'none',
+                      border: '1px solid #dee2e6',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#495057',
+                      width: '100%',
+                      textAlign: 'left',
+                    }}
+                  >
+                    {reasoningExpanded ? '▼' : '▶'} Agent Reasoning
+                  </button>
+                  {reasoningExpanded && (
+                    <div style={{
+                      marginTop: '4px',
+                      padding: '8px',
+                      backgroundColor: '#fff',
+                      borderRadius: '4px',
+                      border: '1px solid #dee2e6',
+                      fontSize: '12px',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {response.agentReasoning}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-
-          {/* Timeline Data */}
-          {response.timeline && (
+          ) : (
+            /* Single-column deterministic-only layout (existing behavior) */
             <div>
-              <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
-                📅 Care History Timeline
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                <div>
-                  <strong>Start Year:</strong><br />
-                  {response.timeline.startYear || 'N/A'}
+              {/* Financial Summary */}
+              {response.financialSummary && (
+                <div style={{ marginBottom: response.timeline ? '12px' : '0' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
+                    💰 Financial Summary
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                    <div>
+                      <strong>Payment Range:</strong><br />
+                      ${response.financialSummary.minPayment.toFixed(2)} - ${response.financialSummary.maxPayment.toFixed(2)}
+                    </div>
+                    <div>
+                      <strong>Total Value:</strong><br />
+                      ${response.financialSummary.totalValue.toFixed(2)}
+                    </div>
+                  </div>
+                  {response.financialSummary.payments.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <strong style={{ fontSize: '12px' }}>Payments Found: {response.financialSummary.payments.length}</strong>
+                      <div style={{ maxHeight: '100px', overflowY: 'auto', marginTop: '4px' }}>
+                        {response.financialSummary.payments.slice(0, 5).map((payment, idx) => (
+                          <div key={idx} style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>
+                            ${payment.amount.toFixed(2)} ({payment.sourceDocument})
+                          </div>
+                        ))}
+                        {response.financialSummary.payments.length > 5 && (
+                          <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic' }}>
+                            +{response.financialSummary.payments.length - 5} more...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Timeline Data */}
+              {response.timeline && (
                 <div>
-                  <strong>End Year:</strong><br />
-                  {response.timeline.endYear || 'N/A'}
+                  <div style={{ fontWeight: 600, marginBottom: '6px', color: '#28a745' }}>
+                    📅 Care History Timeline
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                    <div>
+                      <strong>Start Year:</strong><br />
+                      {response.timeline.startYear || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>End Year:</strong><br />
+                      {response.timeline.endYear || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>Duration:</strong><br />
+                      {response.timeline.durationYears !== null
+                        ? `${response.timeline.durationYears} years`
+                        : 'N/A'}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <strong>Duration:</strong><br />
-                  {response.timeline.durationYears !== null
-                    ? `${response.timeline.durationYears} years`
-                    : 'N/A'}
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>

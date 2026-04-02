@@ -1459,6 +1459,17 @@ export class RAGApplicationStack extends cdk.Stack {
       enrichedAgentEndpoint,
     );
 
+    // Financial Timeline Agent — deployed via AgentCore Runtime
+    const financialTimelineAgentEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      `/${applicationName}/${environment}/agentcore/financial-timeline-agent-endpoint`
+    );
+
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'FINANCIAL_TIMELINE_AGENT_ENDPOINT',
+      financialTimelineAgentEndpoint,
+    );
+
     // ============================================================
     // Claim Summary API Gateway Endpoints
     // ============================================================

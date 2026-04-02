@@ -577,8 +577,14 @@ async function executeFullContextStrategy(
   promptInfo: PromptInfo;
   financialSummary?: FinancialSummary;
   timeline?: TimelineData;
+  agentFinancialSummary?: FinancialSummary | null;
+  agentTimeline?: TimelineData | null;
+  agentConfidence?: number | null;
+  agentReasoning?: string | null;
 }> {
   const fullContextAgentEndpoint = process.env.FULL_CONTEXT_AGENT_ENDPOINT;
+  const financialTimelineAgentEndpoint = process.env.FINANCIAL_TIMELINE_AGENT_ENDPOINT;
+
   if (!fullContextAgentEndpoint) {
     // Fallback to legacy direct Bedrock invocation if agent endpoint not configured
     console.warn('FULL_CONTEXT_AGENT_ENDPOINT not configured, using legacy direct Bedrock approach');
@@ -606,26 +612,76 @@ async function executeFullContextStrategy(
     return {
       ...parseSummaryResponse(responseText),
       documentCount: summarizable.length,
-      promptInfo
+      promptInfo,
+      agentFinancialSummary: null,
+      agentTimeline: null,
+      agentConfidence: null,
+      agentReasoning: null,
     };
   }
 
-  console.log('Invoking Full Context agent via AgentCore Runtime for claimId:', claimId);
-  const agentResult = await invokeAgentCoreRuntime(fullContextAgentEndpoint, {
+  // Build the Full Context agent invocation promise
+  const fullContextPromise = invokeAgentCoreRuntime(fullContextAgentEndpoint, {
     claim_id: claimId,
     tenant_id: tenantId,
     model_id: modelId || undefined,
     custom_prompt: customPrompt || undefined,
   });
 
-  // Handle error responses from the agent
+  // Build the Financial Timeline Agent invocation promise (if endpoint is configured)
+  const financialPromise = financialTimelineAgentEndpoint
+    ? invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
+        claim_id: claimId,
+        tenant_id: tenantId,
+        model_id: modelId || undefined,
+      })
+    : null;
+
+  // Invoke both agents in parallel using Promise.allSettled
+  const promises = financialPromise
+    ? [fullContextPromise, financialPromise]
+    : [fullContextPromise];
+
+  const results = await Promise.allSettled(promises);
+
+  // Process Full Context agent result (index 0) — must succeed
+  const fullContextSettled = results[0];
+  if (fullContextSettled.status === 'rejected') {
+    throw fullContextSettled.reason;
+  }
+  const agentResult = fullContextSettled.value;
+
+  // Handle error responses from the Full Context agent
   if (agentResult.error || agentResult.statusCode >= 400) {
     const errorMessage = agentResult.error || 'Full Context agent invocation failed';
     console.error('Full Context agent error:', errorMessage);
     throw new Error(errorMessage);
   }
 
-  // Return the enhanced agent response with financial and timeline data
+  // Process Financial Timeline Agent result (index 1) — failure is non-fatal
+  let agentFinancialSummary: FinancialSummary | null = null;
+  let agentTimeline: TimelineData | null = null;
+  let agentConfidence: number | null = null;
+  let agentReasoning: string | null = null;
+
+  if (financialPromise && results.length > 1) {
+    const financialSettled = results[1];
+    if (financialSettled.status === 'fulfilled') {
+      const financialResult = financialSettled.value;
+      if (!financialResult.error && !(financialResult.statusCode >= 400)) {
+        agentFinancialSummary = financialResult.financialSummary ?? null;
+        agentTimeline = financialResult.timeline ?? null;
+        agentConfidence = financialResult.confidence ?? null;
+        agentReasoning = financialResult.reasoning ?? null;
+      } else {
+        console.warn('Financial Timeline Agent returned error response:', financialResult.error || 'unknown error');
+      }
+    } else {
+      console.warn('Financial Timeline Agent invocation failed (non-fatal):', financialSettled.reason);
+    }
+  }
+
+  // Return the enhanced agent response with both deterministic and agent-predicted data
   return {
     summary: agentResult.summary || '',
     anomalies: agentResult.anomalies || [],
@@ -636,6 +692,10 @@ async function executeFullContextStrategy(
     },
     financialSummary: agentResult.financialSummary,
     timeline: agentResult.timeline,
+    agentFinancialSummary,
+    agentTimeline,
+    agentConfidence,
+    agentReasoning,
   };
 }
 
@@ -971,6 +1031,10 @@ async function handlePostSummary(
   let sourceDocumentsText = '';
   let financialSummary: FinancialSummary | undefined;
   let timeline: TimelineData | undefined;
+  let agentFinancialSummary: FinancialSummary | null | undefined;
+  let agentTimeline: TimelineData | null | undefined;
+  let agentConfidence: number | null | undefined;
+  let agentReasoning: string | null | undefined;
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -1081,6 +1145,10 @@ async function handlePostSummary(
       promptInfo = result.promptInfo;
       financialSummary = result.financialSummary;
       timeline = result.timeline;
+      agentFinancialSummary = result.agentFinancialSummary;
+      agentTimeline = result.agentTimeline;
+      agentConfidence = result.agentConfidence;
+      agentReasoning = result.agentReasoning;
 
       // Fetch source documents for evaluation pipeline
       try {
@@ -1116,6 +1184,10 @@ async function handlePostSummary(
     promptInfo,
     financialSummary: financialSummary,
     timeline: timeline,
+    agentFinancialSummary: agentFinancialSummary ?? undefined,
+    agentTimeline: agentTimeline ?? undefined,
+    agentConfidence: agentConfidence ?? undefined,
+    agentReasoning: agentReasoning ?? undefined,
   };
 
   // Include evaluation scores if requested

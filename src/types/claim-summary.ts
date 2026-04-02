@@ -208,6 +208,30 @@ export interface ClaimSummaryResponse {
    * Only present for full-context strategy with enhanced agent.
    */
   timeline?: TimelineData;
+
+  /**
+   * Agent-predicted financial summary from the Financial Timeline Agent (LLM).
+   * Only present for full-context strategy when the Financial Timeline Agent is configured.
+   */
+  agentFinancialSummary?: FinancialSummary | null;
+
+  /**
+   * Agent-predicted timeline from the Financial Timeline Agent (LLM).
+   * Only present for full-context strategy when the Financial Timeline Agent is configured.
+   */
+  agentTimeline?: TimelineData | null;
+
+  /**
+   * Confidence score (0-1) from the Financial Timeline Agent.
+   * Only present for full-context strategy when the Financial Timeline Agent is configured.
+   */
+  agentConfidence?: number | null;
+
+  /**
+   * Reasoning explanation from the Financial Timeline Agent.
+   * Only present for full-context strategy when the Financial Timeline Agent is configured.
+   */
+  agentReasoning?: string | null;
 }
 
 /**

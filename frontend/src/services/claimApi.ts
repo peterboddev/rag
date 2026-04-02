@@ -404,6 +404,10 @@ export interface ClaimSummaryResponse {
   promptInfo?: PromptInfo;
   financialSummary?: FinancialSummary;
   timeline?: TimelineData;
+  agentFinancialSummary?: FinancialSummary | null;
+  agentTimeline?: TimelineData | null;
+  agentConfidence?: number | null;
+  agentReasoning?: string | null;
 }
 
 export interface ClaimEvaluationsResponse {
