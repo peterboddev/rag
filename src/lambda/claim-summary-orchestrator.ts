@@ -543,6 +543,59 @@ function parseFlexibleDate(dateStr: string): Date | null {
 }
 
 /**
+ * Aggregate pre-extracted financial data from DynamoDB document records.
+ * Reads the `extractedFinancials` attribute written at ingestion time.
+ */
+function aggregateFinancialData(documents: DocumentRecord[]): FinancialSummary {
+  const allPayments: Array<{ amount: number; sourceDocument: string; rawText: string }> = [];
+  for (const doc of documents) {
+    const financials = (doc as any).extractedFinancials;
+    if (!financials || !Array.isArray(financials.payments)) continue;
+    for (const p of financials.payments) {
+      const amount = typeof p.amount === 'number' ? p.amount : parseFloat(p.amount);
+      if (amount > 0) {
+        allPayments.push({ amount, sourceDocument: doc.fileName, rawText: p.rawText || '' });
+      }
+    }
+  }
+  if (allPayments.length === 0) {
+    return { minPayment: 0, maxPayment: 0, totalValue: 0, payments: [] };
+  }
+  const amounts = allPayments.map(p => p.amount);
+  return {
+    minPayment: Math.min(...amounts),
+    maxPayment: Math.max(...amounts),
+    totalValue: Math.round(amounts.reduce((s, a) => s + a, 0) * 100) / 100,
+    payments: allPayments,
+  };
+}
+
+/**
+ * Aggregate pre-extracted timeline data from DynamoDB document records.
+ * Reads the `extractedDates` attribute written at ingestion time.
+ */
+function aggregateTimelineData(documents: DocumentRecord[]): TimelineData {
+  const allYears: number[] = [];
+  for (const doc of documents) {
+    const dates = (doc as any).extractedDates;
+    if (!dates || !Array.isArray(dates.dates)) continue;
+    for (const d of dates.dates) {
+      const dateStr = typeof d === 'string' ? d : d.date;
+      if (typeof dateStr === 'string') {
+        const match = dateStr.match(/^(\d{4})/);
+        if (match) allYears.push(parseInt(match[1], 10));
+      }
+    }
+  }
+  if (allYears.length === 0) {
+    return { startYear: null, endYear: null, durationYears: null };
+  }
+  const startYear = Math.min(...allYears);
+  const endYear = Math.max(...allYears);
+  return { startYear, endYear, durationYears: endYear - startYear };
+}
+
+/**
  * Resolve patientId from claimId by querying DynamoDB for claim documents.
  * Returns the patientId from the first document's claimMetadata, or null if not found.
  */
@@ -609,10 +662,44 @@ async function executeFullContextStrategy(
       ? { promptTemplate: customPrompt, strategyLabel: 'full-context (custom prompt)' }
       : buildPromptInfo('full-context');
 
+    // Aggregate pre-extracted financial and timeline data from DynamoDB
+    const financialSummary = aggregateFinancialData(documents);
+    const timeline = aggregateTimelineData(documents);
+
+    // Fire-and-forget the Financial Timeline Agent in legacy path too
+    if (financialTimelineAgentEndpoint) {
+      invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
+        claim_id: claimId,
+        tenant_id: tenantId,
+        model_id: modelId || undefined,
+      }).then(async (financialResult) => {
+        if (!financialResult.error && !(financialResult.statusCode >= 400)) {
+          try {
+            await docClient.send(new PutCommand({
+              TableName: EVALUATION_RESULTS_TABLE,
+              Item: {
+                claimId,
+                strategyKey: 'financial-analysis#full-context',
+                agentFinancialSummary: financialResult.financialSummary ?? null,
+                agentTimeline: financialResult.timeline ?? null,
+                agentConfidence: financialResult.confidence ?? null,
+                agentReasoning: financialResult.reasoning ?? null,
+                evaluatedAt: new Date().toISOString(),
+              },
+            }));
+          } catch (e) { console.warn('Failed to store financial timeline result:', e); }
+        }
+      }).catch((err) => {
+        console.warn('Financial Timeline Agent failed (fire-and-forget):', err.message || err);
+      });
+    }
+
     return {
       ...parseSummaryResponse(responseText),
       documentCount: summarizable.length,
       promptInfo,
+      financialSummary,
+      timeline,
       agentFinancialSummary: null,
       agentTimeline: null,
       agentConfidence: null,
