@@ -148,7 +148,7 @@ Rules:
 # ---------------------------------------------------------------------------
 
 model = BedrockModel(
-    model_id=BEDROCK_MODEL_ID,
+    model_id=f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
     max_tokens=4000,
@@ -416,7 +416,8 @@ def handler(event, context):
         # Log the raw result for debugging
         raw_message = result.message if hasattr(result, 'message') else str(result)
         print(f"[FINANCIAL_AGENT] Raw response type: {type(result)}, message length: {len(raw_message)}")
-        print(f"[FINANCIAL_AGENT] Raw response (first 1000 chars): {raw_message[:1000]}")
+        print(f"[FINANCIAL_AGENT] Raw response repr: {repr(raw_message[:200])}")
+        print(f"[FINANCIAL_AGENT] Result dir: {[a for a in dir(result) if not a.startswith('_')]}")
         response = parse_agent_response(result)
         print(f"[FINANCIAL_AGENT] Parsed response: payments={len(response.get('financialSummary', {}).get('payments', []))}, confidence={response.get('confidence')}")
     except Exception as e:
