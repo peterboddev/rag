@@ -666,32 +666,28 @@ async function executeFullContextStrategy(
     const financialSummary = aggregateFinancialData(documents);
     const timeline = aggregateTimelineData(documents);
 
-    // Fire-and-forget the Financial Timeline Agent in legacy path too
+    // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
+    // (fire-and-forget in Lambda .then() doesn't work because runtime freezes after handler returns)
     if (financialTimelineAgentEndpoint) {
-      invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
-        claim_id: claimId,
-        tenant_id: tenantId,
-        model_id: modelId || undefined,
-      }).then(async (financialResult) => {
-        if (!financialResult.error && !(financialResult.statusCode >= 400)) {
-          try {
-            await docClient.send(new PutCommand({
-              TableName: EVALUATION_RESULTS_TABLE,
-              Item: {
-                claimId,
-                strategyKey: 'financial-analysis#full-context',
-                agentFinancialSummary: financialResult.financialSummary ?? null,
-                agentTimeline: financialResult.timeline ?? null,
-                agentConfidence: financialResult.confidence ?? null,
-                agentReasoning: financialResult.reasoning ?? null,
-                evaluatedAt: new Date().toISOString(),
-              },
-            }));
-          } catch (e) { console.warn('Failed to store financial timeline result:', e); }
-        }
-      }).catch((err) => {
-        console.warn('Financial Timeline Agent failed (fire-and-forget):', err.message || err);
-      });
+      try {
+        const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+        // Re-invoke this same Lambda with a special action to run the financial agent
+        // and store results. This ensures the async work runs in a separate invocation.
+        await lambdaClient.send(new InvokeCommand({
+          FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+          InvocationType: 'Event', // async — returns immediately
+          Payload: JSON.stringify({
+            httpMethod: 'POST',
+            path: `/claims/${claimId}/financial-analysis-trigger`,
+            pathParameters: { claimId },
+            body: JSON.stringify({ claimId, tenantId, modelId }),
+            headers: {},
+          }),
+        }));
+        console.log('Financial Timeline Agent trigger invoked asynchronously for claim:', claimId);
+      } catch (triggerErr) {
+        console.warn('Failed to trigger Financial Timeline Agent (non-blocking):', triggerErr);
+      }
     }
 
     return {
@@ -715,39 +711,25 @@ async function executeFullContextStrategy(
     custom_prompt: customPrompt || undefined,
   });
 
-  // Fire-and-forget the Financial Timeline Agent (if endpoint is configured)
-  // Results are stored in DynamoDB for polling by the frontend
+  // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
   if (financialTimelineAgentEndpoint) {
-    invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
-      claim_id: claimId,
-      tenant_id: tenantId,
-      model_id: modelId || undefined,
-    }).then(async (financialResult) => {
-      if (!financialResult.error && !(financialResult.statusCode >= 400)) {
-        // Store result in evaluation results table for polling
-        try {
-          await docClient.send(new PutCommand({
-            TableName: EVALUATION_RESULTS_TABLE,
-            Item: {
-              claimId,
-              strategyKey: 'financial-analysis#full-context',
-              agentFinancialSummary: financialResult.financialSummary ?? null,
-              agentTimeline: financialResult.timeline ?? null,
-              agentConfidence: financialResult.confidence ?? null,
-              agentReasoning: financialResult.reasoning ?? null,
-              evaluatedAt: new Date().toISOString(),
-            },
-          }));
-          console.log('Financial Timeline Agent result stored for polling', { claimId });
-        } catch (storeErr) {
-          console.warn('Failed to store financial timeline result:', storeErr);
-        }
-      } else {
-        console.warn('Financial Timeline Agent returned error (fire-and-forget):', financialResult.error);
-      }
-    }).catch((err) => {
-      console.warn('Financial Timeline Agent failed (fire-and-forget, non-fatal):', err.message || err);
-    });
+    try {
+      const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+        InvocationType: 'Event',
+        Payload: JSON.stringify({
+          httpMethod: 'POST',
+          path: `/claims/${claimId}/financial-analysis-trigger`,
+          pathParameters: { claimId },
+          body: JSON.stringify({ claimId, tenantId, modelId }),
+          headers: {},
+        }),
+      }));
+      console.log('Financial Timeline Agent trigger invoked asynchronously for claim:', claimId);
+    } catch (triggerErr) {
+      console.warn('Failed to trigger Financial Timeline Agent (non-blocking):', triggerErr);
+    }
   }
 
   // Await only the Full Context agent
@@ -1107,6 +1089,53 @@ async function handleGetFinancialAnalysis(claimId: string): Promise<APIGatewayPr
 }
 
 /**
+ * Handle async financial-analysis-trigger (self-invoked via Lambda Event).
+ * Calls the Financial Timeline Agent and stores results in DynamoDB.
+ */
+async function handleFinancialAnalysisTrigger(claimId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+  console.log('Handling financial-analysis-trigger for claimId:', claimId);
+  const financialTimelineAgentEndpoint = process.env.FINANCIAL_TIMELINE_AGENT_ENDPOINT;
+  if (!financialTimelineAgentEndpoint) {
+    return successResponse(200, { message: 'No financial timeline agent configured' });
+  }
+
+  try {
+    const body = event.body ? JSON.parse(event.body) : {};
+    const tenantId = body.tenantId || 'local-dev-tenant';
+    const modelId = body.modelId;
+
+    console.log('Invoking Financial Timeline Agent for claim:', claimId);
+    const financialResult = await invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
+      claim_id: claimId,
+      tenant_id: tenantId,
+      model_id: modelId || undefined,
+    });
+
+    if (!financialResult.error && !(financialResult.statusCode >= 400)) {
+      await docClient.send(new PutCommand({
+        TableName: EVALUATION_RESULTS_TABLE,
+        Item: {
+          claimId,
+          strategyKey: 'financial-analysis#full-context',
+          agentFinancialSummary: financialResult.financialSummary ?? null,
+          agentTimeline: financialResult.timeline ?? null,
+          agentConfidence: financialResult.confidence ?? null,
+          agentReasoning: financialResult.reasoning ?? null,
+          evaluatedAt: new Date().toISOString(),
+        },
+      }));
+      console.log('Financial Timeline Agent result stored for polling', { claimId });
+    } else {
+      console.warn('Financial Timeline Agent returned error:', financialResult.error);
+    }
+  } catch (err) {
+    console.error('Financial Timeline Agent trigger failed:', err);
+  }
+
+  return successResponse(200, { message: 'Financial analysis trigger completed' });
+}
+
+/**
  * Handle POST /claims/{claimId}/summary
  * Orchestrates claim summarization with cache check, agent routing, and response handling.
  */
@@ -1411,6 +1440,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Route GET /financial-analysis requests (polling for agent-predicted data)
     if (event.httpMethod === 'GET' && (event.path?.endsWith('/financial-analysis') || event.resource?.endsWith('/financial-analysis'))) {
       return handleGetFinancialAnalysis(claimId);
+    }
+
+    // Handle async financial-analysis-trigger (self-invoked via Lambda Event)
+    if (event.path?.endsWith('/financial-analysis-trigger')) {
+      return handleFinancialAnalysisTrigger(claimId, event);
     }
 
     // POST /summary - validate request body
