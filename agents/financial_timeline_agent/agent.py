@@ -405,21 +405,41 @@ def handler(event, context):
         combined_text = combined_text[:max_text_chars] + "\n\n[... truncated ...]"
         print(f"[FINANCIAL_AGENT] Truncated text from {len(combined_text)} to {max_text_chars} chars")
 
-    # 4. Invoke the Strands Agent
+    # 4. Invoke Bedrock model directly (Strands Agent returns empty responses
+    # with Nova Pro for structured JSON extraction — known issue with tool-calling
+    # overhead on no-tool agents)
     try:
-        print(f"[FINANCIAL_AGENT] Invoking Strands Agent for claim {claim_id} with {len(combined_text)} chars of text")
-        result = agent(
-            f"Analyze the following insurance claim documents and extract all "
-            f"financial amounts and timeline data. Return ONLY a JSON object, "
-            f"no markdown, no explanation outside the JSON:\n\n{combined_text}"
+        import boto3 as _boto3
+        bedrock_client = _boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+
+        prompt = f"""{SYSTEM_PROMPT}
+
+Documents to analyze:
+{combined_text}"""
+
+        body = {
+            "messages": [{"role": "user", "content": [{"text": prompt}]}],
+            "inferenceConfig": {"max_new_tokens": 4000, "temperature": 0.3},
+        }
+
+        print(f"[FINANCIAL_AGENT] Invoking Bedrock directly for claim {claim_id}")
+        bedrock_response = bedrock_client.invoke_model(
+            modelId=BEDROCK_MODEL_ID,
+            body=json.dumps(body),
         )
-        # Log the raw result for debugging
-        raw_message = result.message if hasattr(result, 'message') else str(result)
-        print(f"[FINANCIAL_AGENT] Raw response type: {type(result)}, message length: {len(raw_message)}")
-        print(f"[FINANCIAL_AGENT] Raw response repr: {repr(raw_message[:200])}")
-        print(f"[FINANCIAL_AGENT] Result dir: {[a for a in dir(result) if not a.startswith('_')]}")
-        response = parse_agent_response(result)
-        print(f"[FINANCIAL_AGENT] Parsed response: payments={len(response.get('financialSummary', {}).get('payments', []))}, confidence={response.get('confidence')}")
+
+        response_body = json.loads(bedrock_response["body"].read())
+        response_text = (
+            response_body.get("output", {})
+            .get("message", {})
+            .get("content", [{}])[0]
+            .get("text", "")
+        ) or response_body.get("completion", "")
+
+        print(f"[FINANCIAL_AGENT] Bedrock response length: {len(response_text)} chars")
+        print(f"[FINANCIAL_AGENT] Response preview: {response_text[:500]}")
+        response = parse_agent_response(response_text)
+        print(f"[FINANCIAL_AGENT] Parsed: payments={len(response.get('financialSummary', {}).get('payments', []))}, confidence={response.get('confidence')}")
     except Exception as e:
         logger.error(f"Agent invocation failed for claim {claim_id}: {e}")
         return {
