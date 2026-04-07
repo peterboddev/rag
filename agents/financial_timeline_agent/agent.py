@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Environment configuration
-DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "rag-app-v2-documents-dev")
+DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "rag-app-documents-dev")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 
@@ -127,31 +127,19 @@ Your ONLY task is to analyze claim documents and extract:
 2. All dates and time periods (explicit like 01/15/2024 AND implicit like "over a three-year period")
 3. Financial patterns (recurring payments, escalating costs, etc.)
 
-You MUST respond with ONLY a JSON object in this exact format:
-{
-  "financialSummary": {
-    "minPayment": <number>,
-    "maxPayment": <number>,
-    "totalValue": <number>,
-    "payments": [
-      {"amount": <number>, "sourceDocument": "<filename>", "description": "<how you found this>"}
-    ]
-  },
-  "timeline": {
-    "startYear": <number or null>,
-    "endYear": <number or null>,
-    "durationYears": <number or null>
-  },
-  "confidence": <0-1>,
-  "reasoning": "<explanation of your analysis>"
-}
+CRITICAL: You MUST respond with ONLY a valid JSON object. No markdown, no code fences, no explanation text outside the JSON.
+
+The JSON object MUST have this exact structure:
+{"financialSummary": {"minPayment": 0, "maxPayment": 0, "totalValue": 0, "payments": [{"amount": 0, "sourceDocument": "", "description": ""}]}, "timeline": {"startYear": null, "endYear": null, "durationYears": null}, "confidence": 0.0, "reasoning": ""}
 
 Rules:
 - Include EVERY monetary amount you find, whether explicit or described in words
-- For prose amounts, convert to numeric (e.g., "two hundred fifty" → 250)
+- For prose amounts, convert to numeric (e.g., "two hundred fifty" = 250)
 - For implicit date ranges, infer start/end years from context
-- confidence should reflect how certain you are about the extracted data
+- confidence should reflect how certain you are (0.0 to 1.0)
 - Do NOT summarize the claim — only extract financial and timeline data
+- Do NOT wrap the JSON in markdown code fences
+- Do NOT include any text before or after the JSON object
 """
 
 
@@ -310,10 +298,18 @@ def parse_agent_response(result) -> dict:
 
 
 def _extract_json(text: str) -> dict | None:
-    """Extract a JSON object from a string that may contain surrounding text."""
+    """Extract a JSON object from a string that may contain surrounding text or markdown."""
     # Try direct parse first
     try:
         return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Strip markdown code fences: ```json ... ``` or ``` ... ```
+    stripped = re.sub(r"^```(?:json)?\s*\n?", "", text.strip(), flags=re.MULTILINE)
+    stripped = re.sub(r"\n?```\s*$", "", stripped.strip(), flags=re.MULTILINE)
+    try:
+        return json.loads(stripped)
     except (json.JSONDecodeError, TypeError):
         pass
 
@@ -406,7 +402,8 @@ def handler(event, context):
     try:
         result = agent(
             f"Analyze the following insurance claim documents and extract all "
-            f"financial amounts and timeline data:\n\n{combined_text}"
+            f"financial amounts and timeline data. Return ONLY a JSON object, "
+            f"no markdown, no explanation outside the JSON:\n\n{combined_text}"
         )
         response = parse_agent_response(result)
     except Exception as e:

@@ -25,7 +25,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Default environment variables (can be overridden at runtime)
-ENV DOCUMENTS_TABLE=rag-app-v2-documents-dev
+ENV DOCUMENTS_TABLE=rag-app-documents-dev
 ENV BEDROCK_REGION=us-east-1
 ENV BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 
