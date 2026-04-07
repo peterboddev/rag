@@ -78,20 +78,24 @@ interface CurrencyPattern {
 }
 
 const CURRENCY_PATTERNS: CurrencyPattern[] = [
-  // Standard currency: $1,234.56
-  { regex: /\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'currency' },
+  // Standard currency: $1,234.56 or $2630.85 (with or without commas)
+  { regex: /\$(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'currency' },
   // 1,234.56 USD / dollars
-  { regex: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)/gi, contextLabel: 'currency' },
-  // Labeled amounts
-  { regex: /(?:amount|total|payment|charge|cost|fee|copay|deductible|balance|claim):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'labeled' },
-  { regex: /(?:paid|billed|charged|owed|due|allowed):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'labeled' },
+  { regex: /(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)/gi, contextLabel: 'currency' },
+  // Labeled amounts (with or without $ prefix, with or without commas)
+  { regex: /(?:amount|total|payment|charge|cost|fee|copay|deductible|balance|claim)[:\s]+\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'labeled' },
+  { regex: /(?:paid|billed|charged|owed|due|allowed)[:\s]+\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'labeled' },
   // Insurance-specific terms
-  { regex: /(?:coinsurance|copayment|premium|benefit):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'insurance' },
-  { regex: /(?:reimbursement|adjustment|write[- ]?off):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'insurance' },
+  { regex: /(?:coinsurance|copayment|premium|benefit)[:\s]+\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'insurance' },
+  { regex: /(?:reimbursement|adjustment|write[- ]?off)[:\s]+\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'insurance' },
   // Medical billing terms
-  { regex: /(?:procedure|service|office visit|consultation)\s+(?:cost|fee|charge):\s*\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'medical' },
-  // Line item patterns
-  { regex: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:\$|dollars?|USD)\s*(?:each|per|total)/gi, contextLabel: 'line-item' },
+  { regex: /(?:procedure|service|office visit|consultation)\s+(?:cost|fee|charge)[:\s]+\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'medical' },
+  // EOB/CMS table amounts: standalone dollar amounts on their own line or after whitespace
+  { regex: /(?:^|\n)\s*\$(\d{1,7}(?:,\d{3})*\.\d{2})\s*(?:$|\n)/gm, contextLabel: 'table-amount' },
+  // Patient Responsibility, Allowed Amount, Paid Amount, Billed Amount patterns
+  { regex: /(?:patient\s+responsibility|allowed\s+amount|paid\s+amount|billed\s+amount|payment\s+amount)[:\s]*\$?(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/gi, contextLabel: 'eob' },
+  // CHARGES column in CMS-1500
+  { regex: /CHARGES\s*\n\s*\$?(\d{1,7}(?:,\d{3})*\.\d{2})/gi, contextLabel: 'cms1500' },
 ];
 
 // ---------------------------------------------------------------------------
