@@ -398,14 +398,27 @@ def handler(event, context):
             "reasoning": "No extractable text found in documents",
         }
 
+    # Truncate to fit within model context window (Nova Pro ~300K tokens, but
+    # Strands Agent overhead + system prompt consume significant tokens)
+    max_text_chars = 15000
+    if len(combined_text) > max_text_chars:
+        combined_text = combined_text[:max_text_chars] + "\n\n[... truncated ...]"
+        print(f"[FINANCIAL_AGENT] Truncated text from {len(combined_text)} to {max_text_chars} chars")
+
     # 4. Invoke the Strands Agent
     try:
+        print(f"[FINANCIAL_AGENT] Invoking Strands Agent for claim {claim_id} with {len(combined_text)} chars of text")
         result = agent(
             f"Analyze the following insurance claim documents and extract all "
             f"financial amounts and timeline data. Return ONLY a JSON object, "
             f"no markdown, no explanation outside the JSON:\n\n{combined_text}"
         )
+        # Log the raw result for debugging
+        raw_message = result.message if hasattr(result, 'message') else str(result)
+        print(f"[FINANCIAL_AGENT] Raw response type: {type(result)}, message length: {len(raw_message)}")
+        print(f"[FINANCIAL_AGENT] Raw response (first 1000 chars): {raw_message[:1000]}")
         response = parse_agent_response(result)
+        print(f"[FINANCIAL_AGENT] Parsed response: payments={len(response.get('financialSummary', {}).get('payments', []))}, confidence={response.get('confidence')}")
     except Exception as e:
         logger.error(f"Agent invocation failed for claim {claim_id}: {e}")
         return {
