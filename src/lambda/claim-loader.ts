@@ -543,13 +543,13 @@ async function listClaimDocuments(patientId: string, claimId: string): Promise<s
  */
 async function cleanupStaleDocuments(claimId: string, tenantId: string): Promise<void> {
   try {
-    const response = await dynamoClient.send(new QueryCommand({
+    // Scan for ALL documents with this claimId regardless of tenantId
+    // (old loads may have used a different tenantId like 'local-dev-tenant')
+    const response = await dynamoClient.send(new ScanCommand({
       TableName: DOCUMENTS_TABLE,
-      IndexName: 'tenant-documents-index',
-      KeyConditionExpression: 'tenantId = :tenantId',
-      FilterExpression: 'claimMetadata.claimId = :claimId',
+      FilterExpression: '#cm.claimId = :claimId',
+      ExpressionAttributeNames: { '#cm': 'claimMetadata' },
       ExpressionAttributeValues: {
-        ':tenantId': tenantId,
         ':claimId': claimId,
       },
       ProjectionExpression: 'documentId',
