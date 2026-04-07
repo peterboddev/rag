@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Environment configuration
-DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "rag-app-documents-dev")
+DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "rag-app-v2-documents-dev")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 
