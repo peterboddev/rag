@@ -411,30 +411,46 @@ def handler(event, context):
     try:
         import boto3 as _boto3
         bedrock_client = _boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
+        model_id = event.get("model_id", BEDROCK_MODEL_ID)
 
         prompt = f"""{SYSTEM_PROMPT}
 
 Documents to analyze:
 {combined_text}"""
 
-        body = {
-            "messages": [{"role": "user", "content": [{"text": prompt}]}],
-            "inferenceConfig": {"max_new_tokens": 4000, "temperature": 0.3},
-        }
+        # Build request body based on model type (Nova vs Claude)
+        is_claude = "anthropic" in model_id
+        if is_claude:
+            body = {
+                "anthropic_version": "bedrock-2023-05-31",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 4000,
+                "temperature": 0.3,
+            }
+        else:
+            body = {
+                "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                "inferenceConfig": {"max_new_tokens": 4000, "temperature": 0.3},
+            }
 
-        print(f"[FINANCIAL_AGENT] Invoking Bedrock directly for claim {claim_id}")
+        print(f"[FINANCIAL_AGENT] Invoking Bedrock with model {model_id} for claim {claim_id}")
         bedrock_response = bedrock_client.invoke_model(
-            modelId=BEDROCK_MODEL_ID,
+            modelId=model_id,
             body=json.dumps(body),
         )
 
         response_body = json.loads(bedrock_response["body"].read())
-        response_text = (
-            response_body.get("output", {})
-            .get("message", {})
-            .get("content", [{}])[0]
-            .get("text", "")
-        ) or response_body.get("completion", "")
+
+        # Parse response based on model type
+        if is_claude:
+            response_text = response_body.get("content", [{}])[0].get("text", "")
+        else:
+            response_text = (
+                response_body.get("output", {})
+                .get("message", {})
+                .get("content", [{}])[0]
+                .get("text", "")
+            ) or response_body.get("completion", "")
 
         print(f"[FINANCIAL_AGENT] Bedrock response length: {len(response_text)} chars")
         print(f"[FINANCIAL_AGENT] Response preview: {response_text[:500]}")
