@@ -100,6 +100,35 @@ async function processDocument(record: S3EventRecord): Promise<void> {
       const textractResult = await textractService.extractTextWithRetry(textractParams);
       
       extractedText = textractResult.extractedText;
+      
+      // Append structured form key-value pairs to the extracted text
+      // This makes financial amounts and dates more accessible to both regex and LLM
+      if (textractResult.forms && textractResult.forms.length > 0) {
+        const formLines = textractResult.forms
+          .filter((f: any) => f.key && f.value)
+          .map((f: any) => `${f.key}: ${f.value}`);
+        if (formLines.length > 0) {
+          extractedText += '\n\n--- Structured Form Data ---\n' + formLines.join('\n');
+        }
+      }
+      
+      // Append structured table data
+      if (textractResult.tables && textractResult.tables.length > 0) {
+        const tableLines: string[] = [];
+        for (const table of textractResult.tables) {
+          if (Array.isArray(table.rows)) {
+            for (const row of table.rows) {
+              if (Array.isArray(row)) {
+                tableLines.push(row.join(' | '));
+              }
+            }
+          }
+        }
+        if (tableLines.length > 0) {
+          extractedText += '\n\n--- Structured Table Data ---\n' + tableLines.join('\n');
+        }
+      }
+      
       textLength = extractedText.length;
       confidence = textractResult.confidence;
       pageCount = textractResult.pageCount;

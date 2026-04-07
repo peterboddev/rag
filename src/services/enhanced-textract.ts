@@ -174,8 +174,12 @@ export class EnhancedTextractService {
    * Determines the appropriate document type based on content analysis
    */
   static determineDocumentType(fileName: string, contentType: string): 'simple' | 'forms' | 'tables' {
-    // For now, use simple heuristics based on filename
     const lowerFileName = fileName.toLowerCase();
+    
+    // Insurance claim forms — always use FORMS + TABLES for structured extraction
+    if (lowerFileName.includes('eob') || lowerFileName.includes('cms1500') || lowerFileName.includes('cms-1500')) {
+      return 'forms';
+    }
     
     if (lowerFileName.includes('form') || lowerFileName.includes('application')) {
       return 'forms';
@@ -183,6 +187,11 @@ export class EnhancedTextractService {
     
     if (lowerFileName.includes('table') || lowerFileName.includes('data') || lowerFileName.includes('report')) {
       return 'tables';
+    }
+    
+    // Clinical notes are mostly text but may have structured sections
+    if (lowerFileName.includes('clinical_note') || lowerFileName.includes('note')) {
+      return 'forms';
     }
     
     return 'simple';
