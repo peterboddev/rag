@@ -173,7 +173,7 @@ async function processDocument(record: S3EventRecord): Promise<void> {
     // BDA extraction (non-fatal — failure does not block processing)
     let bdaExtraction: BdaExtraction | null = null;
 
-    if (BDA_PROJECT_ARN && BDA_BLUEPRINT_ARN && extractedText.trim().length > 0) {
+    if (BDA_PROJECT_ARN && extractedText.trim().length > 0) {
       try {
         bdaExtraction = await invokeBdaExtraction(
           bucket, key, BDA_PROJECT_ARN, BDA_BLUEPRINT_ARN, process.env.REGION!
