@@ -60,6 +60,12 @@ export class RAGApplicationStack extends cdk.Stack {
       default: 'arn:aws:bedrock:us-east-1:000000000000:blueprint/placeholder',
     });
 
+    const bdaProfileArnParam = new cdk.CfnParameter(this, 'BdaProfileArn', {
+      type: 'String',
+      description: 'BDA Data Automation Profile ARN for cross-region inference',
+      default: '',
+    });
+
     // 2. Import platform resources via SSM
     const applicationRoleArn = ssm.StringParameter.valueFromLookup(
       this,
@@ -354,6 +360,7 @@ export class RAGApplicationStack extends cdk.Stack {
         REGION: this.region,
         BDA_PROJECT_ARN: bdaProjectArnParam.valueAsString,
         BDA_BLUEPRINT_ARN: bdaBlueprintArnParam.valueAsString,
+        BDA_PROFILE_ARN: bdaProfileArnParam.valueAsString,
       },
       cdk.Duration.minutes(5),
       1024
