@@ -160,8 +160,8 @@ export function parseStandardDocumentOutput(standardOutput: any): BdaExtraction 
   // Extract dates
   const datePattern = /\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}/g;
   const dates = fullText.match(datePattern) || [];
-  if (dates.length > 0) result.dates.serviceDate = dates[0];
-  if (dates.length > 1) result.dates.paymentDate = dates[1];
+  if (dates.length > 0) result.dates.serviceDate = dates[0] ?? null;
+  if (dates.length > 1) result.dates.paymentDate = dates[1] ?? null;
 
   // Extract diagnosis codes (ICD-10 pattern)
   const icdPattern = /[A-Z]\d{2}(?:\.\d{1,4})?/g;
