@@ -224,7 +224,7 @@ export async function invokeBdaExtraction(
       outputConfiguration: {
         s3Uri: `s3://${outBucket}/${outputPrefix}/`,
       },
-      dataAutomationProfileArn: process.env.BDA_PROFILE_ARN || `arn:aws:bedrock:${region}:aws:data-automation-profile/us`,
+      dataAutomationProfileArn: process.env.BDA_PROFILE_ARN || `arn:aws:bedrock:${region}:${process.env.AWS_ACCOUNT_ID || '450683699755'}:data-automation-profile/us.data-automation-v1`,
     };
 
     // Only include blueprints if a real ARN is provided
