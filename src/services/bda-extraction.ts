@@ -263,8 +263,9 @@ export async function invokeBdaExtraction(
           const parsed = parseS3Uri(outputS3Uri);
           if (parsed) {
             try {
-              // BDA writes a result JSON file — try the standard output path
-              const resultKey = parsed.key.endsWith('/') ? `${parsed.key}0/result.json` : parsed.key;
+              // BDA outputS3Uri points to job_metadata.json — result is at sibling path
+              const baseKey = parsed.key.replace(/job_metadata\.json$/, '').replace(/\/$/, '');
+              const resultKey = `${baseKey}/0/standard_output/0/result.json`;
               const getObj = await s3Client.send(new GetObjectCommand({
                 Bucket: parsed.bucket,
                 Key: resultKey,
