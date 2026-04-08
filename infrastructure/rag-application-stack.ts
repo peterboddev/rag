@@ -48,6 +48,18 @@ export class RAGApplicationStack extends cdk.Stack {
       default: `medical-claims-synthetic-data-${environment}`
     });
 
+    const bdaProjectArnParam = new cdk.CfnParameter(this, 'BdaProjectArn', {
+      type: 'String',
+      description: 'BDA Project ARN for insurance claims extraction',
+      default: 'arn:aws:bedrock:us-east-1:000000000000:data-automation-project/placeholder',
+    });
+
+    const bdaBlueprintArnParam = new cdk.CfnParameter(this, 'BdaBlueprintArn', {
+      type: 'String',
+      description: 'BDA Blueprint ARN for insurance claims schema',
+      default: 'arn:aws:bedrock:us-east-1:000000000000:blueprint/placeholder',
+    });
+
     // 2. Import platform resources via SSM
     const applicationRoleArn = ssm.StringParameter.valueFromLookup(
       this,
@@ -340,6 +352,8 @@ export class RAGApplicationStack extends cdk.Stack {
         VECTOR_DB_ENDPOINT: vectorDbEndpointParam.valueAsString,
         BEDROCK_REGION: this.region,
         REGION: this.region,
+        BDA_PROJECT_ARN: bdaProjectArnParam.valueAsString,
+        BDA_BLUEPRINT_ARN: bdaBlueprintArnParam.valueAsString,
       },
       cdk.Duration.minutes(5),
       1024
@@ -612,6 +626,23 @@ export class RAGApplicationStack extends cdk.Stack {
 
     documentProcessingFunction.addToRolePolicy(textractPolicy);
     documentRetryFunction.addToRolePolicy(textractPolicy);
+
+    // BDA (Bedrock Data Automation) IAM permissions
+    const bdaPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock:InvokeDataAutomation',
+        'bedrock:InvokeDataAutomationAsync',
+        'bedrock:GetDataAutomationStatus',
+        'bedrock:CreateBlueprint',
+        'bedrock:GetBlueprint',
+        'bedrock:CreateDataAutomationProject',
+        'bedrock:GetDataAutomationProject',
+      ],
+      resources: ['*'],
+    });
+
+    documentProcessingFunction.addToRolePolicy(bdaPolicy);
 
     // 6. Add API routes to imported API Gateway
     // Create resource hierarchy with Cognito authorization

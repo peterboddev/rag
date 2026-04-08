@@ -7,6 +7,7 @@ import { EnhancedTextractService } from '../services/enhanced-textract';
 import { EmbeddingGenerationService } from '../services/embedding-generation';
 import { ChunkingConfigurationService } from '../services/chunking-configuration';
 import { extractFinancialData, extractDates, extractMedicalCodes, ExtractedFinancials, ExtractedDates, ExtractedCodes } from '../services/document-extractors';
+import { invokeBdaExtraction, BdaExtraction } from '../services/bda-extraction';
 
 const s3Client = new S3Client({ region: process.env.REGION });
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.REGION }));
@@ -16,6 +17,8 @@ const chunkingService = new ChunkingConfigurationService();
 
 const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE_NAME!;
 const PLATFORM_DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET!;
+const BDA_PROJECT_ARN = process.env.BDA_PROJECT_ARN;
+const BDA_BLUEPRINT_ARN = process.env.BDA_BLUEPRINT_ARN;
 
 export const handler = async (event: S3Event): Promise<void> => {
   console.log('Document Processing Lambda invoked', { 
@@ -167,6 +170,22 @@ async function processDocument(record: S3EventRecord): Promise<void> {
       console.warn('Medical code extraction failed (non-fatal)', { documentId, error: extractorError instanceof Error ? extractorError.message : 'Unknown error' });
     }
 
+    // BDA extraction (non-fatal — failure does not block processing)
+    let bdaExtraction: BdaExtraction | null = null;
+
+    if (BDA_PROJECT_ARN && BDA_BLUEPRINT_ARN && extractedText.trim().length > 0) {
+      try {
+        bdaExtraction = await invokeBdaExtraction(
+          bucket, key, BDA_PROJECT_ARN, BDA_BLUEPRINT_ARN, process.env.REGION!
+        );
+      } catch (bdaError) {
+        console.warn('BDA extraction failed (non-fatal)', {
+          documentId,
+          error: bdaError instanceof Error ? bdaError.message : 'Unknown error',
+        });
+      }
+    }
+
     // Upload processed document to platform bucket
     const platformKey = `processed/${tenantId}/${customerUUID}/${documentId}.txt`;
     
@@ -188,7 +207,7 @@ async function processDocument(record: S3EventRecord): Promise<void> {
     const processingDuration = Date.now() - processingStartTime;
 
     // Update document record with extracted text and completion status
-    await updateDocumentWithText(documentId, customerUUID, extractedText, textLength, confidence, pageCount, 'completed', processingDuration, extractedFinancials, extractedDates, extractedCodes);
+    await updateDocumentWithText(documentId, customerUUID, extractedText, textLength, confidence, pageCount, 'completed', processingDuration, extractedFinancials, extractedDates, extractedCodes, bdaExtraction);
 
     try {
       console.log('Document text extraction completed', { 
@@ -328,7 +347,8 @@ async function updateDocumentWithText(
   processingDuration: number,
   extractedFinancials: ExtractedFinancials,
   extractedDates: ExtractedDates,
-  extractedCodes: ExtractedCodes
+  extractedCodes: ExtractedCodes,
+  bdaExtraction: BdaExtraction | null
 ): Promise<void> {
   try {
     const timestamp = new Date().toISOString();
@@ -343,7 +363,7 @@ async function updateDocumentWithText(
       Key: {
         documentId: documentId,
       },
-      UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview, extractedFinancials = :financials, extractedDates = :dates, extractedCodes = :codes',
+      UpdateExpression: 'SET extractedText = :text, textLength = :textLength, processingStatus = :status, updatedAt = :updatedAt, processingCompletedAt = :completedAt, confidence = :confidence, pageCount = :pageCount, processingDurationMs = :duration, textPreview = :preview, extractedFinancials = :financials, extractedDates = :dates, extractedCodes = :codes, bdaExtraction = :bdaExtraction',
       ExpressionAttributeValues: {
         ':text': extractedText,
         ':textLength': textLength,
@@ -357,6 +377,7 @@ async function updateDocumentWithText(
         ':financials': extractedFinancials,
         ':dates': extractedDates,
         ':codes': extractedCodes,
+        ':bdaExtraction': bdaExtraction,
       },
     }));
 

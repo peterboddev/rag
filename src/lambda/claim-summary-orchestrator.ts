@@ -596,6 +596,61 @@ function aggregateTimelineData(documents: DocumentRecord[]): TimelineData {
 }
 
 /**
+ * Aggregate BDA financial data from document records into a FinancialSummary.
+ * Reads the `bdaExtraction.financials` attribute written at ingestion time.
+ */
+function aggregateBdaFinancialData(documents: DocumentRecord[]): FinancialSummary | null {
+  const allPayments: Array<{ amount: number; sourceDocument: string; rawText: string }> = [];
+  for (const doc of documents) {
+    const bda = (doc as any).bdaExtraction;
+    if (!bda || !bda.financials) continue;
+    const { billedAmount, allowedAmount, paidAmount, patientResponsibility } = bda.financials;
+    const fileName = doc.fileName;
+    if (typeof billedAmount === 'number' && billedAmount > 0) allPayments.push({ amount: billedAmount, sourceDocument: fileName, rawText: `billed: ${billedAmount}` });
+    if (typeof allowedAmount === 'number' && allowedAmount > 0) allPayments.push({ amount: allowedAmount, sourceDocument: fileName, rawText: `allowed: ${allowedAmount}` });
+    if (typeof paidAmount === 'number' && paidAmount > 0) allPayments.push({ amount: paidAmount, sourceDocument: fileName, rawText: `paid: ${paidAmount}` });
+    if (typeof patientResponsibility === 'number' && patientResponsibility > 0) allPayments.push({ amount: patientResponsibility, sourceDocument: fileName, rawText: `patient responsibility: ${patientResponsibility}` });
+  }
+  if (allPayments.length === 0) return null;
+  const amounts = allPayments.map(p => p.amount);
+  return {
+    minPayment: Math.min(...amounts),
+    maxPayment: Math.max(...amounts),
+    totalValue: Math.round(amounts.reduce((s, a) => s + a, 0) * 100) / 100,
+    payments: allPayments,
+  };
+}
+
+/**
+ * Aggregate BDA timeline data from document records into a TimelineData.
+ * Reads the `bdaExtraction.dates` and `bdaExtraction.patient.dateOfBirth` attributes.
+ */
+function aggregateBdaTimelineData(documents: DocumentRecord[]): TimelineData | null {
+  const allYears: number[] = [];
+  for (const doc of documents) {
+    const bda = (doc as any).bdaExtraction;
+    if (!bda) continue;
+    const dates = bda.dates;
+    if (dates) {
+      for (const dateStr of [dates.serviceDate, dates.paymentDate]) {
+        if (typeof dateStr === 'string') {
+          const match = dateStr.match(/^(\d{4})/);
+          if (match) allYears.push(parseInt(match[1], 10));
+        }
+      }
+    }
+    if (bda.patient?.dateOfBirth) {
+      const match = bda.patient.dateOfBirth.match(/^(\d{4})/);
+      if (match) allYears.push(parseInt(match[1], 10));
+    }
+  }
+  if (allYears.length === 0) return null;
+  const startYear = Math.min(...allYears);
+  const endYear = Math.max(...allYears);
+  return { startYear, endYear, durationYears: endYear - startYear };
+}
+
+/**
  * Resolve patientId from claimId by querying DynamoDB for claim documents.
  * Returns the patientId from the first document's claimMetadata, or null if not found.
  */
@@ -634,6 +689,8 @@ async function executeFullContextStrategy(
   agentTimeline?: TimelineData | null;
   agentConfidence?: number | null;
   agentReasoning?: string | null;
+  bdaFinancialSummary?: FinancialSummary | null;
+  bdaTimeline?: TimelineData | null;
 }> {
   const fullContextAgentEndpoint = process.env.FULL_CONTEXT_AGENT_ENDPOINT;
   const financialTimelineAgentEndpoint = process.env.FINANCIAL_TIMELINE_AGENT_ENDPOINT;
@@ -665,6 +722,8 @@ async function executeFullContextStrategy(
     // Aggregate pre-extracted financial and timeline data from DynamoDB
     const financialSummary = aggregateFinancialData(documents);
     const timeline = aggregateTimelineData(documents);
+    const bdaFinancialSummary = aggregateBdaFinancialData(documents);
+    const bdaTimeline = aggregateBdaTimelineData(documents);
 
     // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
     // (fire-and-forget in Lambda .then() doesn't work because runtime freezes after handler returns)
@@ -700,6 +759,8 @@ async function executeFullContextStrategy(
       agentTimeline: null,
       agentConfidence: null,
       agentReasoning: null,
+      bdaFinancialSummary,
+      bdaTimeline,
     };
   }
 
@@ -761,6 +822,8 @@ async function executeFullContextStrategy(
     agentTimeline: null,
     agentConfidence: null,
     agentReasoning: null,
+    bdaFinancialSummary: null,
+    bdaTimeline: null,
   };
 }
 
@@ -1193,6 +1256,8 @@ async function handlePostSummary(
   let agentTimeline: TimelineData | null | undefined;
   let agentConfidence: number | null | undefined;
   let agentReasoning: string | null | undefined;
+  let bdaFinancialSummary: FinancialSummary | null | undefined;
+  let bdaTimeline: TimelineData | null | undefined;
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -1307,6 +1372,8 @@ async function handlePostSummary(
       agentTimeline = result.agentTimeline;
       agentConfidence = result.agentConfidence;
       agentReasoning = result.agentReasoning;
+      bdaFinancialSummary = result.bdaFinancialSummary;
+      bdaTimeline = result.bdaTimeline;
 
       // Fetch source documents for evaluation pipeline
       try {
@@ -1346,6 +1413,8 @@ async function handlePostSummary(
     agentTimeline: agentTimeline ?? undefined,
     agentConfidence: agentConfidence ?? undefined,
     agentReasoning: agentReasoning ?? undefined,
+    bdaFinancialSummary: bdaFinancialSummary ?? undefined,
+    bdaTimeline: bdaTimeline ?? undefined,
   };
 
   // Include evaluation scores if requested

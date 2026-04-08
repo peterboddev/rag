@@ -30,11 +30,14 @@ interface AnomalySummary {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns true if both values are equal (including both null/undefined), false otherwise.
+ * Returns true if all non-null, non-undefined values are equal, false otherwise.
+ * Supports 2-way and 3-way comparison.
  */
-export function valuesAgree(a: number | null | undefined, b: number | null | undefined): boolean {
-  if (a == null && b == null) return true;
-  return a === b;
+export function valuesAgree(a: number | null | undefined, b: number | null | undefined, c?: number | null | undefined): boolean {
+  const values = [a, b, c].filter(v => v !== undefined);
+  const nonNull = values.filter((v): v is number => v !== null);
+  if (nonNull.length <= 1) return true;
+  return nonNull.every(v => v === nonNull[0]);
 }
 
 function getAnomalySeverityColor(severity: string): string {
@@ -170,7 +173,7 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             <AnomalySection response={response} strategyKey={strategyKey} />
 
             {/* Enhanced Analysis for Full Context Strategy */}
-            {strategyKey === 'full-context' && (response.financialSummary || response.timeline || response.agentFinancialSummary || response.agentTimeline) && (
+            {strategyKey === 'full-context' && (response.financialSummary || response.timeline || response.agentFinancialSummary || response.agentTimeline || response.bdaFinancialSummary || response.bdaTimeline) && (
               <EnhancedAnalysisSection response={response} strategyKey={strategyKey} claimId={claimId} />
             )}
 
@@ -434,27 +437,32 @@ function AnomalySection({ response, strategyKey }: { response: ClaimSummaryRespo
 
 // ─── Enhanced Analysis sub-render ────────────────────────────────────────────
 
-function ComparisonRow({ label, deterministic, agentPredicted, isYear }: {
+function ComparisonRow({ label, deterministic, agentPredicted, bdaExtracted, isYear, columnCount }: {
   label: string;
   deterministic: number | null | undefined;
   agentPredicted: number | null | undefined;
+  bdaExtracted?: number | null | undefined;
   isYear?: boolean;
+  columnCount: number;
 }) {
-  const agree = valuesAgree(deterministic, agentPredicted);
+  const agree = valuesAgree(deterministic, agentPredicted, bdaExtracted);
   const format = (v: number | null | undefined) => {
     if (v == null) return 'N/A';
     if (isYear) return `${v}`;
-    return `$${v.toFixed(2)}`;
+    return `${v.toFixed(2)}`;
   };
+  const gridTemplate = `1fr ${'1fr '.repeat(columnCount)}28px`;
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 28px', gap: '4px', padding: '3px 0', fontSize: '12px', alignItems: 'center' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: gridTemplate, gap: '4px', padding: '3px 0', fontSize: '12px', alignItems: 'center' }}>
       <div style={{ fontWeight: 600 }}>{label}</div>
       <div>{format(deterministic)}</div>
-      <div>{format(agentPredicted)}</div>
+      {columnCount >= 2 && <div>{format(agentPredicted)}</div>}
+      {columnCount >= 3 && <div>{format(bdaExtracted)}</div>}
       <div>{agree ? '✅' : '⚠️'}</div>
     </div>
   );
 }
+
 
 function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response: ClaimSummaryResponse; strategyKey: Strategy; claimId?: string }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -513,13 +521,17 @@ function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response:
     agentTimeline: response.agentTimeline ?? agentData?.agentTimeline ?? null,
     agentConfidence: response.agentConfidence ?? agentData?.agentConfidence ?? null,
     agentReasoning: response.agentReasoning ?? agentData?.agentReasoning ?? null,
+    bdaFinancialSummary: response.bdaFinancialSummary ?? null,
+    bdaTimeline: response.bdaTimeline ?? null,
   };
 
-  if (!mergedResponse.financialSummary && !mergedResponse.timeline && !mergedResponse.agentFinancialSummary && !mergedResponse.agentTimeline) {
+  if (!mergedResponse.financialSummary && !mergedResponse.timeline && !mergedResponse.agentFinancialSummary && !mergedResponse.agentTimeline && !mergedResponse.bdaFinancialSummary && !mergedResponse.bdaTimeline) {
     return null;
   }
 
   const hasAgentData = mergedResponse.agentFinancialSummary != null || mergedResponse.agentTimeline != null;
+  const hasBdaData = mergedResponse.bdaFinancialSummary != null || mergedResponse.bdaTimeline != null;
+  const columnCount = 1 + (hasAgentData ? 1 : 0) + (hasBdaData ? 1 : 0);
 
   return (
     <div style={{ marginBottom: '10px' }}>
@@ -556,26 +568,29 @@ function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response:
             fontSize: '13px',
           }}
         >
-          {hasAgentData ? (
-            /* Side-by-side comparison layout */
+          {columnCount >= 2 ? (
+            /* Multi-column comparison layout (2 or 3 columns) */
             <div>
               {/* Column headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 28px', gap: '4px', marginBottom: '8px', fontSize: '11px', fontWeight: 700, color: '#495057' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `1fr ${'1fr '.repeat(columnCount)}28px`, gap: '4px', marginBottom: '8px', fontSize: '11px', fontWeight: 700, color: '#495057' }}>
                 <div></div>
                 <div>Extracted (Deterministic)</div>
-                <div>
-                  Agent-Predicted (LLM)
-                  {mergedResponse.agentConfidence != null && (
-                    <span style={{ fontWeight: 400, marginLeft: '4px', color: '#6c757d' }}>
-                      — {Math.round(mergedResponse.agentConfidence * 100)}% confidence
-                    </span>
-                  )}
-                </div>
+                {hasAgentData && (
+                  <div>
+                    Agent-Predicted (LLM)
+                    {mergedResponse.agentConfidence != null && (
+                      <span style={{ fontWeight: 400, marginLeft: '4px', color: '#6c757d' }}>
+                        — {Math.round(mergedResponse.agentConfidence * 100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                )}
+                {hasBdaData && <div>BDA Extraction</div>}
                 <div></div>
               </div>
 
               {/* Financial comparison rows */}
-              {(mergedResponse.financialSummary || mergedResponse.agentFinancialSummary) && (
+              {(mergedResponse.financialSummary || mergedResponse.agentFinancialSummary || mergedResponse.bdaFinancialSummary) && (
                 <div style={{ marginBottom: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
                     💰 Financial Summary
@@ -584,22 +599,28 @@ function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response:
                     label="Min Payment"
                     deterministic={mergedResponse.financialSummary?.minPayment ?? null}
                     agentPredicted={mergedResponse.agentFinancialSummary?.minPayment ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaFinancialSummary?.minPayment ?? null) : undefined}
+                    columnCount={columnCount}
                   />
                   <ComparisonRow
                     label="Max Payment"
                     deterministic={mergedResponse.financialSummary?.maxPayment ?? null}
                     agentPredicted={mergedResponse.agentFinancialSummary?.maxPayment ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaFinancialSummary?.maxPayment ?? null) : undefined}
+                    columnCount={columnCount}
                   />
                   <ComparisonRow
                     label="Total Value"
                     deterministic={mergedResponse.financialSummary?.totalValue ?? null}
                     agentPredicted={mergedResponse.agentFinancialSummary?.totalValue ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaFinancialSummary?.totalValue ?? null) : undefined}
+                    columnCount={columnCount}
                   />
                 </div>
               )}
 
               {/* Timeline comparison rows */}
-              {(mergedResponse.timeline || mergedResponse.agentTimeline) && (
+              {(mergedResponse.timeline || mergedResponse.agentTimeline || mergedResponse.bdaTimeline) && (
                 <div style={{ marginBottom: '8px' }}>
                   <div style={{ fontWeight: 600, marginBottom: '4px', color: '#28a745', fontSize: '12px' }}>
                     📅 Care History Timeline
@@ -608,19 +629,25 @@ function EnhancedAnalysisSection({ response, strategyKey, claimId }: { response:
                     label="Start Year"
                     deterministic={mergedResponse.timeline?.startYear ?? null}
                     agentPredicted={mergedResponse.agentTimeline?.startYear ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaTimeline?.startYear ?? null) : undefined}
                     isYear
+                    columnCount={columnCount}
                   />
                   <ComparisonRow
                     label="End Year"
                     deterministic={mergedResponse.timeline?.endYear ?? null}
                     agentPredicted={mergedResponse.agentTimeline?.endYear ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaTimeline?.endYear ?? null) : undefined}
                     isYear
+                    columnCount={columnCount}
                   />
                   <ComparisonRow
                     label="Duration (years)"
                     deterministic={mergedResponse.timeline?.durationYears ?? null}
                     agentPredicted={mergedResponse.agentTimeline?.durationYears ?? null}
+                    bdaExtracted={hasBdaData ? (mergedResponse.bdaTimeline?.durationYears ?? null) : undefined}
                     isYear
+                    columnCount={columnCount}
                   />
                 </div>
               )}

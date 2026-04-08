@@ -425,6 +425,8 @@ export interface ClaimSummaryResponse {
   agentTimeline?: TimelineData | null;
   agentConfidence?: number | null;
   agentReasoning?: string | null;
+  bdaFinancialSummary?: FinancialSummary | null;
+  bdaTimeline?: TimelineData | null;
 }
 
 export interface ClaimEvaluationsResponse {

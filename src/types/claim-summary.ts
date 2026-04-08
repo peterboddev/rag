@@ -232,6 +232,18 @@ export interface ClaimSummaryResponse {
    * Only present for full-context strategy when the Financial Timeline Agent is configured.
    */
   agentReasoning?: string | null;
+
+  /**
+   * BDA-extracted financial summary from Bedrock Data Automation.
+   * Only present for full-context strategy when BDA data is available.
+   */
+  bdaFinancialSummary?: FinancialSummary | null;
+
+  /**
+   * BDA-extracted timeline from Bedrock Data Automation.
+   * Only present for full-context strategy when BDA data is available.
+   */
+  bdaTimeline?: TimelineData | null;
 }
 
 /**
