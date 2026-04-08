@@ -121,6 +121,8 @@ export function parseBdaResponse(rawOutput: Record<string, any>): BdaExtraction 
 /**
  * Invoke BDA to process a document using the custom insurance claims blueprint.
  * Returns the parsed BdaExtraction or null if processing fails.
+ *
+ * Uses the sync InvokeDataAutomation API which returns results in outputSegments.
  */
 export async function invokeBdaExtraction(
   s3Bucket: string,
@@ -133,7 +135,7 @@ export async function invokeBdaExtraction(
     const client = new BedrockDataAutomationRuntimeClient({ region });
 
     const command = new InvokeDataAutomationCommand({
-      inputDocument: {
+      inputConfiguration: {
         s3Uri: `s3://${s3Bucket}/${s3Key}`,
       },
       dataAutomationConfiguration: {
@@ -144,28 +146,33 @@ export async function invokeBdaExtraction(
           blueprintArn,
         },
       ],
-    });
+    } as any);
 
     const response = await client.send(command);
 
-    // Parse the output document from the response
-    const outputDoc = response.outputConfiguration?.documentsOutputConfiguration;
-    if (!outputDoc) {
-      console.warn('BDA response missing output configuration');
-      return emptyBdaExtraction();
+    // The sync API returns results in outputSegments
+    const segments = (response as any).outputSegments;
+    if (Array.isArray(segments) && segments.length > 0) {
+      // Try customOutput first (blueprint-matched output), then standardOutput
+      const rawJson = segments[0].customOutput || segments[0].standardOutput;
+      if (rawJson && typeof rawJson === 'string') {
+        try {
+          const parsed = JSON.parse(rawJson);
+          return parseBdaResponse(parsed);
+        } catch {
+          console.warn('BDA: failed to parse segment output as JSON');
+        }
+      }
     }
 
-    // The BDA response contains structured output; extract and parse it
-    const status = response.status;
-    if (status !== 'Success' && status !== 'COMPLETED') {
-      console.warn('BDA invocation did not succeed', { status });
-      return null;
+    // Fallback: check if output is at S3 location
+    const outputS3Uri = response.outputConfiguration?.s3Uri;
+    if (outputS3Uri) {
+      console.log('BDA output written to S3, segment parsing unavailable', { outputS3Uri });
     }
 
-    // Parse the output from the response output document
-    // BDA returns results in the output; we need to extract the blueprint fields
-    const rawOutput = (response as any).output?.documents?.[0]?.fields ?? {};
-    return parseBdaResponse(rawOutput);
+    console.warn('BDA response had no parseable output segments');
+    return emptyBdaExtraction();
   } catch (error) {
     console.warn('BDA extraction failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
