@@ -64,6 +64,12 @@ export async function createBdaProject(blueprintArn: string, region: string): Pr
   const command = new CreateDataAutomationProjectCommand({
     projectName: 'InsuranceClaimsProject',
     projectDescription: 'BDA project for insurance claims document extraction',
+    standardOutputConfiguration: {
+      document: undefined,
+      image: undefined,
+      audio: undefined,
+      video: undefined,
+    },
     customOutputConfiguration: {
       blueprints: [
         {
