@@ -111,66 +111,122 @@ export function parseBdaResponse(rawOutput: Record<string, any>): BdaExtraction 
 
 /**
  * Parse BDA standard document output into a BdaExtraction.
- * Standard output has a different structure than custom blueprint output —
- * it contains document summary, pages, elements with text/tables/forms.
- * We extract financial amounts and dates from the structured text.
+ * Uses BDA's structured elements — tables with headers, labeled text fields,
+ * and document summary — instead of regex over raw text.
  */
 export function parseStandardDocumentOutput(standardOutput: any): BdaExtraction {
   const result = emptyBdaExtraction();
   if (!standardOutput) return result;
 
-  // Standard output may have document.summary, pages[].elements[], etc.
   const doc = standardOutput.document || standardOutput;
-  const summary = doc.summary || doc.document_summary || '';
 
-  // Try to extract structured data from pages/elements
-  const allText: string[] = [];
-  if (summary) allText.push(typeof summary === 'string' ? summary : JSON.stringify(summary));
-
-  // Collect text from pages
-  const pages = doc.pages || [];
+  // Collect all elements — BDA puts them at root level, not inside document
+  const elements: any[] = [];
+  if (standardOutput.elements) elements.push(...standardOutput.elements);
+  const docObj = standardOutput.document || standardOutput;
+  if (docObj.elements) elements.push(...docObj.elements);
+  const pages = standardOutput.pages || docObj.pages || [];
   for (const page of pages) {
-    const elements = page.elements || [];
-    for (const el of elements) {
-      if (el.text) allText.push(el.text);
+    if (page.elements) elements.push(...page.elements);
+  }
+
+  // Use document-level representation text for labeled field extraction
+  const docText = docObj.representation?.text || docObj.text || standardOutput.representation?.text || '';
+
+  // 1. Extract from structured tables (most reliable)
+  for (const el of elements) {
+    if (el.type !== 'TABLE') continue;
+    const headers: string[] = (el.headers || []).map((h: string) => h.toLowerCase().trim());
+    const textContent = el.representation?.text || '';
+    // Split by newlines — handle \r\n and \n
+    const lines = textContent.split(/\r?\n/).filter((l: string) => l.trim());
+    // Skip header row if it matches the headers
+    const dataRows = lines.length > 1 ? lines.slice(1) : [];
+
+    for (const row of dataRows) {
+      const cells = row.split('\t');
+      for (let i = 0; i < Math.min(headers.length, cells.length); i++) {
+        const header = headers[i];
+        const val = (cells[i] || '').trim();
+        const numVal = parseFloat(val.replace(/[$,]/g, ''));
+
+        if (header.includes('billed') && !isNaN(numVal)) {
+          result.financials.billedAmount = Math.max(0, numVal);
+        } else if (header.includes('allowed') && !isNaN(numVal)) {
+          result.financials.allowedAmount = Math.max(0, numVal);
+        } else if (header.includes('paid') && !isNaN(numVal)) {
+          result.financials.paidAmount = Math.max(0, numVal);
+        } else if (header.includes('patient') && header.includes('responsib') && !isNaN(numVal)) {
+          result.financials.patientResponsibility = Math.max(0, numVal);
+        } else if (header.includes('service') && header.includes('date') && val) {
+          result.dates.serviceDate = val;
+        } else if (header.includes('charge') && !isNaN(numVal)) {
+          result.financials.billedAmount = Math.max(result.financials.billedAmount, numVal);
+        }
+      }
     }
   }
 
-  // Also check for top-level text content
-  if (doc.text) allText.push(doc.text);
-  if (doc.content) allText.push(typeof doc.content === 'string' ? doc.content : JSON.stringify(doc.content));
+  // 2. Extract labeled fields from document text (e.g., "Patient Name: John Doe")
+  const extractLabeled = (text: string, ...labels: string[]): string | null => {
+    for (const label of labels) {
+      // Match label followed by value, stopping at next label or newline
+      const pattern = new RegExp(label + '\\s*[:\\-]\\s*(.+?)(?=\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*\\s*:|\\n|$)', 'i');
+      const match = text.match(pattern);
+      if (match && match[1].trim()) return match[1].trim();
+    }
+    return null;
+  };
 
-  const fullText = allText.join('\n');
+  result.patient.patientName = result.patient.patientName || extractLabeled(docText, 'Patient Name');
+  result.patient.patientId = result.patient.patientId || extractLabeled(docText, 'Patient ID', 'Member ID');
+  result.patient.dateOfBirth = result.patient.dateOfBirth || extractLabeled(docText, 'Date of Birth', 'DOB');
+  result.providerName = result.providerName || extractLabeled(docText, 'Provider', 'Physician', 'Doctor');
+  result.claimStatus = result.claimStatus || extractLabeled(docText, 'STATUS', 'Claim Status');
 
-  // Extract financial amounts from text using regex
-  const amountPattern = /\$[\d,]+\.?\d*/g;
-  const amounts = (fullText.match(amountPattern) || [])
-    .map(s => parseFloat(s.replace(/[$,]/g, '')))
-    .filter(n => !isNaN(n) && n > 0);
-
-  if (amounts.length > 0) {
-    // Assign amounts to financial fields heuristically
-    const sorted = [...amounts].sort((a, b) => b - a);
-    result.financials.billedAmount = sorted[0] || 0;
-    result.financials.paidAmount = sorted[1] || 0;
-    result.financials.allowedAmount = sorted[2] || 0;
-    result.financials.patientResponsibility = sorted[3] || 0;
+  // Extract service date from labeled text if not found in tables
+  if (!result.dates.serviceDate) {
+    result.dates.serviceDate = extractLabeled(docText, 'Service Date', 'Date of Service', 'Encounter Date');
   }
 
-  // Extract dates
-  const datePattern = /\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}/g;
-  const dates = fullText.match(datePattern) || [];
-  if (dates.length > 0) result.dates.serviceDate = dates[0] ?? null;
-  if (dates.length > 1) result.dates.paymentDate = dates[1] ?? null;
+  // Extract payment/EOB date (but NOT "Date Issued" which is an admin date)
+  if (!result.dates.paymentDate) {
+    result.dates.paymentDate = extractLabeled(docText, 'Payment Date', 'Date Paid', 'Date of Payment');
+  }
 
-  // Extract diagnosis codes (ICD-10 pattern)
-  const icdPattern = /[A-Z]\d{2}(?:\.\d{1,4})?/g;
-  const icdCodes = fullText.match(icdPattern) || [];
+  // 3. Extract financial amounts from labeled text if not found in tables
+  const extractAmount = (text: string, ...labels: string[]): number => {
+    for (const label of labels) {
+      const pattern = new RegExp(label + '\\s*[:\\-]?\\s*\\$([\\d,]+\\.\\d{2})', 'i');
+      const match = text.match(pattern);
+      if (match) {
+        const val = parseFloat(match[1].replace(/,/g, ''));
+        if (!isNaN(val)) return Math.max(0, val);
+      }
+    }
+    return 0;
+  };
+
+  if (result.financials.billedAmount === 0) {
+    result.financials.billedAmount = extractAmount(docText, 'Billed Amount', 'Total Charge');
+  }
+  if (result.financials.paidAmount === 0) {
+    result.financials.paidAmount = extractAmount(docText, 'Paid Amount', 'Amount Paid');
+  }
+  if (result.financials.allowedAmount === 0) {
+    result.financials.allowedAmount = extractAmount(docText, 'Allowed Amount');
+  }
+  if (result.financials.patientResponsibility === 0) {
+    result.financials.patientResponsibility = extractAmount(docText, 'Patient Responsibility', 'You Owe');
+  }
+
+  // 4. Extract diagnosis and procedure codes from text
+  const icdPattern = /\b[A-Z]\d{2}(?:\.\d{1,4})?\b/g;
+  const icdCodes = docText.match(icdPattern) || [];
   result.diagnosisCodes = Array.from(new Set(icdCodes));
 
-  // Extract CPT codes (5-digit numeric)
   const cptPattern = /\b\d{5}\b/g;
-  const cptCodes = fullText.match(cptPattern) || [];
+  const cptCodes = docText.match(cptPattern) || [];
   result.procedureCodes = Array.from(new Set(cptCodes));
 
   return result;

@@ -51,7 +51,7 @@ export class RAGApplicationStack extends cdk.Stack {
     const bdaProjectArnParam = new cdk.CfnParameter(this, 'BdaProjectArn', {
       type: 'String',
       description: 'BDA Project ARN for insurance claims extraction',
-      default: 'arn:aws:bedrock:us-east-1:000000000000:data-automation-project/placeholder',
+      default: 'arn:aws:bedrock:us-east-1:450683699755:data-automation-project/89e982e88d60',
     });
 
     const bdaBlueprintArnParam = new cdk.CfnParameter(this, 'BdaBlueprintArn', {
