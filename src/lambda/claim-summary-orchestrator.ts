@@ -627,6 +627,15 @@ function aggregateBdaFinancialData(documents: DocumentRecord[]): FinancialSummar
  */
 function aggregateBdaTimelineData(documents: DocumentRecord[]): TimelineData | null {
   const allYears: number[] = [];
+  const extractYear = (dateStr: string): number | null => {
+    // Try YYYY-MM-DD or YYYY/...
+    const isoMatch = dateStr.match(/^(\d{4})/);
+    if (isoMatch) return parseInt(isoMatch[1], 10);
+    // Try MM/DD/YYYY or MM-DD-YYYY
+    const usMatch = dateStr.match(/(\d{4})$/);
+    if (usMatch) return parseInt(usMatch[1], 10);
+    return null;
+  };
   for (const doc of documents) {
     const bda = (doc as any).bdaExtraction;
     if (!bda) continue;
@@ -634,14 +643,14 @@ function aggregateBdaTimelineData(documents: DocumentRecord[]): TimelineData | n
     if (dates) {
       for (const dateStr of [dates.serviceDate, dates.paymentDate]) {
         if (typeof dateStr === 'string') {
-          const match = dateStr.match(/^(\d{4})/);
-          if (match) allYears.push(parseInt(match[1], 10));
+          const year = extractYear(dateStr);
+          if (year && year > 1900 && year < 2100) allYears.push(year);
         }
       }
     }
-    if (bda.patient?.dateOfBirth) {
-      const match = bda.patient.dateOfBirth.match(/^(\d{4})/);
-      if (match) allYears.push(parseInt(match[1], 10));
+    if (bda.patient?.dateOfBirth && typeof bda.patient.dateOfBirth === 'string') {
+      const year = extractYear(bda.patient.dateOfBirth);
+      if (year && year > 1900 && year < 2100) allYears.push(year);
     }
   }
   if (allYears.length === 0) return null;
