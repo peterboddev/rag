@@ -1435,9 +1435,9 @@ async function handlePostSummary(
     }
   }
 
-  // Trigger async evaluation (fire-and-forget)
-  const evalTriggerFunction = process.env.EVALUATION_TRIGGER_FUNCTION;
-  if (evalTriggerFunction) {
+  // Trigger async evaluation via Bedrock Evaluations API (fire-and-forget)
+  const evalJobCallerFunction = process.env.EVALUATION_JOB_CALLER_FUNCTION;
+  if (evalJobCallerFunction) {
     // For RAG/GraphRAG strategies, fetch source documents if not already captured
     if (!sourceDocumentsText) {
       try {
@@ -1453,7 +1453,7 @@ async function handlePostSummary(
     try {
       const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
       await lambdaClient.send(new InvokeCommand({
-        FunctionName: evalTriggerFunction,
+        FunctionName: evalJobCallerFunction,
         InvocationType: 'Event',
         Payload: JSON.stringify({
           claimId,
@@ -1461,12 +1461,11 @@ async function handlePostSummary(
           chunkingMethod: request.chunkingMethod || 'none',
           summary,
           sourceDocuments: sourceDocumentsText.substring(0, 50000),
-          anomalies,
         }),
       }));
-      console.log('Evaluation trigger invoked for claim:', claimId);
+      console.log('Evaluation job caller invoked for claim:', claimId);
     } catch (evalError) {
-      console.error('Failed to trigger evaluation (non-blocking):', evalError);
+      console.error('Failed to invoke evaluation job caller (non-blocking):', evalError);
     }
   }
 

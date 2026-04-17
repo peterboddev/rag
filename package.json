@@ -24,7 +24,9 @@
     "jest-environment-jsdom": "^30.3.0"
   },
   "dependencies": {
+    "@aws-cdk/aws-bedrock-agentcore-alpha": "file:agentcore-alpha.tgz",
     "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/client-bedrock": "^3.1032.0",
     "@aws-sdk/client-bedrock-agent-runtime": "^3.450.0",
     "@aws-sdk/client-bedrock-agentcore": "^3.1021.0",
     "@aws-sdk/client-bedrock-data-automation": "^3.1026.0",

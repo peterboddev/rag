@@ -9,6 +9,10 @@ import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import {
+  Evaluator, EvaluatorConfig, EvaluationLevel, RatingScale,
+  OnlineEvaluationConfig, DataSourceConfig, EvaluatorReference, ExecutionStatus,
+} from '@aws-cdk/aws-bedrock-agentcore-alpha';
 import { Construct } from 'constructs';
 
 export interface RAGApplicationStackProps extends cdk.StackProps {
@@ -1375,24 +1379,6 @@ export class RAGApplicationStack extends cdk.Stack {
     // Grant DynamoDB write access to the evaluation results table
     evaluationResultsTable.grantWriteData(evaluationResultsWriterFunction);
 
-    // IAM policy for AgentCore Evaluations actions
-    const agentCoreEvaluationsPolicy = new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: [
-        'bedrock-agentcore:CreateEvaluator',
-        'bedrock-agentcore:GetEvaluator',
-        'bedrock-agentcore:CreateEvaluationConfig',
-        'bedrock-agentcore:StartEvaluation',
-      ],
-      resources: ['*'],
-    });
-
-    evaluationResultsWriterFunction.addToRolePolicy(agentCoreEvaluationsPolicy);
-
-    // Grant the orchestrator Lambda the same AgentCore Evaluations permissions
-    // so it can trigger on-demand evaluations
-    claimSummaryOrchestratorFunction.addToRolePolicy(agentCoreEvaluationsPolicy);
-
     // Export Evaluation Results Writer Lambda function ARN
     new cdk.CfnOutput(this, 'EvaluationResultsWriterFunctionArn', {
       value: evaluationResultsWriterFunction.functionArn,
@@ -1400,78 +1386,328 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
-    // Evaluation Trigger Lambda (Python)
+    // AgentCore Evaluator Constructs (CDK L2)
     // ============================================================
 
-    const evaluationTriggerFunction = new lambda.Function(this, 'EvaluationTriggerFunction', {
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'handler.handler',
-      code: lambda.Code.fromAsset('.', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
-          command: [
-            'bash', '-c', [
-              'cp -r src/lambda/evaluation_trigger/* /asset-output/',
-              'cp -r evaluators /asset-output/evaluators',
-              'pip install strands-agents-evals -t /asset-output/ 2>/dev/null || true',
-            ].join(' && '),
-          ],
-          local: {
-            tryBundle(outputDir: string) {
-              try {
-                const { execSync } = require('child_process');
-                execSync(`cp -r src/lambda/evaluation_trigger/* ${outputDir}/`, { stdio: 'inherit' });
-                execSync(`cp -r evaluators ${outputDir}/evaluators`, { stdio: 'inherit' });
-                try {
-                  execSync(`pip install strands-agents-evals -t ${outputDir}/ 2>/dev/null`, { stdio: 'inherit' });
-                } catch { /* optional dependency */ }
-                return true;
-              } catch {
-                return false;
-              }
-            },
-          },
-        },
+    // Faithfulness evaluation instructions (from evaluators/faithfulness_evaluator.py)
+    const FAITHFULNESS_INSTRUCTIONS = `You are evaluating the faithfulness of an insurance claim summary.
+
+Source Documents:
+{source_documents}
+
+Generated Summary:
+{summary}
+
+Score the summary on faithfulness (0-1 scale):
+- 1.0: Every statement in the summary is directly supported by the source documents
+- 0.75: Most statements are well-supported with only trivial inferences
+- 0.5: Most statements are supported, but some minor details may be inferred or slightly inaccurate
+- 0.25: Several statements lack support or contain inaccuracies
+- 0.0: The summary contains significant information not found in the sources (hallucinations)
+
+Evaluate each claim in the summary against the source documents. Check for:
+1. Factual accuracy of patient information
+2. Correct diagnosis codes and descriptions
+3. Accurate procedure details
+4. Correct dates and amounts
+5. Any statements not supported by the source documents
+
+Respond ONLY with valid JSON in this exact format:
+{{"score": <float between 0 and 1>, "reasoning": "<brief explanation of your scoring>"}}`;
+
+    // Completeness evaluation instructions (from evaluators/completeness_evaluator.py)
+    const COMPLETENESS_INSTRUCTIONS = `You are evaluating the completeness of an insurance claim summary.
+
+The summary should cover these key elements:
+- Patient information (name, DOB, ID)
+- Diagnosis codes and descriptions
+- Procedures performed
+- Service dates
+- Provider information
+- Amounts/charges
+
+Generated Summary:
+{summary}
+
+Score the summary on completeness (0-1 scale):
+- 1.0: All key elements are covered with appropriate detail
+- 0.75: Most elements covered with good detail, one minor element missing
+- 0.5: Most elements covered, some missing or lacking detail
+- 0.25: Several key elements missing
+- 0.0: Major elements missing, summary is inadequate
+
+For each key element, determine if it is present in the summary:
+1. Patient information - name, date of birth, or patient ID
+2. Diagnosis - ICD codes or diagnosis descriptions
+3. Procedures - CPT codes or procedure descriptions
+4. Dates - service dates, admission/discharge dates
+5. Provider - provider name, NPI, or facility
+6. Amounts - charges, payments, or financial information
+
+Respond ONLY with valid JSON in this exact format:
+{{"score": <float between 0 and 1>, "reasoning": "<brief explanation>", "missing_elements": [<list of missing element names as strings>]}}`;
+
+    // Anomaly Accuracy evaluation instructions (from evaluators/anomaly_accuracy_evaluator.py)
+    const ANOMALY_ACCURACY_INSTRUCTIONS = `You are evaluating the accuracy of detected anomalies in insurance claim documents.
+
+Source Documents:
+{source_documents}
+
+Detected Anomalies:
+{anomalies}
+
+Your task:
+1. Review the source documents carefully for actual anomalies (inconsistencies, errors, suspicious patterns, conflicting information)
+2. Compare each detected anomaly against what is actually present in the source documents
+3. Identify any false positives (detected anomalies that are not real issues in the documents)
+4. Identify any missed anomalies (real issues in the documents that were not detected)
+5. Score the accuracy of the anomaly detection on a 0-1 scale
+
+Scoring guidelines:
+- 1.0: All detected anomalies are genuine and no real anomalies were missed
+- 0.75: Most detections are accurate with minor false positives or one missed anomaly
+- 0.5: Some false positives or several missed anomalies
+- 0.25: Many false positives or most real anomalies were missed
+- 0.0: All detections are false positives or no real anomalies were detected
+
+Respond ONLY with valid JSON in this exact format:
+{{"score": <float between 0 and 1>, "reasoning": "<brief explanation of your scoring>", "false_positives": [<list of false positive descriptions as strings>], "missed_anomalies": [<list of missed anomaly descriptions as strings>]}}`;
+
+    // Faithfulness Evaluator
+    const faithfulnessEvaluator = new Evaluator(this, 'FaithfulnessEvaluator', {
+      evaluatorName: 'Faithfulness',
+      evaluatorConfig: EvaluatorConfig.llmAsAJudge({
+        evaluationInstructions: FAITHFULNESS_INSTRUCTIONS,
+        modelId: 'global.us.anthropic.claude-sonnet-4-6',
+        ratingScale: RatingScale.numerical([
+          { value: 1, label: 'Faithful', definition: 'Summary accurately reflects source documents' },
+          { value: 0, label: 'Unfaithful', definition: 'Summary contains hallucinations or unsupported claims' },
+        ]),
+        maxTokens: 500,
+        temperature: 1.0,
       }),
-      role: lambdaExecutionRole,
-      timeout: cdk.Duration.seconds(120),
-      memorySize: 512,
-      environment: {
-        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
-        BEDROCK_REGION: 'us-east-1',
-      },
+      level: EvaluationLevel.TRACE,
     });
 
-    // Grant DynamoDB write access to evaluation results table
-    evaluationResultsTable.grantWriteData(evaluationTriggerFunction);
-
-    // Grant Bedrock InvokeModel permission (for the evaluators)
-    evaluationTriggerFunction.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ['bedrock:InvokeModel'],
-      resources: ['*'],
-    }));
-
-    // Grant the orchestrator Lambda permission to invoke the trigger Lambda
-    evaluationTriggerFunction.grantInvoke(claimSummaryOrchestratorFunction);
-
-    // Set EVALUATION_TRIGGER_FUNCTION env var on the orchestrator Lambda
-    claimSummaryOrchestratorFunction.addEnvironment(
-      'EVALUATION_TRIGGER_FUNCTION',
-      evaluationTriggerFunction.functionName,
-    );
-
-    // Export Evaluation Trigger Lambda function ARN
-    new cdk.CfnOutput(this, 'EvaluationTriggerFunctionArn', {
-      value: evaluationTriggerFunction.functionArn,
-      description: 'Evaluation Trigger Lambda Function ARN',
+    // Completeness Evaluator
+    const completenessEvaluator = new Evaluator(this, 'CompletenessEvaluator', {
+      evaluatorName: 'Completeness',
+      evaluatorConfig: EvaluatorConfig.llmAsAJudge({
+        evaluationInstructions: COMPLETENESS_INSTRUCTIONS,
+        modelId: 'global.us.anthropic.claude-sonnet-4-6',
+        ratingScale: RatingScale.numerical([
+          { value: 1, label: 'Complete', definition: 'All key claim elements are covered with appropriate detail' },
+          { value: 0, label: 'Incomplete', definition: 'Major claim elements are missing from the summary' },
+        ]),
+        maxTokens: 500,
+        temperature: 1.0,
+      }),
+      level: EvaluationLevel.TRACE,
     });
+
+    // AnomalyAccuracy Evaluator
+    const anomalyAccuracyEvaluator = new Evaluator(this, 'AnomalyAccuracyEvaluator', {
+      evaluatorName: 'AnomalyAccuracy',
+      evaluatorConfig: EvaluatorConfig.llmAsAJudge({
+        evaluationInstructions: ANOMALY_ACCURACY_INSTRUCTIONS,
+        modelId: 'global.us.anthropic.claude-sonnet-4-6',
+        ratingScale: RatingScale.numerical([
+          { value: 1, label: 'Accurate', definition: 'All detected anomalies are genuine and no real anomalies were missed' },
+          { value: 0, label: 'Inaccurate', definition: 'Anomaly detection contains false positives or missed real anomalies' },
+        ]),
+        maxTokens: 500,
+        temperature: 1.0,
+      }),
+      level: EvaluationLevel.TRACE,
+    });
+
+    // ============================================================
+    // OnlineEvaluationConfig Constructs (one per agent)
+    // ============================================================
+
+    const agents = [
+      { id: 'full-context-agent', name: 'full_context' },
+      { id: 'enriched-agent', name: 'enriched' },
+      { id: 'rag-agent', name: 'rag' },
+      { id: 'graph-rag-agent', name: 'graph_rag' },
+      { id: 'financial-timeline-agent', name: 'financial_timeline' },
+    ];
+
+    for (const agent of agents) {
+      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+        onlineEvaluationConfigName: `${applicationName}_${agent.name}_eval`,
+        dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
+          logGroupNames: [`/aws/agentcore/${agent.id}`],
+          serviceNames: [agent.id],
+        }),
+        evaluators: [
+          EvaluatorReference.fromBuiltIn('Builtin.Helpfulness'),
+          EvaluatorReference.fromEvaluator(faithfulnessEvaluator),
+          EvaluatorReference.fromEvaluator(completenessEvaluator),
+          EvaluatorReference.fromEvaluator(anomalyAccuracyEvaluator),
+        ],
+        samplingPercentage: 80,
+        executionStatus: ExecutionStatus.ENABLED,
+      });
+    }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
     // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
 
     // Full Context Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
     // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
+
+    // ============================================================
+    // Bedrock Evaluations API Infrastructure
+    // ============================================================
+
+    // S3 bucket for evaluation datasets (JSONL files)
+    const evaluationDatasetBucket = new s3.Bucket(this, 'EvaluationDatasetBucket', {
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: environment !== 'prod',
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [
+        {
+          expiration: cdk.Duration.days(30),
+        },
+      ],
+    });
+
+    // S3 bucket for evaluation output (results JSON)
+    const evaluationOutputBucket = new s3.Bucket(this, 'EvaluationOutputBucket', {
+      removalPolicy: environment === 'prod'
+        ? cdk.RemovalPolicy.RETAIN
+        : cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: environment !== 'prod',
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      lifecycleRules: [
+        {
+          expiration: cdk.Duration.days(30),
+        },
+      ],
+    });
+
+    // Export bucket names
+    new cdk.CfnOutput(this, 'EvaluationDatasetBucketName', {
+      value: evaluationDatasetBucket.bucketName,
+      description: 'Evaluation Dataset S3 Bucket Name',
+    });
+
+    new cdk.CfnOutput(this, 'EvaluationOutputBucketName', {
+      value: evaluationOutputBucket.bucketName,
+      description: 'Evaluation Output S3 Bucket Name',
+    });
+
+    // IAM role for Bedrock Evaluations jobs
+    const evaluationJobRole = new iam.Role(this, 'EvaluationJobRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+      inlinePolicies: {
+        EvaluationJobPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: ['s3:GetObject', 's3:ListBucket'],
+              resources: [
+                evaluationDatasetBucket.bucketArn,
+                `${evaluationDatasetBucket.bucketArn}/*`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              actions: ['s3:PutObject', 's3:GetObject'],
+              resources: [
+                evaluationOutputBucket.bucketArn,
+                `${evaluationOutputBucket.bucketArn}/*`,
+              ],
+            }),
+            new iam.PolicyStatement({
+              actions: ['bedrock:InvokeModel'],
+              resources: [
+                `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-sonnet-4-6-20250514`,
+              ],
+            }),
+          ],
+        }),
+      },
+    });
+
+    // Evaluation Job Caller Lambda
+    const evaluationJobCallerFunction = createLambdaFunction(
+      'EvaluationJobCallerFunction',
+      'dist/src/lambda/evaluation-job-caller.handler',
+      {
+        EVALUATION_DATASET_BUCKET: evaluationDatasetBucket.bucketName,
+        EVALUATION_OUTPUT_BUCKET: evaluationOutputBucket.bucketName,
+        EVALUATION_JOB_ROLE_ARN: evaluationJobRole.roleArn,
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        REGION: this.region,
+      },
+      cdk.Duration.seconds(60),
+      256
+    );
+
+    // Grant S3 write access to dataset bucket
+    evaluationDatasetBucket.grantWrite(evaluationJobCallerFunction);
+
+    // Grant Bedrock Evaluations permissions
+    evaluationJobCallerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:CreateEvaluationJob', 'bedrock:GetEvaluationJob'],
+      resources: ['*'],
+    }));
+
+    // Grant iam:PassRole for the evaluation job role
+    evaluationJobCallerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['iam:PassRole'],
+      resources: [evaluationJobRole.roleArn],
+    }));
+
+    // Evaluation Results Poller Lambda
+    const evaluationResultsPollerFunction = createLambdaFunction(
+      'EvaluationResultsPollerFunction',
+      'dist/src/lambda/evaluation-results-poller.handler',
+      {
+        EVALUATION_OUTPUT_BUCKET: evaluationOutputBucket.bucketName,
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        REGION: this.region,
+      },
+      cdk.Duration.seconds(60),
+      256
+    );
+
+    // Grant S3 read access to output bucket
+    evaluationOutputBucket.grantRead(evaluationResultsPollerFunction);
+
+    // Grant DynamoDB write access to evaluation results table
+    evaluationResultsTable.grantWriteData(evaluationResultsPollerFunction);
+
+    // Grant Bedrock GetEvaluationJob permission (to check job status)
+    evaluationResultsPollerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:GetEvaluationJob'],
+      resources: ['*'],
+    }));
+
+    // Wire orchestrator to Evaluation Job Caller Lambda
+    evaluationJobCallerFunction.grantInvoke(claimSummaryOrchestratorFunction);
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'EVALUATION_JOB_CALLER_FUNCTION',
+      evaluationJobCallerFunction.functionName,
+    );
+
+    // Export Lambda function ARNs
+    new cdk.CfnOutput(this, 'EvaluationJobCallerFunctionArn', {
+      value: evaluationJobCallerFunction.functionArn,
+      description: 'Evaluation Job Caller Lambda Function ARN',
+    });
+
+    new cdk.CfnOutput(this, 'EvaluationResultsPollerFunctionArn', {
+      value: evaluationResultsPollerFunction.functionArn,
+      description: 'Evaluation Results Poller Lambda Function ARN',
+    });
 
     // ============================================================
     // AgentCore Runtime Endpoint Configuration
@@ -1506,6 +1742,28 @@ export class RAGApplicationStack extends cdk.Stack {
     claimSummaryOrchestratorFunction.addEnvironment(
       'FINANCIAL_TIMELINE_AGENT_ENDPOINT',
       financialTimelineAgentEndpoint,
+    );
+
+    // RAG Agent — deployed via AgentCore Runtime
+    const ragAgentEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      `/${applicationName}/${environment}/agentcore/rag-agent-endpoint`
+    );
+
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'RAG_AGENT_ENDPOINT',
+      ragAgentEndpoint,
+    );
+
+    // Graph RAG Agent — deployed via AgentCore Runtime
+    const graphRagAgentEndpoint = ssm.StringParameter.valueFromLookup(
+      this,
+      `/${applicationName}/${environment}/agentcore/graph-rag-agent-endpoint`
+    );
+
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'GRAPH_RAG_AGENT_ENDPOINT',
+      graphRagAgentEndpoint,
     );
 
     // ============================================================
