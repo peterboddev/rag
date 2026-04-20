@@ -1535,7 +1535,7 @@ Respond ONLY with valid JSON in this exact format:
 
     for (const agent of agents) {
       new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
-        onlineEvaluationConfigName: `${applicationName}_${agent.name}_eval`,
+        onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
           serviceNames: [agent.id],
