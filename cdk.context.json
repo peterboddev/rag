@@ -3,5 +3,10 @@
   "ssm:account=450683699755:parameterName=/rag-app/dev/apigateway/api-id:region=us-east-1": "wvbm6ooz1j",
   "ssm:account=450683699755:parameterName=/rag-app/dev/apigateway/root-resource-id:region=us-east-1": "xqmtpb1cr4",
   "ssm:account=450683699755:parameterName=/rag-app/dev/dynamodb/customers-table-name:region=us-east-1": "rag-app-customers-dev",
-  "ssm:account=450683699755:parameterName=/rag-app/dev/dynamodb/documents-table-name:region=us-east-1": "rag-app-documents-dev"
+  "ssm:account=450683699755:parameterName=/rag-app/dev/dynamodb/documents-table-name:region=us-east-1": "rag-app-documents-dev",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/agentcore/full-context-agent-endpoint:region=us-east-1": "arn:aws:bedrock-agentcore:us-east-1:450683699755:runtime/full_context_agent-OoiQfVAkoJ",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/agentcore/enriched-agent-endpoint:region=us-east-1": "arn:aws:bedrock-agentcore:us-east-1:450683699755:runtime/enriched_agent-GnXeYAHi4F",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/agentcore/rag-agent-endpoint:region=us-east-1": "arn:aws:bedrock-agentcore:us-east-1:450683699755:runtime/rag_agent-8xUlu6AJg4",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/agentcore/graph-rag-agent-endpoint:region=us-east-1": "arn:aws:bedrock-agentcore:us-east-1:450683699755:runtime/graph_rag_agent-yaJMcV9fxD",
+  "ssm:account=450683699755:parameterName=/rag-app/dev/agentcore/financial-timeline-agent-endpoint:region=us-east-1": "arn:aws:bedrock-agentcore:us-east-1:450683699755:runtime/financial_timeline_agent-FhWDLY3yPL"
 }
