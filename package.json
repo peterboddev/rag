@@ -48,7 +48,7 @@
     "@types/aws-lambda": "^8.10.130",
     "@types/jest": "^29.5.8",
     "@types/uuid": "^9.0.7",
-    "aws-cdk-lib": "^2.110.0",
+    "aws-cdk-lib": "^2.250.0",
     "aws-sdk-client-mock": "^4.1.0",
     "constructs": "^10.3.0",
     "fast-check": "^3.15.0",
