@@ -65,7 +65,7 @@ export function parseEvaluationEvent(event: EvaluationResultEvent): {
     const name = er.evaluatorName;
     if (name === 'Builtin.Helpfulness' || name === 'Helpfulness') {
       result.helpfulness = clampScore(er.score);
-    } else if (name === 'Faithfulness') {
+    } else if (name === 'ClaimFaithfulness' || name === 'Faithfulness') {
       result.faithfulness = clampScore(er.score);
       if (er.reasoning) result.faithfulnessReasoning = er.reasoning;
     } else if (name === 'Completeness') {

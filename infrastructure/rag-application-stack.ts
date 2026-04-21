@@ -1391,14 +1391,10 @@ export class RAGApplicationStack extends cdk.Stack {
     // AgentCore Evaluator Constructs (CDK L2)
     // ============================================================
 
-    // Faithfulness evaluation instructions (from evaluators/faithfulness_evaluator.py)
+    // Faithfulness evaluation instructions
     const FAITHFULNESS_INSTRUCTIONS = `You are evaluating the faithfulness of an insurance claim summary.
 
-Source Documents:
-{source_documents}
-
-Generated Summary:
-{summary}
+The context contains the source documents. The assistant_turn contains the generated summary.
 
 Score the summary on faithfulness (0-1 scale):
 - 1.0: Every statement in the summary is directly supported by the source documents
@@ -1414,10 +1410,16 @@ Evaluate each claim in the summary against the source documents. Check for:
 4. Correct dates and amounts
 5. Any statements not supported by the source documents
 
+Source Documents:
+{context}
+
+Generated Summary:
+{assistant_turn}
+
 Respond ONLY with valid JSON in this exact format:
 {{"score": <float between 0 and 1>, "reasoning": "<brief explanation of your scoring>"}}`;
 
-    // Completeness evaluation instructions (from evaluators/completeness_evaluator.py)
+    // Completeness evaluation instructions
     const COMPLETENESS_INSTRUCTIONS = `You are evaluating the completeness of an insurance claim summary.
 
 The summary should cover these key elements:
@@ -1428,8 +1430,7 @@ The summary should cover these key elements:
 - Provider information
 - Amounts/charges
 
-Generated Summary:
-{summary}
+The assistant_turn contains the generated summary.
 
 Score the summary on completeness (0-1 scale):
 - 1.0: All key elements are covered with appropriate detail
@@ -1446,17 +1447,16 @@ For each key element, determine if it is present in the summary:
 5. Provider - provider name, NPI, or facility
 6. Amounts - charges, payments, or financial information
 
+Generated Summary:
+{assistant_turn}
+
 Respond ONLY with valid JSON in this exact format:
 {{"score": <float between 0 and 1>, "reasoning": "<brief explanation>", "missing_elements": [<list of missing element names as strings>]}}`;
 
-    // Anomaly Accuracy evaluation instructions (from evaluators/anomaly_accuracy_evaluator.py)
+    // Anomaly Accuracy evaluation instructions
     const ANOMALY_ACCURACY_INSTRUCTIONS = `You are evaluating the accuracy of detected anomalies in insurance claim documents.
 
-Source Documents:
-{source_documents}
-
-Detected Anomalies:
-{anomalies}
+The context contains the source documents. The assistant_turn contains the detected anomalies.
 
 Your task:
 1. Review the source documents carefully for actual anomalies (inconsistencies, errors, suspicious patterns, conflicting information)
@@ -1464,6 +1464,12 @@ Your task:
 3. Identify any false positives (detected anomalies that are not real issues in the documents)
 4. Identify any missed anomalies (real issues in the documents that were not detected)
 5. Score the accuracy of the anomaly detection on a 0-1 scale
+
+Source Documents:
+{context}
+
+Detected Anomalies:
+{assistant_turn}
 
 Scoring guidelines:
 - 1.0: All detected anomalies are genuine and no real anomalies were missed
@@ -1477,7 +1483,7 @@ Respond ONLY with valid JSON in this exact format:
 
     // Faithfulness Evaluator
     const faithfulnessEvaluator = new Evaluator(this, 'FaithfulnessEvaluator', {
-      evaluatorName: 'Faithfulness',
+      evaluatorName: 'ClaimFaithfulness',
       evaluatorConfig: EvaluatorConfig.llmAsAJudge({
         evaluationInstructions: FAITHFULNESS_INSTRUCTIONS,
         modelId: 'global.us.anthropic.claude-sonnet-4-6',
