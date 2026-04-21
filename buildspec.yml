@@ -20,7 +20,7 @@ phases:
       - echo "Building application..."
       - npm run build
       - echo "Synthesizing CDK stack..."
-      - npx cdk synth
+      - npx cdk synth 2>&1 || (echo "CDK synth failed with exit code $?" && exit 1)
   
   post_build:
     commands:
