@@ -1483,7 +1483,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       evaluatorName: 'ClaimFaithfulness',
       evaluatorConfig: EvaluatorConfig.llmAsAJudge({
         evaluationInstructions: FAITHFULNESS_INSTRUCTIONS,
-        modelId: 'anthropic.claude-sonnet-4-6',
+        modelId: 'us.anthropic.claude-sonnet-4-6',
         ratingScale: RatingScale.numerical([
           { value: 1, label: 'Faithful', definition: 'Summary accurately reflects source documents' },
           { value: 0, label: 'Unfaithful', definition: 'Summary contains hallucinations or unsupported claims' },
@@ -1499,7 +1499,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       evaluatorName: 'Completeness',
       evaluatorConfig: EvaluatorConfig.llmAsAJudge({
         evaluationInstructions: COMPLETENESS_INSTRUCTIONS,
-        modelId: 'anthropic.claude-sonnet-4-6',
+        modelId: 'us.anthropic.claude-sonnet-4-6',
         ratingScale: RatingScale.numerical([
           { value: 1, label: 'Complete', definition: 'All key claim elements are covered with appropriate detail' },
           { value: 0, label: 'Incomplete', definition: 'Major claim elements are missing from the summary' },
@@ -1515,7 +1515,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       evaluatorName: 'AnomalyAccuracy',
       evaluatorConfig: EvaluatorConfig.llmAsAJudge({
         evaluationInstructions: ANOMALY_ACCURACY_INSTRUCTIONS,
-        modelId: 'anthropic.claude-sonnet-4-6',
+        modelId: 'us.anthropic.claude-sonnet-4-6',
         ratingScale: RatingScale.numerical([
           { value: 1, label: 'Accurate', definition: 'All detected anomalies are genuine and no real anomalies were missed' },
           { value: 0, label: 'Inaccurate', definition: 'Anomaly detection contains false positives or missed real anomalies' },
