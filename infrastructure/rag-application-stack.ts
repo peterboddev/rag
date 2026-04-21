@@ -13,8 +13,6 @@ import {
   Evaluator, EvaluatorConfig, EvaluationLevel, RatingScale,
   OnlineEvaluationConfig, DataSourceConfig, EvaluatorReference, ExecutionStatus,
 } from '@aws-cdk/aws-bedrock-agentcore-alpha';
-// NOTE: AgentCore evaluations constructs are temporarily disabled pending CDK synth fix
-// The imports above are kept for future use
 import { Construct } from 'constructs';
 
 export interface RAGApplicationStackProps extends cdk.StackProps {
@@ -1388,10 +1386,8 @@ export class RAGApplicationStack extends cdk.Stack {
     });
 
     // ============================================================
-    // AgentCore Evaluator Constructs (CDK L2) — TEMPORARILY DISABLED
-    // Uncomment when CDK synth issue is resolved
+    // AgentCore Evaluator Constructs (CDK L2)
     // ============================================================
-    /*
 
     // Faithfulness evaluation instructions (from evaluators/faithfulness_evaluator.py)
     const FAITHFULNESS_INSTRUCTIONS = `You are evaluating the faithfulness of an insurance claim summary.
@@ -1554,7 +1550,6 @@ Respond ONLY with valid JSON in this exact format:
         executionStatus: ExecutionStatus.ENABLED,
       });
     }
-    */ // END TEMPORARILY DISABLED AgentCore Evaluations
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
     // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
