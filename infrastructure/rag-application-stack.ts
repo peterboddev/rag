@@ -1416,8 +1416,7 @@ Source Documents:
 Generated Summary:
 {assistant_turn}
 
-Respond ONLY with valid JSON in this exact format:
-{{"score": <float between 0 and 1>, "reasoning": "<brief explanation of your scoring>"}}`;
+Respond with a score between 0 and 1, and a brief explanation of your scoring.`;
 
     // Completeness evaluation instructions
     const COMPLETENESS_INSTRUCTIONS = `You are evaluating the completeness of an insurance claim summary.
@@ -1450,8 +1449,7 @@ For each key element, determine if it is present in the summary:
 Generated Summary:
 {assistant_turn}
 
-Respond ONLY with valid JSON in this exact format:
-{{"score": <float between 0 and 1>, "reasoning": "<brief explanation>", "missing_elements": [<list of missing element names as strings>]}}`;
+Respond with a score between 0 and 1, a brief explanation, and list any missing elements.`;
 
     // Anomaly Accuracy evaluation instructions
     const ANOMALY_ACCURACY_INSTRUCTIONS = `You are evaluating the accuracy of detected anomalies in insurance claim documents.
@@ -1478,8 +1476,7 @@ Scoring guidelines:
 - 0.25: Many false positives or most real anomalies were missed
 - 0.0: All detections are false positives or no real anomalies were detected
 
-Respond ONLY with valid JSON in this exact format:
-{{"score": <float between 0 and 1>, "reasoning": "<brief explanation of your scoring>", "false_positives": [<list of false positive descriptions as strings>], "missed_anomalies": [<list of missed anomaly descriptions as strings>]}}`;
+Respond with a score between 0 and 1, a brief explanation, and list any false positives or missed anomalies.`;
 
     // Faithfulness Evaluator
     const faithfulnessEvaluator = new Evaluator(this, 'FaithfulnessEvaluator', {
