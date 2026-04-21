@@ -1539,7 +1539,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
     ];
 
     for (const agent of agents) {
-      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1554,6 +1554,16 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
       });
+
+      // Workaround: CloudFormation pattern validation rejects Fn::GetAtt for EvaluatorId.
+      // Override the evaluators array to use Fn::Sub with the evaluator ARN pattern.
+      const cfnOnlineEval = onlineEval.node.defaultChild as cdk.CfnResource;
+      cfnOnlineEval.addPropertyOverride('Evaluators', [
+        { EvaluatorId: 'Builtin.Helpfulness' },
+        { EvaluatorId: cdk.Fn.sub('arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:evaluator/${EvalId}', { EvalId: faithfulnessEvaluator.evaluatorId }) },
+        { EvaluatorId: cdk.Fn.sub('arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:evaluator/${EvalId}', { EvalId: completenessEvaluator.evaluatorId }) },
+        { EvaluatorId: cdk.Fn.sub('arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:evaluator/${EvalId}', { EvalId: anomalyAccuracyEvaluator.evaluatorId }) },
+      ]);
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
