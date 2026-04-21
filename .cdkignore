@@ -1,0 +1,17 @@
+medical_data
+medical-claims-generator
+.hypothesis
+.git
+.pytest_cache
+htmlcov
+cdk.out
+cdk-out-deploy
+cdk-synth-out
+cdk-synth-out2
+cdk-deploy-out
+output
+lambda-build
+frontend/node_modules
+__pycache__
+*.pyc
+.coverage
