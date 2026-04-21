@@ -288,17 +288,19 @@ export class RAGApplicationStack extends cdk.Stack {
       const sourcePath = handler
         .replace('dist/', '')
         .replace('.handler', '.ts');
+      // Docker bundling mounts 'src/' as the asset root, so strip the 'src/' prefix
+      const dockerSourcePath = sourcePath.replace(/^src\//, '');
       
       return new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: 'index.handler',
-        code: lambda.Code.fromAsset('.', {
+        code: lambda.Code.fromAsset('src', {
           bundling: {
             image: lambda.Runtime.NODEJS_20_X.bundlingImage,
             command: [
               'bash', '-c', [
                 'npm install --omit=dev',
-                `npx esbuild ${sourcePath} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
+                `npx esbuild ${dockerSourcePath} --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js`,
               ].join(' && ')
             ],
             local: {
