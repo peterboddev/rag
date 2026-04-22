@@ -1538,15 +1538,8 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       { id: 'financial-timeline-agent', name: 'financial_timeline' },
     ];
 
-    // Evaluator names (known at synth time) for constructing literal ARNs
-    const evaluatorNames = {
-      faithfulness: 'ClaimFaithfulness',
-      completeness: 'Completeness',
-      anomalyAccuracy: 'AnomalyAccuracy',
-    };
-
     for (const agent of agents) {
-      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1561,16 +1554,6 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
       });
-
-      // Workaround: CloudFormation pattern on EvaluatorId expects the short ID format
-      // (name-hash10), not an ARN. Use evaluatorId (Fn::GetAtt) via override.
-      const cfnOnlineEval = onlineEval.node.defaultChild as cdk.CfnResource;
-      cfnOnlineEval.addPropertyOverride('Evaluators', [
-        { EvaluatorId: 'Builtin.Helpfulness' },
-        { EvaluatorId: faithfulnessEvaluator.evaluatorId },
-        { EvaluatorId: completenessEvaluator.evaluatorId },
-        { EvaluatorId: anomalyAccuracyEvaluator.evaluatorId },
-      ]);
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
