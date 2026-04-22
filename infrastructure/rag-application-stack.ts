@@ -1538,8 +1538,15 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       { id: 'financial-timeline-agent', name: 'financial_timeline' },
     ];
 
+    // Evaluator names (known at synth time) for constructing literal ARNs
+    const evaluatorNames = {
+      faithfulness: 'ClaimFaithfulness',
+      completeness: 'Completeness',
+      anomalyAccuracy: 'AnomalyAccuracy',
+    };
+
     for (const agent of agents) {
-      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1554,6 +1561,16 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
       });
+
+      // Workaround: CloudFormation pattern validation rejects ALL intrinsic functions
+      // (Fn::GetAtt, Fn::Sub) for EvaluatorId. Override with literal ARN strings.
+      const cfnOnlineEval = onlineEval.node.defaultChild as cdk.CfnResource;
+      cfnOnlineEval.addPropertyOverride('Evaluators', [
+        { EvaluatorId: 'Builtin.Helpfulness' },
+        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.faithfulness}` },
+        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.completeness}` },
+        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.anomalyAccuracy}` },
+      ]);
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
