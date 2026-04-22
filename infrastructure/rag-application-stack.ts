@@ -1539,12 +1539,36 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       { id: 'financial-timeline-agent', name: 'financial_timeline' },
     ];
 
+    // Create a shared execution role for all OnlineEvaluationConfigs with all required permissions
+    const onlineEvalRole = new iam.Role(this, 'OnlineEvalExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock-agentcore.amazonaws.com'),
+    });
+
+    // Grant permissions for all agent log groups + aws/spans
+    const allLogGroupArns = agents.map(agent =>
+      cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: `/aws/agentcore/${agent.id}:*`, arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this)
+    );
+    allLogGroupArns.push(
+      cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: 'aws/spans:*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this)
+    );
+
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:GetLogEvents', 'logs:FilterLogEvents', 'logs:StartQuery', 'logs:GetQueryResults', 'logs:StopQuery', 'logs:GetLogRecord', 'logs:GetLogGroupFields'],
+      resources: allLogGroupArns,
+    }));
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:DescribeLogGroups'],
+      resources: ['*'],
+    }));
+    // Grant InvokeEvaluator for custom evaluators
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['bedrock-agentcore:InvokeEvaluator'],
+      resources: [faithfulnessEvaluator.evaluatorArn, completenessEvaluator.evaluatorArn, anomalyAccuracyEvaluator.evaluatorArn],
+    }));
+
     for (const agent of agents) {
       // Ensure the log group exists before OnlineEvaluationConfig references it.
-      // Use fromLogGroupName to reference potentially pre-existing log groups
-      // (created by previous rollbacks or agent deployments).
       const logGroupName = `/aws/agentcore/${agent.id}`;
-      const logGroup = logs.LogGroup.fromLogGroupName(this, `AgentLogGroup_${agent.name}`, logGroupName);
 
       // Create the log group only if it doesn't exist, using a custom resource
       new cr.AwsCustomResource(this, `EnsureLogGroup_${agent.name}`, {
@@ -1558,7 +1582,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         policy: cr.AwsCustomResourcePolicy.fromSdkCalls({ resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE }),
       });
 
-      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1572,16 +1596,8 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         ],
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
+        executionRole: onlineEvalRole,
       });
-
-      // L2 construct bug: missing logs:StartQuery on aws/spans and broader log group permissions
-      onlineEval.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({
-        actions: ['logs:StartQuery', 'logs:GetQueryResults', 'logs:StopQuery', 'logs:GetLogEvents', 'logs:FilterLogEvents', 'logs:GetLogRecord', 'logs:GetLogGroupFields'],
-        resources: [
-          cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: `/aws/agentcore/${agent.id}:*`, arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
-          cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: 'aws/spans:*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
-        ],
-      }));
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
