@@ -1560,6 +1560,13 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       actions: ['logs:DescribeLogGroups'],
       resources: ['*'],
     }));
+    // Service creates results log groups automatically
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+      resources: [
+        cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: '/aws/bedrock-agentcore/evaluations/results/*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
+      ],
+    }));
     onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
       actions: ['bedrock-agentcore:InvokeEvaluator'],
       resources: [faithfulnessEvaluator.evaluatorArn, completenessEvaluator.evaluatorArn, anomalyAccuracyEvaluator.evaluatorArn],
