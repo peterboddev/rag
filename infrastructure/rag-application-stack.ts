@@ -1562,14 +1562,14 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         executionStatus: ExecutionStatus.ENABLED,
       });
 
-      // Workaround: CloudFormation pattern validation rejects ALL intrinsic functions
-      // (Fn::GetAtt, Fn::Sub) for EvaluatorId. Override with literal ARN strings.
+      // Workaround: CloudFormation pattern on EvaluatorId expects the short ID format
+      // (name-hash10), not an ARN. Use evaluatorId (Fn::GetAtt) via override.
       const cfnOnlineEval = onlineEval.node.defaultChild as cdk.CfnResource;
       cfnOnlineEval.addPropertyOverride('Evaluators', [
         { EvaluatorId: 'Builtin.Helpfulness' },
-        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.faithfulness}` },
-        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.completeness}` },
-        { EvaluatorId: `arn:aws:bedrock-agentcore:${this.region}:${this.account}:evaluator/${evaluatorNames.anomalyAccuracy}` },
+        { EvaluatorId: faithfulnessEvaluator.evaluatorId },
+        { EvaluatorId: completenessEvaluator.evaluatorId },
+        { EvaluatorId: anomalyAccuracyEvaluator.evaluatorId },
       ]);
     }
 
