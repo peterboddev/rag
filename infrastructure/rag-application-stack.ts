@@ -1568,14 +1568,6 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         executionStatus: ExecutionStatus.ENABLED,
       });
       onlineEval.node.addDependency(ensureLogGroup);
-
-      // L2 construct missing logs:GetQueryResults on aws/spans
-      onlineEval.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({
-        actions: ['logs:GetQueryResults'],
-        resources: [
-          cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: 'aws/spans:*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
-        ],
-      }));
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
