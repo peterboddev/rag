@@ -1568,6 +1568,15 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         executionStatus: ExecutionStatus.ENABLED,
       });
       onlineEval.node.addDependency(ensureLogGroup);
+
+      // L2 construct grants bedrock:InvokeModel on foundation-model ARN but evaluators
+      // use inference profiles (us.anthropic.*). Add the inference profile ARN.
+      onlineEval.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          cdk.Arn.format({ service: 'bedrock', resource: 'inference-profile', resourceName: 'us.anthropic.claude-sonnet-4-6', arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME }, this),
+        ],
+      }));
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
