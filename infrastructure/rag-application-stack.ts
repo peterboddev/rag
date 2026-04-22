@@ -9,6 +9,7 @@ import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as logs from 'aws-cdk-lib/aws-logs';
 import {
   Evaluator, EvaluatorConfig, EvaluationLevel, RatingScale,
   OnlineEvaluationConfig, DataSourceConfig, EvaluatorReference, ExecutionStatus,
@@ -1539,6 +1540,13 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
     ];
 
     for (const agent of agents) {
+      // Ensure the log group exists before OnlineEvaluationConfig references it
+      new logs.LogGroup(this, `AgentLogGroup_${agent.name}`, {
+        logGroupName: `/aws/agentcore/${agent.id}`,
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+
       new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
