@@ -1540,11 +1540,22 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
     ];
 
     for (const agent of agents) {
-      // Ensure the log group exists before OnlineEvaluationConfig references it
-      new logs.LogGroup(this, `AgentLogGroup_${agent.name}`, {
-        logGroupName: `/aws/agentcore/${agent.id}`,
-        retention: logs.RetentionDays.ONE_MONTH,
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      // Ensure the log group exists before OnlineEvaluationConfig references it.
+      // Use fromLogGroupName to reference potentially pre-existing log groups
+      // (created by previous rollbacks or agent deployments).
+      const logGroupName = `/aws/agentcore/${agent.id}`;
+      const logGroup = logs.LogGroup.fromLogGroupName(this, `AgentLogGroup_${agent.name}`, logGroupName);
+
+      // Create the log group only if it doesn't exist, using a custom resource
+      new cr.AwsCustomResource(this, `EnsureLogGroup_${agent.name}`, {
+        onCreate: {
+          service: 'CloudWatchLogs',
+          action: 'createLogGroup',
+          parameters: { logGroupName },
+          physicalResourceId: cr.PhysicalResourceId.of(`log-group-${agent.id}`),
+          ignoreErrorCodesMatching: 'ResourceAlreadyExistsException',
+        },
+        policy: cr.AwsCustomResourcePolicy.fromSdkCalls({ resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE }),
       });
 
       new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
