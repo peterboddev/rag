@@ -1565,13 +1565,21 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       actions: ['bedrock-agentcore:InvokeEvaluator'],
       resources: [faithfulnessEvaluator.evaluatorArn, completenessEvaluator.evaluatorArn, anomalyAccuracyEvaluator.evaluatorArn],
     }));
+    // Grant Bedrock model invocation for LLM-as-a-Judge evaluators
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        cdk.Arn.format({ service: 'bedrock', resource: 'inference-profile', resourceName: 'us.anthropic.claude-sonnet-4-6', arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME }, this),
+        `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6`,
+      ],
+    }));
 
     for (const agent of agents) {
       // Ensure the log group exists before OnlineEvaluationConfig references it.
       const logGroupName = `/aws/agentcore/${agent.id}`;
 
       // Create the log group only if it doesn't exist, using a custom resource
-      new cr.AwsCustomResource(this, `EnsureLogGroup_${agent.name}`, {
+      const ensureLogGroup = new cr.AwsCustomResource(this, `EnsureLogGroup_${agent.name}`, {
         onCreate: {
           service: 'CloudWatchLogs',
           action: 'createLogGroup',
@@ -1582,7 +1590,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         policy: cr.AwsCustomResourcePolicy.fromSdkCalls({ resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE }),
       });
 
-      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1598,6 +1606,9 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         executionStatus: ExecutionStatus.ENABLED,
         executionRole: onlineEvalRole,
       });
+
+      // Ensure log group exists before OnlineEvaluationConfig tries to validate it
+      onlineEval.node.addDependency(ensureLogGroup);
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
