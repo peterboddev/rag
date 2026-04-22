@@ -1558,7 +1558,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         policy: cr.AwsCustomResourcePolicy.fromSdkCalls({ resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE }),
       });
 
-      new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
+      const onlineEval = new OnlineEvaluationConfig(this, `OnlineEval_${agent.name}`, {
         onlineEvaluationConfigName: `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`,
         dataSourceConfig: DataSourceConfig.fromCloudWatchLogs({
           logGroupNames: [`/aws/agentcore/${agent.id}`],
@@ -1573,6 +1573,15 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
       });
+
+      // L2 construct bug: missing logs:StartQuery on aws/spans and broader log group permissions
+      onlineEval.grantPrincipal.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: ['logs:StartQuery', 'logs:GetQueryResults', 'logs:StopQuery', 'logs:GetLogEvents', 'logs:FilterLogEvents', 'logs:GetLogRecord', 'logs:GetLogGroupFields'],
+        resources: [
+          cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: `/aws/agentcore/${agent.id}:*`, arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
+          cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: 'aws/spans:*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this),
+        ],
+      }));
     }
 
     // Enriched Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
