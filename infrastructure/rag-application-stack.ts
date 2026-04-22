@@ -1539,11 +1539,41 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       { id: 'financial-timeline-agent', name: 'financial_timeline' },
     ];
 
-    for (const agent of agents) {
-      // Ensure the log group exists before OnlineEvaluationConfig references it.
-      const logGroupName = `/aws/agentcore/${agent.id}`;
+    // Shared execution role created upfront to avoid IAM eventual consistency race.
+    // When the L2 creates its own role inline, CloudFormation creates the role and
+    // OnlineEvaluationConfig simultaneously — the service validates permissions before
+    // IAM has propagated the policy. A pre-created role avoids this.
+    const onlineEvalRole = new iam.Role(this, 'OnlineEvalExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('bedrock-agentcore.amazonaws.com'),
+    });
+    const allLogGroupArns = agents.map(agent =>
+      cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: `/aws/agentcore/${agent.id}:*`, arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this)
+    );
+    allLogGroupArns.push(
+      cdk.Arn.format({ service: 'logs', resource: 'log-group', resourceName: 'aws/spans:*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME }, this)
+    );
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:GetLogEvents', 'logs:FilterLogEvents', 'logs:StartQuery', 'logs:GetQueryResults', 'logs:StopQuery'],
+      resources: allLogGroupArns,
+    }));
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['logs:DescribeLogGroups'],
+      resources: ['*'],
+    }));
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['bedrock-agentcore:InvokeEvaluator'],
+      resources: [faithfulnessEvaluator.evaluatorArn, completenessEvaluator.evaluatorArn, anomalyAccuracyEvaluator.evaluatorArn],
+    }));
+    onlineEvalRole.addToPrincipalPolicy(new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        cdk.Arn.format({ service: 'bedrock', resource: 'inference-profile', resourceName: 'us.anthropic.claude-sonnet-4-6', arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME }, this),
+        `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6`,
+      ],
+    }));
 
-      // Create the log group only if it doesn't exist, using a custom resource
+    for (const agent of agents) {
+      const logGroupName = `/aws/agentcore/${agent.id}`;
       const ensureLogGroup = new cr.AwsCustomResource(this, `EnsureLogGroup_${agent.name}`, {
         onCreate: {
           service: 'CloudWatchLogs',
@@ -1569,9 +1599,8 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
         ],
         samplingPercentage: 80,
         executionStatus: ExecutionStatus.ENABLED,
+        executionRole: onlineEvalRole,
       });
-
-      // Ensure log group exists before OnlineEvaluationConfig tries to validate it
       onlineEval.node.addDependency(ensureLogGroup);
     }
 
