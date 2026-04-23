@@ -26,6 +26,14 @@ phases:
   post_build:
     commands:
       - echo "Build completed successfully"
+      - echo "Triggering AgentCore agent builds..."
+      - |
+        for agent in full_context_agent enriched_agent rag_agent graph_rag_agent financial_timeline_agent; do
+          PROJECT="bedrock-agentcore-${agent}-builder"
+          echo "Starting build for ${agent} (${PROJECT})..."
+          aws codebuild start-build --project-name "${PROJECT}" --source-type-override NO_SOURCE 2>&1 || echo "Warning: Failed to trigger ${agent} build (non-blocking)"
+        done
+      - echo "Agent builds triggered (running asynchronously)"
 
 artifacts:
   files:
