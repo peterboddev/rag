@@ -659,20 +659,20 @@ Include specific dollar amounts, dates, and medical codes where available. Base 
 - Procedures inconsistent with patient age
 - Billing patterns that warrant investigation
 
-Return your final response as JSON with these exact keys:
-- "summary": your structured summary text (use markdown headers as shown above)
-- "anomalies": the anomalies from detect_anomalies plus your additional findings
-- "documentCount": number of documents retrieved
-- "strategy": "full-context"
-- "financialSummary": the complete result from extract_financial_data
-- "timeline": the complete result from extract_timeline_data
+Return your final response with these sections clearly labeled:
+- SUMMARY: your structured summary text (use markdown headers as shown above)
+- ANOMALIES: the anomalies from detect_anomalies plus your additional findings
+- DOCUMENT_COUNT: number of documents retrieved
+- STRATEGY: "full-context"
+- FINANCIAL_SUMMARY: the complete result from extract_financial_data
+- TIMELINE: the complete result from extract_timeline_data
 """
 
 model = BedrockModel(
     model_id=f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
-    max_tokens=2000,
+    max_tokens=4096,
 )
 
 agent = Agent(

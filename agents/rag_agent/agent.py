@@ -457,7 +457,7 @@ model = BedrockModel(
     model_id=f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
-    max_tokens=2000,
+    max_tokens=4096,
 )
 
 agent = Agent(
