@@ -28,20 +28,34 @@ phases:
       - echo "Build completed successfully"
       - echo "Deploying AgentCore agents..."
       - |
-        S3_BUCKET="bedrock-agentcore-codebuild-sources-${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}-${AWS_DEFAULT_REGION:-us-east-1}"
-        echo "Packaging source to s3://${S3_BUCKET}..."
-        git archive --format=tar.gz HEAD -o /tmp/agent-source.tar.gz
+        S3_BUCKET="bedrock-agentcore-codebuild-sources-$(aws sts get-caller-identity --query Account --output text)-${AWS_DEFAULT_REGION:-us-east-1}"
+        echo "Packaging source for agent builds..."
+        # Create source zip with all project files (excluding build artifacts)
+        cd $CODEBUILD_SRC_DIR
+        zip -r /tmp/agent-source.zip . \
+          -x "node_modules/*" ".git/*" "cdk.out/*" "cdk-out-deploy/*" "cdk-synth-out/*" "cdk-synth-out2/*" \
+             "cdk-deploy-out/*" "frontend/node_modules/*" ".hypothesis/*" "__pycache__/*" "dist/*" \
+             "lambda-build/*" "medical_data" "medical-claims-generator/*" "htmlcov/*" ".pytest_cache/*" \
+             "*.pyc" "*.log"
         for agent in full_context_agent enriched_agent rag_agent graph_rag_agent financial_timeline_agent; do
           PROJECT="bedrock-agentcore-${agent}-builder"
-          S3_KEY="${agent}/source.tar.gz"
-          echo "Uploading source for ${agent}..."
-          aws s3 cp /tmp/agent-source.tar.gz "s3://${S3_BUCKET}/${S3_KEY}"
-          echo "Starting build for ${agent}..."
-          aws codebuild start-build \
-            --project-name "${PROJECT}" \
-            --source-type-override S3 \
-            --source-location-override "${S3_BUCKET}/${S3_KEY}" \
-            2>&1 || echo "Warning: Failed to trigger ${agent} build (non-blocking)"
+          S3_KEY="${agent}/source.zip"
+          # Add agent-specific Dockerfile at zip root
+          DOCKERFILE=".bedrock_agentcore/${agent}/Dockerfile"
+          if [ -f "$DOCKERFILE" ]; then
+            cp /tmp/agent-source.zip "/tmp/agent-${agent}.zip"
+            cd $CODEBUILD_SRC_DIR && zip -j "/tmp/agent-${agent}.zip" "$DOCKERFILE"
+            echo "Uploading source for ${agent}..."
+            aws s3 cp "/tmp/agent-${agent}.zip" "s3://${S3_BUCKET}/${S3_KEY}"
+            echo "Starting build for ${agent}..."
+            aws codebuild start-build \
+              --project-name "${PROJECT}" \
+              --source-type-override S3 \
+              --source-location-override "${S3_BUCKET}/${S3_KEY}" \
+              2>&1 || echo "Warning: Failed to trigger ${agent} build (non-blocking)"
+          else
+            echo "Warning: No Dockerfile for ${agent}, skipping"
+          fi
         done
       - echo "Agent builds triggered (running asynchronously)"
 
