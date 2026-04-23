@@ -206,6 +206,46 @@ export class RAGApplicationStack extends cdk.Stack {
     // Ensure second GSI waits for first GSI to complete
     gsiTenant.node.addDependency(gsiCustomer);
 
+    // Customers Table GSI: email-index for querying by email
+    const gsiEmail = new cr.AwsCustomResource(this, 'GSIEmail', {
+      onCreate: {
+        service: 'DynamoDB',
+        action: 'updateTable',
+        parameters: {
+          TableName: customersTableName,
+          AttributeDefinitions: [
+            { AttributeName: 'email', AttributeType: 'S' },
+          ],
+          GlobalSecondaryIndexUpdates: [
+            {
+              Create: {
+                IndexName: 'email-index',
+                KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+                Projection: { ProjectionType: 'ALL' },
+              },
+            },
+          ],
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('CustomersTableGSIEmail'),
+        outputPaths: [],
+        ignoreErrorCodesMatching: '.*',
+      },
+      onDelete: {
+        service: 'DynamoDB',
+        action: 'describeTable',
+        parameters: {
+          TableName: customersTableName,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('CustomersTableGSIEmail'),
+        outputPaths: [],
+      },
+      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+      }),
+    });
+    // Sequential: wait for documents table GSIs to finish first
+    gsiEmail.node.addDependency(gsiTenant);
+
     // Import IAM role - handle dummy values during synthesis
     const lambdaExecutionRole = applicationRoleArn.startsWith('arn:')
       ? iam.Role.fromRoleArn(

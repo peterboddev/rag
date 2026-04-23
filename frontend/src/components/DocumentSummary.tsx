@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiRequest } from '../services/claimApi';
 import { DocumentSummaryRequest, DocumentSummaryResponse, SelectiveSummaryRequest, SelectiveSummaryResponse, ChunkingMethod } from '../types';
 import DocumentSelectionPanel from './DocumentSelectionPanel';
 import SummaryDisplayPanel from './SummaryDisplayPanel';
@@ -25,8 +26,6 @@ const DocumentSummary: React.FC = () => {
   const [currentChunkingMethod, setCurrentChunkingMethod] = useState<ChunkingMethod | undefined>();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || 'https://0128pkytnc.execute-api.us-east-1.amazonaws.com/prod';
-
   const addNotification = useCallback((type: Notification['type'], message: string, details?: string, actions?: Notification['actions']) => {
     const id = `notif-${++notificationIdCounter}`;
     setNotifications(prev => [...prev, { id, type, message, details, actions }]);
@@ -50,20 +49,10 @@ const DocumentSummary: React.FC = () => {
     try {
       setDeletingDocuments(prev => new Set(prev).add(documentId));
       
-      const response = await fetch(`${API_BASE_URL}/documents/delete`, {
+      await apiRequest('/documents/delete', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        },
         body: JSON.stringify({ documentId, customerUUID })
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `Delete failed: ${response.statusText}`);
-      }
 
       if (summaryData) {
         await refreshDocumentList();
@@ -101,20 +90,10 @@ const DocumentSummary: React.FC = () => {
     try {
       setRetryingDocuments(prev => new Set(prev).add(documentId));
       
-      const response = await fetch(`${API_BASE_URL}/documents/retry`, {
+      const result = await apiRequest<{ textLength: number }>('/documents/retry', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        },
         body: JSON.stringify({ documentId, customerUUID })
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || `Retry failed: ${response.statusText}`);
-      }
 
       if (summaryData) {
         await refreshDocumentList();
@@ -141,19 +120,11 @@ const DocumentSummary: React.FC = () => {
     if (!summaryData || !tenantId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/documents/summary`, {
+      const refreshedData = await apiRequest<DocumentSummaryResponse>('/documents/summary', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        },
         body: JSON.stringify({ customerEmail: summaryData.customerEmail })
       });
-
-      if (response.ok) {
-        const refreshedData: DocumentSummaryResponse = await response.json();
-        setSummaryData(refreshedData);
-      }
+      setSummaryData(refreshedData);
     } catch (err) {
       console.error('Error refreshing document list:', err);
     }
@@ -178,21 +149,10 @@ const DocumentSummary: React.FC = () => {
         customerEmail: customerEmail.trim()
       };
 
-      const response = await fetch(`${API_BASE_URL}/documents/summary`, {
+      const data = await apiRequest<DocumentSummaryResponse>('/documents/summary', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        },
         body: JSON.stringify(request)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Request failed: ${response.statusText}`);
-      }
-
-      const data: DocumentSummaryResponse = await response.json();
       setSummaryData(data);
 
     } catch (err) {
@@ -266,21 +226,10 @@ const DocumentSummary: React.FC = () => {
         documentIds: Array.from(selectedDocuments)
       };
 
-      const response = await fetch(`${API_BASE_URL}/documents/summary/selective`, {
+      const data = await apiRequest<SelectiveSummaryResponse>('/documents/summary/selective', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        },
         body: JSON.stringify(request)
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Summarization failed: ${response.statusText}`);
-      }
-
-      const data: SelectiveSummaryResponse = await response.json();
       setSelectiveSummaryData(data);
       addNotification('success', 'Summary generated successfully', `Processed ${data.documentCount} document(s)`);
 

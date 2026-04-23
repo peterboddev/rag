@@ -29,7 +29,7 @@ const getAuthToken = async (forceRefresh: boolean = false): Promise<string | nul
 };
 
 // Helper for API requests with authentication (retries once with fresh token on 401)
-async function apiRequest<T>(
+export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   _isRetry: boolean = false
