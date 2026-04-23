@@ -40,6 +40,7 @@ BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb", region_name=BEDROCK_REGION)
 documents_table = dynamodb.Table(DOCUMENTS_TABLE)
+logger.info(f"DynamoDB config: table={DOCUMENTS_TABLE}, region={BEDROCK_REGION}")
 bedrock_agent_client = boto3.client(
     "bedrock-agent-runtime", region_name=BEDROCK_REGION
 )
@@ -89,6 +90,7 @@ def _retrieve_full_context(claim_id: str, tenant_id: str = None) -> list[dict]:
                 status_code=400,
             )
 
+        logger.info(f"Querying DynamoDB: table={DOCUMENTS_TABLE}, index=tenant-documents-index, tenantId={tenant_id}, claimId={claim_id}")
         response = documents_table.query(
             IndexName="tenant-documents-index",
             KeyConditionExpression="tenantId = :tenantId",
