@@ -46,6 +46,16 @@ jest.mock('@aws-sdk/client-s3', () => ({
   DeleteObjectCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'DeleteObject' })),
 }));
 
+jest.mock('@aws-sdk/client-lambda', () => ({
+  LambdaClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  InvokeCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'Invoke' })),
+}));
+
+jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
+  BedrockAgentCoreClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  InvokeAgentRuntimeCommand: jest.fn().mockImplementation((params) => params),
+}));
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { handler } from '../src/lambda/claim-summary-orchestrator';
@@ -415,44 +425,29 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
     });
   });
 
-  // Req 9.9: forceRegenerate bypasses cache
-  describe('forceRegenerate bypasses cache', () => {
-    it('should generate fresh summary when forceRegenerate is true', async () => {
-      // With forceRegenerate=true, cache check is skipped entirely
-      mockDynamoSend
-        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId → queryClaimDocuments
-        .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query (no cache check)
-        ; // cache writes handled by global mock
-      mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh regenerated summary'));
-      mockS3Send; // cache writes handled by global mock
-
+  // Req 9.9: forceRegenerate triggers async regeneration (202)
+  describe('forceRegenerate triggers async regeneration', () => {
+    it('should return 202 with processing status when forceRegenerate is true', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context', forceRegenerate: true }),
       });
       const result = await handler(event);
       const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(200);
-      expect(body.cached).toBe(false);
-      expect(body.summary).toBe('Fresh regenerated summary');
-      // Bedrock should have been called (not served from cache)
-      expect(mockBedrockSend).toHaveBeenCalled();
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
+      expect(body.strategy).toBe('full-context');
     });
 
     it('should not check DynamoDB cache when forceRegenerate is true', async () => {
-      mockDynamoSend
-        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
-        .mockResolvedValueOnce({ Items: sampleDocuments }) // documents query
-        ; // cache writes handled by global mock
-      mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh summary'));
-      mockS3Send; // cache writes handled by global mock
-
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context', forceRegenerate: true }),
       });
-      await handler(event);
+      const result = await handler(event);
 
-      // The first DynamoDB call should be the documents query, not a cache GetCommand
+      expect(result.statusCode).toBe(202);
+      // The first DynamoDB call should not be a cache GetCommand
       const firstCall = mockDynamoSend.mock.calls[0]?.[0];
       expect(firstCall?._type).not.toBe('Get');
     });

@@ -70,6 +70,13 @@ jest.mock('../frontend/src/components/StrategyComparisonView', () => {
   return { __esModule: true, default: MockView };
 });
 
+// Mock FullContextTab to avoid pulling in API dependencies
+jest.mock('../frontend/src/components/FullContextTab', () => {
+  const MockTab = (props: any) => React.createElement('div', { 'data-testid': 'full-context-tab', 'data-claim-id': props.claimId });
+  MockTab.displayName = 'FullContextTab';
+  return { __esModule: true, default: MockTab };
+});
+
 import { render, cleanup, fireEvent } from '@testing-library/react';
 import ClaimSummaryModal from '../frontend/src/components/ClaimSummaryModal';
 
@@ -80,14 +87,18 @@ describe('Remove Generate Tab — ClaimSummaryModal component', () => {
     cleanup();
   });
 
-  it('renders StrategyComparisonView without tab bar or tab buttons (Req 1.1, 1.2)', () => {
+  it('renders two tabs: Summarize Claim and Full Context Analysis (Req 1.1, 1.2)', () => {
     const props = makeProps();
     const { container } = render(React.createElement(ClaimSummaryModal, props));
 
-    // StrategyComparisonView is rendered
+    // StrategyComparisonView is rendered (default tab)
     expect(container.querySelector('[data-testid="strategy-comparison-view"]')).toBeTruthy();
 
-    // No tab buttons
+    // Two tab buttons exist
+    expect(container.querySelector('[data-testid="tab-summarize"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="tab-full-context"]')).toBeTruthy();
+
+    // Old tab buttons do not exist
     expect(container.querySelector('[data-testid="tab-generate"]')).toBeNull();
     expect(container.querySelector('[data-testid="tab-compare"]')).toBeNull();
 

@@ -45,6 +45,16 @@ jest.mock('@aws-sdk/client-s3', () => ({
   DeleteObjectCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'DeleteObject' })),
 }));
 
+jest.mock('@aws-sdk/client-lambda', () => ({
+  LambdaClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  InvokeCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'Invoke' })),
+}));
+
+jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
+  BedrockAgentCoreClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  InvokeAgentRuntimeCommand: jest.fn().mockImplementation((params) => params),
+}));
+
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { handler } from '../src/lambda/claim-summary-orchestrator';
@@ -260,17 +270,7 @@ describe('Claim Summary Orchestrator - Cache Logic (Task 4.2)', () => {
     expect(mockDynamoSend).toHaveBeenCalled();
   });
 
-  // TODO: Skip - needs mock update for new Full Context agent Lambda architecture
-  it.skip('should bypass cache when forceRegenerate is true', async () => {
-    // With forceRegenerate=true, cache should NOT be checked
-    // Mock resolvePatientId, documents query and Bedrock response
-    mockDynamoSend
-      .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
-      .mockResolvedValueOnce({ Items: sampleDocuments }) // query documents (no cache check)
-      .mockResolvedValueOnce({}) // cache write (PutCommand)
-      .mockResolvedValueOnce({}); // additional cache ops
-    mockBedrockSend.mockResolvedValueOnce(mockBedrockResponse('Fresh summary'));
-
+  it('should return 202 with processing status when forceRegenerate is true', async () => {
     const event = createEvent({
       pathParameters: { claimId: 'test-claim-001' },
       body: JSON.stringify({ strategy: 'full-context', forceRegenerate: true }),
@@ -279,9 +279,10 @@ describe('Claim Summary Orchestrator - Cache Logic (Task 4.2)', () => {
     const result = await handler(event);
     const body = JSON.parse(result.body);
 
-    expect(result.statusCode).toBe(200);
-    expect(body.cached).toBe(false);
-    expect(body.summary).toBeTruthy();
+    expect(result.statusCode).toBe(202);
+    expect(body.status).toBe('processing');
+    expect(body.claimId).toBe('test-claim-001');
+    expect(body.strategy).toBe('full-context');
   });
 });
 
@@ -630,16 +631,17 @@ describe('Claim Summary Orchestrator - GET /evaluations (Task 4.5)', () => {
 
     expect(result.statusCode).toBe(200);
     expect(body.claimId).toBe('test-claim-001');
-    expect(body.evaluations).toHaveLength(2);
-    expect(body.evaluations[0].strategy).toBe('full-context');
-    expect(body.evaluations[0].chunkingMethod).toBeNull();
-    expect(body.evaluations[0].evaluation.helpfulness).toBe(0.88);
-    expect(body.evaluations[1].strategy).toBe('rag');
-    expect(body.evaluations[1].chunkingMethod).toBe('semantic');
-    expect(body.evaluations[1].evaluation.helpfulness).toBe(0.92);
+    // Evaluations are now grouped by source
+    expect(body.evaluations['bedrock-api']).toHaveLength(2);
+    expect(body.evaluations['bedrock-api'][0].strategy).toBe('full-context');
+    expect(body.evaluations['bedrock-api'][0].chunkingMethod).toBeNull();
+    expect(body.evaluations['bedrock-api'][0].evaluation.helpfulness).toBe(0.88);
+    expect(body.evaluations['bedrock-api'][1].strategy).toBe('rag');
+    expect(body.evaluations['bedrock-api'][1].chunkingMethod).toBe('semantic');
+    expect(body.evaluations['bedrock-api'][1].evaluation.helpfulness).toBe(0.92);
   });
 
-  it('should return empty evaluations array when no evaluations exist', async () => {
+  it('should return empty evaluations when no evaluations exist', async () => {
     mockDynamoSend.mockResolvedValueOnce({ Items: [] });
 
     const event = createEvent({
@@ -655,7 +657,9 @@ describe('Claim Summary Orchestrator - GET /evaluations (Task 4.5)', () => {
 
     expect(result.statusCode).toBe(200);
     expect(body.claimId).toBe('new-claim');
-    expect(body.evaluations).toEqual([]);
+    // Evaluations are grouped by source, both empty
+    expect(body.evaluations['bedrock-api']).toEqual([]);
+    expect(body.evaluations['agentcore-online']).toEqual([]);
   });
 
   it('should return 400 when claimId is missing for GET /evaluations', async () => {
