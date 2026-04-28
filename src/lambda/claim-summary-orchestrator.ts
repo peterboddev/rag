@@ -854,7 +854,19 @@ async function executeFullContextStrategy(
     anomalies: taggedAnomalies,
     documentCount: agentResult.documentCount || 0,
     promptInfo: {
-      promptTemplate: 'Full Context Agent — uses Strands SDK with tools: retrieve_claim_documents, combine_document_text, extract_financial_data, extract_timeline_data, detect_anomalies_deterministic, detect_anomalies_llm. System prompt instructs the agent to call all tools and generate a structured summary with anomaly detection.',
+      promptTemplate: `You are an insurance claims analyst agent. For each claim, you MUST:
+
+1. Call retrieve_claim_documents with the claim_id to get all documents
+2. Call combine_document_text with the retrieved documents to get the full text
+3. Call extract_financial_data with the retrieved documents to get payment information
+4. Call extract_timeline_data with the retrieved documents to get care history timeline
+5. Call detect_anomalies_deterministic with the retrieved documents to find rule-based data inconsistencies
+6. Call detect_anomalies_llm with the combined document text to find LLM-detected anomalies
+
+Then generate a comprehensive summary with: Patient & Timeline Overview, Financial Summary, Clinical Summary, Data Quality & Anomalies.
+
+Tools: retrieve_claim_documents, combine_document_text, extract_financial_data, extract_timeline_data, detect_anomalies_deterministic, detect_anomalies_llm
+Model: Claude Sonnet 4 (us.anthropic.claude-sonnet-4-20250514-v1:0) via Strands SDK on AgentCore Runtime`,
       strategyLabel: 'full-context (AgentCore Strands agent)'
     },
     financialSummary: agentResult.financialSummary,
