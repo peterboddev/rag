@@ -86,7 +86,7 @@ export const handler = async (event: EvaluationJobRequest): Promise<void> => {
       evaluationConfig: {
         automated: {
           datasetMetricConfigs: [{
-            taskType: 'General',
+            taskType: 'Custom',
             dataset: {
               name: jobName,
               datasetLocation: {
