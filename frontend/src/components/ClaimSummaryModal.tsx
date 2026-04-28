@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import StrategyComparisonView from './StrategyComparisonView';
+import FullContextTab from './FullContextTab';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ interface DataAnomaly {
   severity: 'critical' | 'warning' | 'info';
   sourceDocument: string;
   dataValues: Record<string, string>;
+  source?: 'deterministic' | 'llm';
 }
 
 interface EvaluationScores {
@@ -114,12 +116,14 @@ export function extractDisplayFields(response: ClaimSummaryResponse): {
 
 const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, claimId }) => {
   const [mountKey, setMountKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<'summarize' | 'full-context'>('summarize');
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Increment mountKey when modal opens to force StrategyComparisonView remount
+  // Increment mountKey when modal opens to force remount; reset activeTab
   useEffect(() => {
     if (isOpen) {
       setMountKey((prev) => prev + 1);
+      setActiveTab('summarize');
     }
   }, [isOpen]);
 
@@ -182,9 +186,44 @@ const ClaimSummaryModal: React.FC<ClaimSummaryModalProps> = ({ isOpen, onClose, 
           >×</button>
         </div>
 
-        {/* Scrollable content */}
+        {/* Tab bar */}
+        <div style={{
+          display: 'flex', borderBottom: '1px solid #e0e0e0', padding: '0 20px',
+        }}>
+          <button
+            data-testid="tab-summarize"
+            onClick={() => setActiveTab('summarize')}
+            style={{
+              padding: '10px 20px', fontSize: '14px', fontWeight: 600,
+              background: 'none', border: 'none', cursor: 'pointer',
+              borderBottom: activeTab === 'summarize' ? '3px solid #007bff' : '3px solid transparent',
+              color: activeTab === 'summarize' ? '#007bff' : '#666',
+            }}
+          >
+            Summarize Claim
+          </button>
+          <button
+            data-testid="tab-full-context"
+            onClick={() => setActiveTab('full-context')}
+            style={{
+              padding: '10px 20px', fontSize: '14px', fontWeight: 600,
+              background: 'none', border: 'none', cursor: 'pointer',
+              borderBottom: activeTab === 'full-context' ? '3px solid #007bff' : '3px solid transparent',
+              color: activeTab === 'full-context' ? '#007bff' : '#666',
+            }}
+          >
+            Full Context Analysis
+          </button>
+        </div>
+
+        {/* Scrollable content — both tabs always mounted, hidden via display */}
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-          <StrategyComparisonView key={mountKey} claimId={claimId} />
+          <div style={{ display: activeTab === 'summarize' ? 'block' : 'none' }}>
+            <StrategyComparisonView key={mountKey} claimId={claimId} />
+          </div>
+          <div style={{ display: activeTab === 'full-context' ? 'block' : 'none' }}>
+            <FullContextTab key={mountKey} claimId={claimId} />
+          </div>
         </div>
       </div>
     </div>

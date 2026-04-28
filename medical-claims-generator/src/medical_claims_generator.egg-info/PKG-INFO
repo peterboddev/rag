@@ -1,0 +1,307 @@
+Metadata-Version: 2.4
+Name: medical-claims-generator
+Version: 0.1.0
+Summary: Synthetic medical claims data generator for insurance claim portal testing
+Author-email: Development Team <dev@example.com>
+License: MIT
+Keywords: medical,claims,synthetic-data,fhir,insurance
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Healthcare Industry
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Scientific/Engineering :: Medical Science Apps.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fhir.resources>=7.0.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: reportlab>=4.0.0
+Requires-Dist: weasyprint>=60.0
+Requires-Dist: boto3>=1.28.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: hypothesis>=6.90.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Dynamic: license-file
+
+# Medical Claims Data Generator
+
+A Python tool for generating synthetic medical insurance claim datasets for testing and demonstration purposes. This tool combines Synthea-generated synthetic patient records with real TCIA (The Cancer Imaging Archive) medical imaging metadata to produce comprehensive claim datasets.
+
+## Features
+
+- **Synthetic Patient Generation**: Uses Synthea to create realistic FHIR-compliant patient records with cancer diagnoses
+- **Real Imaging Integration**: Maps synthetic patients to actual DICOM imaging studies from TCIA
+- **Comprehensive Documentation**: Generates CMS-1500 forms, EOB documents, radiology reports, and clinical notes as PDFs
+- **Reproducible**: Supports random seed for deterministic data generation
+- **Validated Output**: Automatic validation of generated datasets for completeness
+- **Statistics**: Generates summary statistics about the dataset
+
+## Requirements
+
+### System Requirements
+
+- Python 3.10 or higher
+- Java 11 or higher (for Synthea)
+- 2GB+ RAM
+- 1GB+ disk space for generated data
+
+### External Dependencies
+
+1. **Synthea**: Synthetic patient generator
+   - Download from: https://github.com/synthetichealth/synthea
+   - Extract to a local directory
+   - Note the path for configuration
+
+2. **TCIA Metadata**: Medical imaging metadata CSV
+   - Download from: https://www.cancerimagingarchive.net/
+   - Recommended collection: EAY131
+   - Save the metadata CSV file
+
+## Installation
+
+### Option 1: Install from source (Development)
+
+```bash
+# Clone or navigate to the project directory
+cd medical-claims-generator
+
+# Create a virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install in development mode with dev dependencies
+pip install -e ".[dev]"
+```
+
+### Option 2: Install from requirements.txt
+
+```bash
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# For development (includes testing tools)
+pip install -r requirements-dev.txt
+```
+
+## Usage
+
+### Basic Usage
+
+```bash
+generate-medical-claims \
+    --output-dir ./medical_data \
+    --tcia-metadata ./tcia_metadata.csv \
+    --patient-count 25 \
+    --synthea-path ./synthea
+```
+
+### Command-Line Arguments
+
+- `--output-dir`: Root directory for generated data (default: `medical_data`)
+- `--tcia-metadata`: Path to TCIA metadata CSV file (required)
+- `--patient-count`: Number of patients to generate, 20-30 (default: 25)
+- `--seed`: Random seed for reproducibility (optional)
+- `--synthea-path`: Path to Synthea installation directory (default: `./synthea`)
+
+### Examples
+
+**Generate with specific seed for reproducibility:**
+```bash
+generate-medical-claims \
+    --tcia-metadata ./tcia_eay131.csv \
+    --seed 42
+```
+
+**Generate maximum patients:**
+```bash
+generate-medical-claims \
+    --tcia-metadata ./tcia_eay131.csv \
+    --patient-count 30
+```
+
+**Custom output location:**
+```bash
+generate-medical-claims \
+    --output-dir /data/claims \
+    --tcia-metadata ./tcia_eay131.csv \
+    --synthea-path /opt/synthea
+```
+
+## Output Structure
+
+The tool generates a structured directory hierarchy:
+
+```
+medical_data/
+├── patients/
+│   ├── TCIA-001/
+│   │   ├── claims/
+│   │   │   ├── cms1500_001.pdf
+│   │   │   ├── eob_001.pdf
+│   │   │   └── radiology_report_001.pdf
+│   │   └── clinical-notes/
+│   │       └── note_001.pdf
+│   ├── TCIA-002/
+│   │   └── ...
+│   └── ...
+├── metadata/
+│   ├── tcia_metadata.csv
+│   └── synthea-output/
+│       ├── fhir/
+│       └── csv/
+├── mapping.json
+└── statistics.json
+```
+
+### Key Files
+
+- **mapping.json**: Maps Synthea patient IDs to TCIA patient IDs and encounters to imaging studies
+- **statistics.json**: Summary statistics including patient counts, claim statuses, and document counts
+- **CMS-1500 forms**: Standard insurance claim forms with procedure codes and diagnosis
+- **EOB documents**: Explanation of Benefits showing claim processing results (approved/denied/pending)
+- **Radiology reports**: Clinical reports referencing actual DICOM study UIDs
+- **Clinical notes**: Physician notes documenting patient encounters
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=medical_claims_generator --cov-report=html
+
+# Run specific test categories
+pytest -m unit
+pytest -m integration
+```
+
+### Code Quality
+
+```bash
+# Format code
+black src/ tests/
+
+# Lint code
+ruff check src/ tests/
+
+# Type checking
+mypy src/
+```
+
+### Project Structure
+
+```
+medical-claims-generator/
+├── src/
+│   └── medical_claims_generator/
+│       ├── __init__.py
+│       ├── main.py                    # CLI entry point
+│       ├── models.py                  # Data models
+│       ├── orchestrator.py            # Main workflow orchestrator
+│       ├── patient_generator.py       # Synthea wrapper
+│       ├── patient_mapper.py          # Patient-to-imaging mapping
+│       ├── document_generator.py      # Document generation orchestrator
+│       ├── output_organizer.py        # Directory structure management
+│       ├── validator.py               # Data validation
+│       ├── statistics_generator.py    # Statistics computation
+│       ├── s3_uploader.py            # Optional S3 upload
+│       └── pdf_generators/
+│           ├── __init__.py
+│           ├── cms1500_generator.py
+│           ├── eob_generator.py
+│           ├── radiology_report_generator.py
+│           └── clinical_note_generator.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_models.py
+│   ├── test_patient_generator.py
+│   ├── test_patient_mapper.py
+│   └── ...
+├── pyproject.toml
+├── requirements.txt
+├── requirements-dev.txt
+├── pytest.ini
+└── README.md
+```
+
+## Configuration
+
+### Synthea Configuration
+
+The tool automatically configures Synthea with:
+- Cancer diagnosis modules (lung cancer, colorectal cancer)
+- FHIR R4 output format
+- CSV export enabled
+- Random seed (if provided)
+
+### Claim Status Distribution
+
+- 60% Approved claims (with payment information)
+- 20% Denied claims (with denial reasons)
+- 20% Pending claims
+
+### CPT Codes
+
+CT imaging procedures use CPT codes in range 71250-71275.
+
+## Troubleshooting
+
+### Common Issues
+
+**Synthea not found:**
+```
+Error: Synthea executable not found at ./synthea
+```
+Solution: Ensure Synthea is downloaded and the path is correct. Use `--synthea-path` to specify the location.
+
+**TCIA metadata format error:**
+```
+Error: Required columns missing from TCIA metadata
+```
+Solution: Ensure the CSV contains required columns: PatientID, StudyInstanceUID, Modality, StudyDate, SeriesDescription.
+
+**Patient count validation:**
+```
+Error: patient_count must be between 20 and 30
+```
+Solution: Use `--patient-count` with a value between 20 and 30.
+
+**Insufficient TCIA patients:**
+```
+Error: Not enough TCIA patients with CT studies
+```
+Solution: Ensure the TCIA metadata CSV contains at least as many patients with CT studies as the requested patient count.
+
+## License
+
+MIT License - See LICENSE file for details.
+
+## Contributing
+
+This tool is part of the Insurance Claim Portal POC project. For contributions or issues, please contact the development team.
+
+## Acknowledgments
+
+- **Synthea**: https://github.com/synthetichealth/synthea
+- **TCIA**: https://www.cancerimagingarchive.net/
+- **FHIR**: https://www.hl7.org/fhir/

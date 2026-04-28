@@ -1,0 +1,1 @@
+{"statusCode":200,"headers":{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"},"body":"{\"jobId\":\"5079f17a-c504-4d71-86d0-da05d9226f14\",\"status\":\"completed\",\"documentsProcessed\":4,\"totalDocuments\":4,\"message\":\"Successfully loaded 4 documents\"}"}

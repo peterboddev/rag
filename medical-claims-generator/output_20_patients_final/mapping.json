@@ -1,0 +1,213 @@
+{
+  "patient_mappings": [
+    {
+      "synthea_id": "ea8df98b-6ed8-2f53-9f6a-80af4fa3bd0f",
+      "tcia_id": "TCIA-002"
+    },
+    {
+      "synthea_id": "5c9f20d5-8361-b331-9267-5303ca5b136a",
+      "tcia_id": "TCIA-015"
+    },
+    {
+      "synthea_id": "d545798e-09a4-ef89-abc5-9f62dc5a5095",
+      "tcia_id": "TCIA-013"
+    },
+    {
+      "synthea_id": "59d21b6d-ef06-1497-4b9c-19918733d3f6",
+      "tcia_id": "TCIA-017"
+    },
+    {
+      "synthea_id": "7a58a941-bd27-086e-d622-38e5917d0df5",
+      "tcia_id": "TCIA-028"
+    },
+    {
+      "synthea_id": "288427c5-ee03-f47e-6872-def5772f427c",
+      "tcia_id": "TCIA-023"
+    },
+    {
+      "synthea_id": "cf6b5139-56ec-28fb-d921-32ce06ac3ab4",
+      "tcia_id": "TCIA-008"
+    },
+    {
+      "synthea_id": "ba9017cf-ec31-eb58-6ce3-c1a660615c85",
+      "tcia_id": "TCIA-021"
+    },
+    {
+      "synthea_id": "ab0f5574-2722-5196-53ab-2249480376d7",
+      "tcia_id": "TCIA-018"
+    },
+    {
+      "synthea_id": "a35dfdc9-1d97-63e0-a0b6-3e97b6fd5fe1",
+      "tcia_id": "TCIA-016"
+    },
+    {
+      "synthea_id": "eed8a921-eac8-0778-4113-255f4e35506a",
+      "tcia_id": "TCIA-025"
+    },
+    {
+      "synthea_id": "10ca2e4f-9402-1da8-54f1-059e62503949",
+      "tcia_id": "TCIA-003"
+    },
+    {
+      "synthea_id": "3c4b499b-090b-c6fa-28d7-b56c6056d0a2",
+      "tcia_id": "TCIA-011"
+    },
+    {
+      "synthea_id": "595f9fb9-fcf0-e5bc-239a-e86a96db6211",
+      "tcia_id": "TCIA-022"
+    },
+    {
+      "synthea_id": "8e2eb664-7294-85d9-8234-0b687f788d50",
+      "tcia_id": "TCIA-005"
+    },
+    {
+      "synthea_id": "72b5373b-e9f1-db2d-6c43-4506fb4b3e3f",
+      "tcia_id": "TCIA-020"
+    },
+    {
+      "synthea_id": "5393ea7f-1fea-4064-9df4-460a2f662d07",
+      "tcia_id": "TCIA-004"
+    },
+    {
+      "synthea_id": "f1f05592-2511-92df-6f3e-c64ac3152b26",
+      "tcia_id": "TCIA-029"
+    },
+    {
+      "synthea_id": "171a2edf-e42a-364e-6b06-0c17b5af82b5",
+      "tcia_id": "TCIA-006"
+    },
+    {
+      "synthea_id": "c4d5d909-433c-fccf-5984-4213b88417cb",
+      "tcia_id": "TCIA-030"
+    },
+    {
+      "synthea_id": "b149bbe2-a604-d60b-ae87-22c88fe33bf6",
+      "tcia_id": "TCIA-019"
+    },
+    {
+      "synthea_id": "c7f7b68f-1a92-92e1-7c9c-b9b2db7e0368",
+      "tcia_id": "TCIA-009"
+    },
+    {
+      "synthea_id": "552461fe-485c-659e-a02a-3f43b6f4d209",
+      "tcia_id": "TCIA-007"
+    }
+  ],
+  "encounter_study_mappings": {
+    "ea8df98b-6ed8-2f53-2eba-6a20eb85cdca": [],
+    "ea8df98b-6ed8-2f53-99b8-82211b520796": [],
+    "ea8df98b-6ed8-2f53-c291-3a7e44bbe48f": [],
+    "ea8df98b-6ed8-2f53-aa46-f0745e02041d": [],
+    "ea8df98b-6ed8-2f53-69f3-3708d8c59534": [],
+    "5c9f20d5-8361-b331-75b6-0f839c943270": [],
+    "5c9f20d5-8361-b331-d00a-73cb569e0dd6": [],
+    "5c9f20d5-8361-b331-c06f-3442f60754d8": [],
+    "5c9f20d5-8361-b331-79cf-c336de75aca7": [],
+    "5c9f20d5-8361-b331-7a09-b4a7a3b06676": [],
+    "d545798e-09a4-ef89-f5d3-b5722f63cbfc": [],
+    "d545798e-09a4-ef89-4376-8f59d0229302": [],
+    "d545798e-09a4-ef89-3747-e62df08954e4": [],
+    "d545798e-09a4-ef89-bb58-5a86fd786b28": [],
+    "d545798e-09a4-ef89-aa76-290516046af0": [],
+    "59d21b6d-ef06-1497-ab91-f9451368bb18": [],
+    "59d21b6d-ef06-1497-cf71-714ced8f9b1f": [],
+    "59d21b6d-ef06-1497-9ca9-87e46aa9b19d": [],
+    "59d21b6d-ef06-1497-2705-03a0f48c45f2": [],
+    "59d21b6d-ef06-1497-89f2-b05ba6777af0": [],
+    "7a58a941-bd27-086e-1a9c-7b32764988e3": [],
+    "7a58a941-bd27-086e-6da9-2394909cbe4a": [],
+    "7a58a941-bd27-086e-a575-e8047bfb209e": [],
+    "7a58a941-bd27-086e-97b2-90b9e77abe73": [],
+    "7a58a941-bd27-086e-aad9-f91c08ad6e70": [],
+    "288427c5-ee03-f47e-ef5c-eff3bd218638": [],
+    "288427c5-ee03-f47e-fd48-e4a61129c125": [],
+    "288427c5-ee03-f47e-02df-71d774234b8e": [],
+    "288427c5-ee03-f47e-55b0-45a4912dfbfc": [],
+    "288427c5-ee03-f47e-41d0-19a7de2e07dd": [],
+    "cf6b5139-56ec-28fb-8da4-94bc2e4f295a": [],
+    "cf6b5139-56ec-28fb-925f-48d46e4ef88a": [],
+    "cf6b5139-56ec-28fb-caea-92b0e8900026": [],
+    "cf6b5139-56ec-28fb-0c6d-f6d7590c02ff": [],
+    "cf6b5139-56ec-28fb-e830-df4b11b56245": [],
+    "ba9017cf-ec31-eb58-ba04-a38efd847c39": [],
+    "ba9017cf-ec31-eb58-5735-0cf97e71e1b7": [],
+    "ba9017cf-ec31-eb58-5f34-5915456a9d02": [],
+    "ba9017cf-ec31-eb58-ebf9-7f922e9ebaec": [],
+    "ba9017cf-ec31-eb58-590f-bf5cea23f8f4": [],
+    "ab0f5574-2722-5196-2574-f8252166e403": [],
+    "ab0f5574-2722-5196-a7e8-f8f3f606f6a1": [],
+    "ab0f5574-2722-5196-879a-ba3b86eb361b": [],
+    "ab0f5574-2722-5196-a7f5-7413579f738c": [],
+    "ab0f5574-2722-5196-d929-0be76ace4bdf": [],
+    "a35dfdc9-1d97-63e0-5ef7-88ebc198a85b": [],
+    "a35dfdc9-1d97-63e0-0f3b-d6a3aa5f061f": [],
+    "a35dfdc9-1d97-63e0-6331-93a35d3b4f39": [],
+    "a35dfdc9-1d97-63e0-00f6-e401f397e46f": [],
+    "a35dfdc9-1d97-63e0-b7db-1e975841f2a7": [],
+    "eed8a921-eac8-0778-ce03-306ba93f07c6": [],
+    "eed8a921-eac8-0778-5832-b257224545b2": [],
+    "eed8a921-eac8-0778-5060-6205122b6acc": [],
+    "eed8a921-eac8-0778-92c2-971ec1d4a7dc": [],
+    "eed8a921-eac8-0778-bc20-bc68dab7ff06": [],
+    "10ca2e4f-9402-1da8-8329-fe79118d5f79": [],
+    "10ca2e4f-9402-1da8-3328-3ad0ae328f93": [],
+    "10ca2e4f-9402-1da8-2881-7b9a48684e0b": [],
+    "10ca2e4f-9402-1da8-884f-503ad4617b52": [],
+    "10ca2e4f-9402-1da8-9cae-6e013ab4b963": [],
+    "3c4b499b-090b-c6fa-4e32-d91f3df0b631": [],
+    "3c4b499b-090b-c6fa-2963-ef0af2d6e0ef": [],
+    "3c4b499b-090b-c6fa-4ab0-5b8860f2faf1": [],
+    "3c4b499b-090b-c6fa-350e-e79fb0dc3115": [],
+    "3c4b499b-090b-c6fa-b563-7cfabc26b575": [],
+    "595f9fb9-fcf0-e5bc-f50e-54dc30ba6b9d": [],
+    "595f9fb9-fcf0-e5bc-9140-0d359b774b7a": [],
+    "595f9fb9-fcf0-e5bc-0587-13a7890e872c": [],
+    "595f9fb9-fcf0-e5bc-7942-ca5c3b45340d": [],
+    "595f9fb9-fcf0-e5bc-bfb3-70a4c3974d0c": [],
+    "8e2eb664-7294-85d9-4a0b-ee426bd72ffe": [],
+    "8e2eb664-7294-85d9-faa7-9eaf29807476": [],
+    "8e2eb664-7294-85d9-ad7c-0ea41f64c570": [],
+    "8e2eb664-7294-85d9-2935-461352fd9527": [],
+    "8e2eb664-7294-85d9-4784-77ee683d016e": [],
+    "72b5373b-e9f1-db2d-2caa-bed864026622": [],
+    "72b5373b-e9f1-db2d-c21b-1496704e62a7": [],
+    "72b5373b-e9f1-db2d-4e27-b627819c7936": [],
+    "72b5373b-e9f1-db2d-76e5-56b9fdb909cf": [],
+    "72b5373b-e9f1-db2d-1c71-21282b70c58c": [],
+    "5393ea7f-1fea-4064-dee9-b8699ce1bdc0": [],
+    "5393ea7f-1fea-4064-dc8c-c8fab5595c59": [],
+    "5393ea7f-1fea-4064-7b19-2e4a407db7d4": [],
+    "5393ea7f-1fea-4064-18a8-d7640e0e311e": [],
+    "5393ea7f-1fea-4064-ffcd-fb145f272ac7": [],
+    "f1f05592-2511-92df-4a18-641bf9df70bf": [],
+    "f1f05592-2511-92df-1b06-1947244b32a9": [],
+    "f1f05592-2511-92df-8516-fe25edae41b1": [],
+    "f1f05592-2511-92df-cd4e-f7a79457c6ea": [],
+    "f1f05592-2511-92df-a6d8-367a1d9d366c": [],
+    "171a2edf-e42a-364e-f3f2-dd4c1b7701d2": [],
+    "171a2edf-e42a-364e-fc59-b1649bc55b30": [],
+    "171a2edf-e42a-364e-5507-0e1fc941430b": [],
+    "171a2edf-e42a-364e-cd1f-5a5d3934ee47": [],
+    "171a2edf-e42a-364e-e747-e5894296802c": [],
+    "c4d5d909-433c-fccf-36f6-778909d0e939": [],
+    "c4d5d909-433c-fccf-3664-7c18fb847aab": [],
+    "c4d5d909-433c-fccf-7bf4-d2f9cd41c6f8": [],
+    "c4d5d909-433c-fccf-286a-38c7c6ed1558": [],
+    "c4d5d909-433c-fccf-84ac-f20d15bd5001": [],
+    "b149bbe2-a604-d60b-f5a2-beb20f029c7e": [],
+    "b149bbe2-a604-d60b-0b0b-1865442c3911": [],
+    "b149bbe2-a604-d60b-7449-c253cbbd7263": [],
+    "b149bbe2-a604-d60b-3508-60b68162c43f": [],
+    "b149bbe2-a604-d60b-0bac-139e14711f26": [],
+    "c7f7b68f-1a92-92e1-c5f4-3d5c3f9386b2": [],
+    "c7f7b68f-1a92-92e1-143f-d659d19e81f4": [],
+    "c7f7b68f-1a92-92e1-5605-dffafafb5e4e": [],
+    "c7f7b68f-1a92-92e1-bb0c-bbccc5b09f8b": [],
+    "c7f7b68f-1a92-92e1-fbcf-65a99970d6c2": [],
+    "552461fe-485c-659e-a70b-a723d08e438c": [],
+    "552461fe-485c-659e-30c5-7134444f5b09": [],
+    "552461fe-485c-659e-bae6-29a130796342": [],
+    "552461fe-485c-659e-3d64-41016e59a03f": [],
+    "552461fe-485c-659e-dc59-3e19337dd7c6": []
+  }
+}

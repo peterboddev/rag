@@ -1,0 +1,1 @@
+{"statusCode":202,"headers":{"Content-Type":"application/json","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type,Authorization","Access-Control-Allow-Methods":"POST,GET,OPTIONS"},"body":"{\"message\":\"Regeneration started. Results will be available shortly.\",\"status\":\"processing\",\"claimId\":\"EOB000081\",\"strategy\":\"full-context\"}"}

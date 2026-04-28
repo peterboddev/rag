@@ -41,6 +41,7 @@ BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 dynamodb = boto3.resource("dynamodb", region_name=BEDROCK_REGION)
 documents_table = dynamodb.Table(DOCUMENTS_TABLE)
 logger.info(f"DynamoDB config: table={DOCUMENTS_TABLE}, region={BEDROCK_REGION}")
+print(f"[ENRICHED_AGENT] Startup config: DOCUMENTS_TABLE={DOCUMENTS_TABLE}, BEDROCK_REGION={BEDROCK_REGION}, AWS_REGION={os.environ.get('AWS_REGION', 'NOT_SET')}, AWS_DEFAULT_REGION={os.environ.get('AWS_DEFAULT_REGION', 'NOT_SET')}")
 bedrock_agent_client = boto3.client(
     "bedrock-agent-runtime", region_name=BEDROCK_REGION
 )
@@ -91,6 +92,15 @@ def _retrieve_full_context(claim_id: str, tenant_id: str = None) -> list[dict]:
             )
 
         logger.info(f"Querying DynamoDB: table={DOCUMENTS_TABLE}, index=tenant-documents-index, tenantId={tenant_id}, claimId={claim_id}")
+        print(f"[ENRICHED_AGENT] DynamoDB query: table={DOCUMENTS_TABLE}, index=tenant-documents-index, tenantId={tenant_id}, claimId={claim_id}, region={BEDROCK_REGION}")
+        
+        # Debug: verify table exists before querying
+        try:
+            table_desc = documents_table.table_status
+            print(f"[ENRICHED_AGENT] Table status: {table_desc}")
+        except Exception as desc_err:
+            print(f"[ENRICHED_AGENT] Table describe failed: {desc_err}")
+        
         response = documents_table.query(
             IndexName="tenant-documents-index",
             KeyConditionExpression="tenantId = :tenantId",
@@ -140,8 +150,9 @@ def _retrieve_full_context(claim_id: str, tenant_id: str = None) -> list[dict]:
         raise
     except Exception as e:
         logger.error(f"Error retrieving documents for claim {claim_id}: {e}")
+        print(f"[ENRICHED_AGENT] DynamoDB error: table={DOCUMENTS_TABLE}, region={BEDROCK_REGION}, index=tenant-documents-index, tenantId={tenant_id}, claimId={claim_id}, error={e}")
         raise DocumentRetrievalError(
-            f"Failed to retrieve documents: {str(e)}",
+            f"Failed to retrieve documents (table={DOCUMENTS_TABLE}, region={BEDROCK_REGION}): {str(e)}",
             status_code=500,
         )
 

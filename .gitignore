@@ -56,3 +56,5 @@ medical-claims-generator/__pycache__/
 # AgentCore deployment config (local)
 .bedrock_agentcore/
 .bedrock_agentcore.yaml
+*.json
+bedrock-agentcore-starter-toolkit-*.tar.gz

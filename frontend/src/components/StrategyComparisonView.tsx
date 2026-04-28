@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { getClaimSummary, ClaimSummaryResponse } from '../services/claimApi';
+import { getClaimSummary } from '../services/claimApi';
 import StrategyColumn, { Strategy, ColumnState } from './StrategyColumn';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -8,8 +8,10 @@ interface StrategyComparisonViewProps {
   claimId: string;
 }
 
+type FastStrategy = Exclude<Strategy, 'full-context'>;
+
 interface StrategyConfig {
-  key: Strategy;
+  key: FastStrategy;
   label: string;
   chunkingMethod?: string;
 }
@@ -21,7 +23,7 @@ const CHUNKING_OPTIONS: { value: ChunkingMethod; label: string }[] = [
   { value: 'semantic', label: 'Semantic Chunking' },
 ];
 
-const MODEL_OPTIONS: { value: string; label: string }[] = [
+export const MODEL_OPTIONS: { value: string; label: string }[] = [
   { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro' },
   { value: 'amazon.nova-lite-v1:0', label: 'Amazon Nova Lite' },
   { value: 'amazon.nova-micro-v1:0', label: 'Amazon Nova Micro' },
@@ -39,7 +41,6 @@ const MODEL_OPTIONS: { value: string; label: string }[] = [
 
 function buildStrategies(chunkingMethod: ChunkingMethod): StrategyConfig[] {
   return [
-    { key: 'full-context', label: 'Full Context' },
     { key: 'rag', label: 'RAG', chunkingMethod },
     { key: 'graph-rag', label: 'Graph RAG' },
     { key: 'enriched', label: 'Enriched' },
@@ -52,9 +53,8 @@ const INITIAL_COLUMN_STATE: ColumnState = {
   error: null,
 };
 
-function createInitialColumns(): Record<Strategy, ColumnState> {
+function createInitialColumns(): Record<FastStrategy, ColumnState> {
   return {
-    'full-context': { ...INITIAL_COLUMN_STATE },
     'rag': { ...INITIAL_COLUMN_STATE },
     'graph-rag': { ...INITIAL_COLUMN_STATE },
     'enriched': { ...INITIAL_COLUMN_STATE },
@@ -64,12 +64,10 @@ function createInitialColumns(): Record<Strategy, ColumnState> {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId }) => {
-  const [columns, setColumns] = useState<Record<Strategy, ColumnState>>(createInitialColumns);
+  const [columns, setColumns] = useState<Record<FastStrategy, ColumnState>>(createInitialColumns);
   const [chunkingMethod, setChunkingMethod] = useState<ChunkingMethod>('semantic');
   const [useReranker, setUseReranker] = useState(false);
   const [modelId, setModelId] = useState('amazon.nova-pro-v1:0');
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [promptExpanded, setPromptExpanded] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -106,7 +104,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           true, // includeEvaluation
           config.key === 'graph-rag' ? useReranker : undefined,
           modelId,
-          config.key === 'full-context' && customPrompt ? customPrompt : undefined
+          undefined
         );
         setColumns((prev) => ({
           ...prev,
@@ -123,7 +121,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     },
-    [claimId, useReranker, modelId, customPrompt]
+    [claimId, useReranker, modelId]
   );
 
   // Generate All: call getClaimSummary concurrently for all three strategies
@@ -132,7 +130,6 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
 
     // Set all columns to loading
     setColumns({
-      'full-context': { status: 'loading', response: null, error: null },
       'rag': { status: 'loading', response: null, error: null },
       'graph-rag': { status: 'loading', response: null, error: null },
       'enriched': { status: 'loading', response: null, error: null },
@@ -147,7 +144,7 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         true, // includeEvaluation
         config.key === 'graph-rag' ? useReranker : undefined,
         modelId,
-        config.key === 'full-context' && customPrompt ? customPrompt : undefined
+        undefined
       )
     );
 
@@ -171,11 +168,11 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
         }));
       }
     });
-  }, [claimId, chunkingMethod, useReranker, modelId, customPrompt]);
+  }, [claimId, chunkingMethod, useReranker, modelId]);
 
   // Individual regeneration handler
   const handleRegenerate = useCallback(
-    (strategyKey: Strategy) => {
+    (strategyKey: FastStrategy) => {
       const strategies = buildStrategies(chunkingMethod);
       const config = strategies.find((c) => c.key === strategyKey);
       if (config) {
@@ -239,37 +236,6 @@ const StrategyComparisonView: React.FC<StrategyComparisonViewProps> = ({ claimId
           />
           Graph RAG: Use Reranker (Cohere Rerank 3.5)
         </label>
-      </div>
-
-      {/* Editable prompt for Full Context strategy */}
-      <div style={{ marginBottom: '12px' }}>
-        <button
-          onClick={() => setPromptExpanded(!promptExpanded)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: '14px', fontWeight: 600, color: '#333', padding: '4px 0',
-          }}
-        >
-          {promptExpanded ? '▼' : '▶'} Custom Prompt (Full Context)
-        </button>
-        {promptExpanded && (
-          <div style={{ marginTop: '6px' }}>
-            <textarea
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Enter custom prompt... Use [DOCUMENTS] as placeholder for document text. Leave empty to use default prompt."
-              style={{
-                width: '100%', minHeight: '150px', padding: '8px',
-                fontSize: '12px', fontFamily: 'monospace',
-                border: '1px solid #ccc', borderRadius: '4px',
-                resize: 'vertical',
-              }}
-            />
-            <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
-              Use <code>[DOCUMENTS]</code> where document text should be inserted. Leave empty for default prompt.
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Generate All button */}

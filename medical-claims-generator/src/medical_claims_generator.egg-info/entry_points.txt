@@ -1,0 +1,2 @@
+[console_scripts]
+generate-medical-claims = medical_claims_generator.main:main

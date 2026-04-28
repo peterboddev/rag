@@ -16,7 +16,7 @@ import {
   FinancialSummary,
   TimelineData,
 } from '../types/claim-summary';
-import { buildCacheKey, getCachedSummary, cacheSummary } from '../services/summary-cache';
+import { buildCacheKey, getCachedSummary, cacheSummary, invalidateCache } from '../services/summary-cache';
 
 // Environment variables
 const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE || 'rag-app-v2-documents-dev';
@@ -773,13 +773,39 @@ async function executeFullContextStrategy(
     };
   }
 
-  // Build the Full Context agent invocation promise
-  const fullContextPromise = invokeAgentCoreRuntime(fullContextAgentEndpoint, {
-    claim_id: claimId,
-    tenant_id: tenantId,
-    model_id: modelId || undefined,
-    custom_prompt: customPrompt || undefined,
-  });
+  // Build the Full Context agent invocation with retry for transient model errors
+  const invokeFullContextAgent = async () => {
+    const maxRetries = 2;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const result = await invokeAgentCoreRuntime(fullContextAgentEndpoint, {
+        claim_id: claimId,
+        tenant_id: tenantId,
+        model_id: modelId || undefined,
+        custom_prompt: customPrompt || undefined,
+      });
+      // Retry on transient model errors (e.g., ConverseStream ToolUse invalid sequence)
+      const errorStr = String(result.error || '');
+      if (result.error && attempt < maxRetries && (
+        errorStr.includes('modelStreamErrorException') ||
+        errorStr.includes('invalid sequence') ||
+        errorStr.includes('ToolUse') ||
+        errorStr.includes('throttlingException')
+      )) {
+        console.warn(`Full Context agent transient error (attempt ${attempt}/${maxRetries}), retrying:`, errorStr);
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      return result;
+    }
+    // Should not reach here, but just in case
+    return invokeAgentCoreRuntime(fullContextAgentEndpoint, {
+      claim_id: claimId,
+      tenant_id: tenantId,
+      model_id: modelId || undefined,
+      custom_prompt: customPrompt || undefined,
+    });
+  };
+  const fullContextPromise = invokeFullContextAgent();
 
   // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
   if (financialTimelineAgentEndpoint) {
@@ -817,9 +843,15 @@ async function executeFullContextStrategy(
   // could store results in DynamoDB/cache for retrieval on next request
 
   // Return the enhanced agent response with both deterministic and agent-predicted data
+  // Tag anomalies without a source field as "llm" (they came from the agent's LLM response)
+  const taggedAnomalies = (agentResult.anomalies || []).map((a: any) => ({
+    ...a,
+    source: a.source || 'llm',
+  }));
+
   return {
     summary: agentResult.summary || '',
-    anomalies: agentResult.anomalies || [],
+    anomalies: taggedAnomalies,
     documentCount: agentResult.documentCount || 0,
     promptInfo: agentResult.promptInfo || {
       promptTemplate: 'Enhanced Full Context Agent',
@@ -1089,11 +1121,50 @@ async function handleGetEvaluations(claimId: string): Promise<APIGatewayProxyRes
     const response = await docClient.send(command);
     const items = (response.Items || []) as EvaluationResult[];
 
-    const evaluations = items.map((item) => {
-      const [strategy, chunkingMethod] = item.strategyKey.split('#');
-      return {
+    const grouped: {
+      'agentcore-online': Array<{
+        strategy: string;
+        chunkingMethod: string | null;
+        evaluationSource: string;
+        evaluation: {
+          helpfulness: number;
+          faithfulness: number;
+          completeness: number;
+          anomalyAccuracy?: number;
+          evaluatedAt: string;
+        };
+      }>;
+      'bedrock-api': Array<{
+        strategy: string;
+        chunkingMethod: string | null;
+        evaluationSource: string;
+        evaluation: {
+          helpfulness: number;
+          faithfulness: number;
+          completeness: number;
+          anomalyAccuracy?: number;
+          evaluatedAt: string;
+        };
+      }>;
+    } = {
+      'agentcore-online': [],
+      'bedrock-api': [],
+    };
+
+    for (const item of items) {
+      // Parse strategyKey — handle both old 2-part and new 3-part formats
+      const parts = item.strategyKey.split('#');
+      const strategy = parts[0];
+      const chunkingMethod = parts[1] !== 'none' ? parts[1] : null;
+
+      // Determine evaluationSource: prefer the attribute, then the 3rd part of strategyKey, default to 'bedrock-api'
+      const evaluationSource = (item as any).evaluationSource
+        || (parts.length >= 3 ? parts[2] : 'bedrock-api');
+
+      const entry = {
         strategy,
-        chunkingMethod: chunkingMethod !== 'none' ? chunkingMethod : null,
+        chunkingMethod,
+        evaluationSource,
         evaluation: {
           helpfulness: item.helpfulness,
           faithfulness: item.faithfulness,
@@ -1102,11 +1173,17 @@ async function handleGetEvaluations(claimId: string): Promise<APIGatewayProxyRes
           evaluatedAt: item.evaluatedAt,
         },
       };
-    });
+
+      if (evaluationSource === 'agentcore-online') {
+        grouped['agentcore-online'].push(entry);
+      } else {
+        grouped['bedrock-api'].push(entry);
+      }
+    }
 
     return successResponse(200, {
       claimId,
-      evaluations,
+      evaluations: grouped,
     });
   } catch (error) {
     console.error('Error fetching evaluations:', error);
@@ -1250,6 +1327,51 @@ async function handlePostSummary(
       // Cache read failure: log and proceed with generation (graceful degradation)
       console.error('Cache read failed, proceeding with generation:', error);
     }
+  }
+
+  // Async regeneration: for strategies that use AgentCore agents (full-context, enriched),
+  // forceRegenerate triggers an async self-invocation to avoid API Gateway 29s timeout.
+  // The Lambda runs the generation in the background and caches the result.
+  // The frontend should retry the same request (without forceRegenerate) to get the cached result.
+  if (request.forceRegenerate) {
+    try {
+      const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+      await lambdaClient.send(new InvokeCommand({
+        FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+        InvocationType: 'Event', // async — returns immediately
+        Payload: JSON.stringify({
+          httpMethod: 'POST',
+          path: `/claims/${claimId}/summary`,
+          pathParameters: { claimId },
+          body: JSON.stringify({
+            ...request,
+            forceRegenerate: false, // prevent infinite loop
+            _asyncRegenerate: true, // marker for background execution
+          }),
+          headers: { 'x-tenant-id': tenantId },
+          resource: '/claims/{claimId}/summary',
+        }),
+      }));
+      console.log('Async regeneration triggered for claim:', claimId, 'strategy:', request.strategy);
+    } catch (triggerErr) {
+      console.error('Failed to trigger async regeneration:', triggerErr);
+      return errorResponse(500, 'Failed to trigger regeneration');
+    }
+
+    // Invalidate cache so next poll gets fresh result
+    try {
+      await invalidateCache(claimId);
+      console.log('Cache invalidated for claim:', claimId);
+    } catch (e) {
+      console.warn('Cache invalidation failed (non-blocking):', e);
+    }
+
+    return successResponse(202, {
+      message: 'Regeneration started. Results will be available shortly.',
+      status: 'processing',
+      claimId,
+      strategy: request.strategy,
+    });
   }
 
   // Task 4.3: Agent routing logic

@@ -57,7 +57,7 @@ export const handler = async (event: EvaluationJobRequest): Promise<void> => {
       return;
     }
 
-    const jobName = `eval-${claimId}-${Date.now()}`;
+    const jobName = `eval-${claimId.toLowerCase()}-${Date.now()}`;
     const datasetKey = `datasets/${jobName}.jsonl`;
 
     // 1. Build and write JSONL evaluation dataset to S3
@@ -78,29 +78,34 @@ export const handler = async (event: EvaluationJobRequest): Promise<void> => {
 
     console.log('Wrote evaluation dataset to S3:', { bucket: EVALUATION_DATASET_BUCKET, key: datasetKey });
 
-    // 2. Call CreateEvaluationJob
+    // 2. Call CreateEvaluationJob (LLM-as-a-judge with built-in metrics)
     await bedrockClient.send(new CreateEvaluationJobCommand({
       jobName,
       roleArn: EVALUATION_JOB_ROLE_ARN,
+      applicationType: 'ModelEvaluation',
       evaluationConfig: {
         automated: {
           datasetMetricConfigs: [{
-            taskType: 'Summarization',
+            taskType: 'General',
             dataset: {
               name: jobName,
               datasetLocation: {
                 s3Uri: `s3://${EVALUATION_DATASET_BUCKET}/${datasetKey}`,
               },
             },
-            metricNames: ['Builtin.Faithfulness', 'Builtin.Completeness'],
+            metricNames: ['Builtin.Correctness', 'Builtin.Completeness', 'Builtin.Helpfulness', 'Builtin.Faithfulness'],
           }],
+          evaluatorModelConfig: {
+            bedrockEvaluatorModels: [{
+              modelIdentifier: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+            }],
+          },
         },
       },
       inferenceConfig: {
         models: [{
           bedrockModel: {
-            modelIdentifier: 'anthropic.claude-sonnet-4-6-20250514',
-            inferenceParams: JSON.stringify({ maxTokens: 500, temperature: 0.1 }),
+            modelIdentifier: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
           },
         }],
       },

@@ -288,6 +288,14 @@ export interface DataAnomaly {
    * Contains the actual values that caused the anomaly to be flagged.
    */
   dataValues: Record<string, string>;
+
+  /**
+   * The source of the anomaly detection.
+   * - `deterministic`: Rule-based checks (date comparisons, billing math)
+   * - `llm`: LLM-powered analysis (clinical/billing insights)
+   * When absent, the anomaly has no source attribution (backward compatibility).
+   */
+  source?: 'deterministic' | 'llm';
 }
 
 /**

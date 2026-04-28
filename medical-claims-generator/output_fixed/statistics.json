@@ -1,0 +1,45 @@
+{
+  "total_patients": 25,
+  "patients_by_cancer_type": {},
+  "total_claims": 125,
+  "claims_by_status": {
+    "approved": 72,
+    "denied": 26,
+    "pending": 27
+  },
+  "documents_by_type": {
+    "cms1500_forms": 125,
+    "eob_documents": 125,
+    "radiology_reports": 125,
+    "clinical_notes": 125
+  },
+  "tcia_patient_ids": [
+    "TCIA-002",
+    "TCIA-003",
+    "TCIA-005",
+    "TCIA-006",
+    "TCIA-007",
+    "TCIA-008",
+    "TCIA-010",
+    "TCIA-011",
+    "TCIA-012",
+    "TCIA-013",
+    "TCIA-014",
+    "TCIA-015",
+    "TCIA-016",
+    "TCIA-017",
+    "TCIA-018",
+    "TCIA-019",
+    "TCIA-020",
+    "TCIA-022",
+    "TCIA-023",
+    "TCIA-025",
+    "TCIA-026",
+    "TCIA-027",
+    "TCIA-028",
+    "TCIA-029",
+    "TCIA-030"
+  ],
+  "random_seed": 42,
+  "generation_timestamp": "2026-03-12T18:17:10.978077"
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClaimSummaryResponse, getFinancialAnalysis } from '../services/claimApi';
+import { ClaimSummaryResponse, EvaluationScores, getFinancialAnalysis } from '../services/claimApi';
 import EvaluationScoreDisplay from './EvaluationScoreDisplay';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -18,6 +18,11 @@ export interface StrategyColumnProps {
   data: ColumnState;
   onRegenerate: () => void;
   claimId?: string;
+  /** Grouped evaluation scores by source, keyed by evaluation source */
+  groupedEvaluations?: {
+    'agentcore-online'?: EvaluationScores;
+    'bedrock-api'?: EvaluationScores;
+  };
 }
 
 interface AnomalySummary {
@@ -62,7 +67,7 @@ function computeAnomalySummary(anomalies: ClaimSummaryResponse['anomalies']): An
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, data, onRegenerate, claimId }) => {
+const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, data, onRegenerate, claimId, groupedEvaluations }) => {
   const { status, response, error } = data;
   const [promptExpanded, setPromptExpanded] = React.useState(false);
 
@@ -178,8 +183,19 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
             )}
 
             {/* Evaluation scores */}
-            {response.evaluation && (
-              <EvaluationScoreDisplay scores={response.evaluation} strategy={label} />
+            {groupedEvaluations ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {groupedEvaluations['agentcore-online'] && (
+                  <EvaluationScoreDisplay scores={groupedEvaluations['agentcore-online']} strategy={label} sourceLabel="AgentCore Online" />
+                )}
+                {groupedEvaluations['bedrock-api'] && (
+                  <EvaluationScoreDisplay scores={groupedEvaluations['bedrock-api']} strategy={label} sourceLabel="Bedrock API" />
+                )}
+              </div>
+            ) : (
+              response.evaluation && (
+                <EvaluationScoreDisplay scores={response.evaluation} strategy={label} />
+              )
             )}
 
             {/* Prompt section */}
@@ -301,32 +317,37 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
 
 // ─── Anomaly sub-render ──────────────────────────────────────────────────────
 
-function AnomalySection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
-  const anomalies = response.anomalies ?? [];
-  const [expanded, setExpanded] = React.useState(false);
+export interface AnomalyGroup {
+  key: string;
+  header: string;
+  emoji: string;
+  anomalies: ClaimSummaryResponse['anomalies'];
+}
 
-  if (anomalies.length === 0) {
-    return (
-      <div
-        data-testid={`no-anomalies-${strategyKey}`}
-        style={{
-          padding: '8px 10px',
-          marginBottom: '10px',
-          backgroundColor: '#d4edda',
-          color: '#155724',
-          borderRadius: '4px',
-          fontSize: '13px',
-        }}
-      >
-        ✅ No anomalies detected
-      </div>
-    );
+export function groupAnomaliesBySource(anomalies: ClaimSummaryResponse['anomalies']): AnomalyGroup[] {
+  const deterministic: ClaimSummaryResponse['anomalies'] = [];
+  const llm: ClaimSummaryResponse['anomalies'] = [];
+  const other: ClaimSummaryResponse['anomalies'] = [];
+
+  for (const a of anomalies) {
+    if (a.source === 'deterministic') deterministic.push(a);
+    else if (a.source === 'llm') llm.push(a);
+    else other.push(a);
   }
 
-  const summary = computeAnomalySummary(anomalies);
+  const groups: AnomalyGroup[] = [];
+  if (deterministic.length > 0) groups.push({ key: 'deterministic', header: 'Rule-Based Anomalies', emoji: '🔧', anomalies: deterministic });
+  if (llm.length > 0) groups.push({ key: 'llm', header: 'AI-Detected Anomalies', emoji: '🤖', anomalies: llm });
+  if (other.length > 0) groups.push({ key: 'other', header: 'Other Anomalies', emoji: '⚠️', anomalies: other });
+  return groups;
+}
+
+function AnomalyGroupSection({ group, strategyKey }: { group: AnomalyGroup; strategyKey: Strategy }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const summary = computeAnomalySummary(group.anomalies);
 
   return (
-    <div data-testid={`anomalies-${strategyKey}`} style={{ marginBottom: '10px' }}>
+    <div data-testid={`anomaly-group-${group.key}-${strategyKey}`} style={{ marginBottom: '6px' }}>
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -338,61 +359,61 @@ function AnomalySection({ response, strategyKey }: { response: ClaimSummaryRespo
           borderRadius: '4px',
           fontSize: '12px',
           cursor: 'pointer',
-        }}>
-          <span style={{ fontWeight: 600 }}>{expanded ? '▼' : '▶'} ⚠️ Anomalies:</span>
-          {summary.critical > 0 && (
-            <span
-              data-testid={`anomaly-critical-count-${strategyKey}`}
-              style={{
-                padding: '1px 6px',
-                borderRadius: '3px',
-                backgroundColor: getAnomalySeverityColor('critical'),
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '11px',
-              }}
-            >
-              {summary.critical} critical
-            </span>
-          )}
-          {summary.warning > 0 && (
-            <span
-              data-testid={`anomaly-warning-count-${strategyKey}`}
-              style={{
-                padding: '1px 6px',
-                borderRadius: '3px',
-                backgroundColor: getAnomalySeverityColor('warning'),
-                color: '#000',
-                fontWeight: 600,
-                fontSize: '11px',
-              }}
-            >
-              {summary.warning} warning
-            </span>
-          )}
-          {summary.info > 0 && (
-            <span
-              data-testid={`anomaly-info-count-${strategyKey}`}
-              style={{
-                padding: '1px 6px',
-                borderRadius: '3px',
-                backgroundColor: getAnomalySeverityColor('info'),
-                color: '#fff',
-                fontWeight: 600,
-                fontSize: '11px',
-              }}
-            >
-              {summary.info} info
-            </span>
-          )}
-        </div>
-        {/* Anomaly details */}
-        {expanded && (
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>{expanded ? '▼' : '▶'} {group.emoji} {group.header}:</span>
+        {summary.critical > 0 && (
+          <span
+            data-testid={`anomaly-critical-count-${group.key}-${strategyKey}`}
+            style={{
+              padding: '1px 6px',
+              borderRadius: '3px',
+              backgroundColor: getAnomalySeverityColor('critical'),
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '11px',
+            }}
+          >
+            {summary.critical} critical
+          </span>
+        )}
+        {summary.warning > 0 && (
+          <span
+            data-testid={`anomaly-warning-count-${group.key}-${strategyKey}`}
+            style={{
+              padding: '1px 6px',
+              borderRadius: '3px',
+              backgroundColor: getAnomalySeverityColor('warning'),
+              color: '#000',
+              fontWeight: 600,
+              fontSize: '11px',
+            }}
+          >
+            {summary.warning} warning
+          </span>
+        )}
+        {summary.info > 0 && (
+          <span
+            data-testid={`anomaly-info-count-${group.key}-${strategyKey}`}
+            style={{
+              padding: '1px 6px',
+              borderRadius: '3px',
+              backgroundColor: getAnomalySeverityColor('info'),
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '11px',
+            }}
+          >
+            {summary.info} info
+          </span>
+        )}
+      </div>
+      {expanded && (
         <div style={{ marginTop: '6px', fontSize: '12px' }}>
-          {anomalies.map((a, i) => (
+          {group.anomalies.map((a, i) => (
             <div
               key={i}
-              data-testid={`anomaly-detail-${strategyKey}-${i}`}
+              data-testid={`anomaly-detail-${group.key}-${strategyKey}-${i}`}
               style={{
                 padding: '6px 10px',
                 marginBottom: '4px',
@@ -429,7 +450,39 @@ function AnomalySection({ response, strategyKey }: { response: ClaimSummaryRespo
             </div>
           ))}
         </div>
-        )}
+      )}
+    </div>
+  );
+}
+
+function AnomalySection({ response, strategyKey }: { response: ClaimSummaryResponse; strategyKey: Strategy }) {
+  const anomalies = response.anomalies ?? [];
+
+  if (anomalies.length === 0) {
+    return (
+      <div
+        data-testid={`no-anomalies-${strategyKey}`}
+        style={{
+          padding: '8px 10px',
+          marginBottom: '10px',
+          backgroundColor: '#d4edda',
+          color: '#155724',
+          borderRadius: '4px',
+          fontSize: '13px',
+        }}
+      >
+        ✅ No anomalies detected
+      </div>
+    );
+  }
+
+  const groups = groupAnomaliesBySource(anomalies);
+
+  return (
+    <div data-testid={`anomalies-${strategyKey}`} style={{ marginBottom: '10px' }}>
+      {groups.map(group => (
+        <AnomalyGroupSection key={group.key} group={group} strategyKey={strategyKey} />
+      ))}
     </div>
   );
 }

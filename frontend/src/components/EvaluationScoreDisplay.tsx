@@ -13,6 +13,7 @@ interface EvaluationScores {
 interface EvaluationScoreDisplayProps {
   scores: EvaluationScores;
   strategy: string;
+  sourceLabel?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ function ScoreBadge({ label, score }: { label: string; score: number }) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const EvaluationScoreDisplay: React.FC<EvaluationScoreDisplayProps> = ({ scores, strategy }) => {
+const EvaluationScoreDisplay: React.FC<EvaluationScoreDisplayProps> = ({ scores, strategy, sourceLabel }) => {
   const metrics: { label: string; score: number }[] = [
     { label: 'Helpfulness', score: scores.helpfulness },
     { label: 'Faithfulness', score: scores.faithfulness },
@@ -76,7 +77,7 @@ const EvaluationScoreDisplay: React.FC<EvaluationScoreDisplayProps> = ({ scores,
         alignItems: 'center',
       }}
     >
-      <span style={{ fontWeight: 600, marginRight: '4px' }}>📈 Evaluation ({strategy}):</span>
+      <span style={{ fontWeight: 600, marginRight: '4px' }}>📈 Evaluation ({sourceLabel || strategy}):</span>
       {metrics.map((m) => (
         <ScoreBadge key={m.label} label={m.label} score={m.score} />
       ))}

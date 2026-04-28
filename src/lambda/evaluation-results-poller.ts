@@ -130,7 +130,7 @@ export const handler = async (event: PollerEvent): Promise<void> => {
     }
 
     // Build strategyKey
-    const strategyKey = `${strategy}#${chunkingMethod || 'none'}`;
+    const strategyKey = `${strategy}#${chunkingMethod || 'none'}#bedrock-api`;
 
     // Write scores to DynamoDB
     const record: Record<string, unknown> = {
@@ -139,7 +139,7 @@ export const handler = async (event: PollerEvent): Promise<void> => {
       ...scores,
       ...reasoning,
       evaluatedAt: new Date().toISOString(),
-      source: 'bedrock-evaluations-api',
+      evaluationSource: 'bedrock-api',
       jobName,
     };
 

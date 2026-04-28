@@ -2,7 +2,7 @@
 import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
 
 const API_BASE_URL = process.env.REACT_APP_API_GATEWAY_URL || '';
-const API_TIMEOUT = 30000; // 30 seconds
+const API_TIMEOUT = 60000; // 60 seconds — API Gateway has 29s limit but we allow extra for network
 
 // Helper to get auth token from Amplify (User Pool JWT only, skip AWS credentials)
 const getAuthToken = async (forceRefresh: boolean = false): Promise<string | null> => {
@@ -372,6 +372,7 @@ export interface DataAnomaly {
   severity: 'critical' | 'warning' | 'info';
   sourceDocument: string;
   dataValues: Record<string, string>;
+  source?: 'deterministic' | 'llm';
 }
 
 export interface EvaluationScores {
@@ -431,11 +432,41 @@ export interface ClaimSummaryResponse {
 
 export interface ClaimEvaluationsResponse {
   claimId: string;
-  evaluations: Array<{
-    strategy: string;
-    chunkingMethod?: string;
-    evaluation: EvaluationScores;
-  }>;
+  evaluations: {
+    'agentcore-online': EvaluationEntry[];
+    'bedrock-api': EvaluationEntry[];
+  };
+}
+
+export type EvaluationSource = 'agentcore-online' | 'bedrock-api';
+
+export interface EvaluationEntry {
+  strategy: string;
+  chunkingMethod?: string;
+  evaluationSource: EvaluationSource;
+  evaluation: EvaluationScores;
+}
+
+/**
+ * Parses a raw evaluations API response into a grouped ClaimEvaluationsResponse.
+ * Ensures both source keys are always present (empty arrays if missing).
+ */
+export function parseClaimEvaluationsResponse(data: any): ClaimEvaluationsResponse {
+  const claimId = data?.claimId ?? '';
+  const rawEvals = data?.evaluations ?? {};
+  const agentcoreOnline: EvaluationEntry[] = Array.isArray(rawEvals['agentcore-online'])
+    ? rawEvals['agentcore-online']
+    : [];
+  const bedrockApi: EvaluationEntry[] = Array.isArray(rawEvals['bedrock-api'])
+    ? rawEvals['bedrock-api']
+    : [];
+  return {
+    claimId,
+    evaluations: {
+      'agentcore-online': agentcoreOnline,
+      'bedrock-api': bedrockApi,
+    },
+  };
 }
 
 // Pure functions for request construction and response parsing (exported for testing)
@@ -498,9 +529,21 @@ export function parseClaimSummaryResponse(data: any): { valid: boolean; errors: 
 
 /**
  * Fetches evaluation scores for all strategies that have been run on a claim.
+ * Returns empty evaluations on error/timeout without throwing.
  */
 export async function getClaimEvaluations(claimId: string): Promise<ClaimEvaluationsResponse> {
-  return apiRequest<ClaimEvaluationsResponse>(`/claims/${encodeURIComponent(claimId)}/evaluations`);
+  try {
+    const raw = await apiRequest<any>(`/claims/${encodeURIComponent(claimId)}/evaluations`);
+    return parseClaimEvaluationsResponse(raw);
+  } catch {
+    return {
+      claimId,
+      evaluations: {
+        'agentcore-online': [],
+        'bedrock-api': [],
+      },
+    };
+  }
 }
 
 /**
@@ -517,8 +560,32 @@ export async function getClaimSummary(
   customPrompt?: string
 ): Promise<ClaimSummaryResponse> {
   const req = buildSummaryRequest(claimId, strategy, chunkingMethod, forceRegenerate, includeEvaluation, useReranker, modelId, customPrompt);
-  return apiRequest<ClaimSummaryResponse>(req.endpoint, {
+  const result = await apiRequest<ClaimSummaryResponse & { status?: string }>(req.endpoint, {
     method: req.method,
     body: JSON.stringify(req.body),
   });
+
+  // Handle async regeneration: backend returns 202 with status=processing
+  if ((result as any).status === 'processing') {
+    // Poll for the result (without forceRegenerate) until it's ready
+    const pollReq = buildSummaryRequest(claimId, strategy, chunkingMethod, false, includeEvaluation, useReranker, modelId);
+    const maxAttempts = 12; // 60s max (5s intervals)
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const pollResult = await apiRequest<ClaimSummaryResponse>(pollReq.endpoint, {
+          method: pollReq.method,
+          body: JSON.stringify(pollReq.body),
+        });
+        if (pollResult.summary) {
+          return pollResult;
+        }
+      } catch {
+        // Keep polling on errors
+      }
+    }
+    throw new Error('Regeneration timed out. Please try again.');
+  }
+
+  return result;
 }

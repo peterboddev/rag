@@ -10,6 +10,7 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as destinations from 'aws-cdk-lib/aws-logs-destinations';
 import {
   Evaluator, EvaluatorConfig, EvaluationLevel, RatingScale,
   OnlineEvaluationConfig, DataSourceConfig, EvaluatorReference, ExecutionStatus,
@@ -1652,6 +1653,36 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
 
     // Full Context Agent — migrated to AgentCore Runtime (deployed via `agentcore launch`)
     // Lambda construct removed; orchestrator invokes via AgentCore Runtime API endpoint
+
+    // ============================================================
+    // CloudWatch Logs Subscription Filters for Evaluation Results
+    // ============================================================
+
+    // Grant CloudWatch Logs permission to invoke the writer Lambda
+    evaluationResultsWriterFunction.addPermission('AllowCWLogsInvoke', {
+      principal: new iam.ServicePrincipal('logs.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: cdk.Arn.format(
+        { service: 'logs', resource: 'log-group', resourceName: '/aws/bedrock-agentcore/evaluations/results/*', arnFormat: cdk.ArnFormat.COLON_RESOURCE_NAME },
+        this,
+      ),
+    });
+
+    for (const agent of agents) {
+      const evalConfigName = `${applicationName.replace(/-/g, '_')}_${agent.name}_eval`;
+      const evalLogGroupName = `/aws/bedrock-agentcore/evaluations/results/${evalConfigName}`;
+
+      const evalLogGroup = new logs.LogGroup(this, `EvalResultsLogGroup_${agent.name}`, {
+        logGroupName: evalLogGroupName,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+
+      new logs.SubscriptionFilter(this, `EvalSubFilter_${agent.name}`, {
+        logGroup: evalLogGroup,
+        destination: new destinations.LambdaDestination(evaluationResultsWriterFunction),
+        filterPattern: logs.FilterPattern.allEvents(),
+      });
+    }
 
     // ============================================================
     // Bedrock Evaluations API Infrastructure

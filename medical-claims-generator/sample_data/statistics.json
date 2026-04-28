@@ -1,0 +1,21 @@
+{
+  "total_patients": 1,
+  "patients_by_cancer_type": {
+    "lung_cancer": 1
+  },
+  "total_claims": 1,
+  "claims_by_status": {
+    "approved": 1,
+    "denied": 0,
+    "pending": 0
+  },
+  "documents_by_type": {
+    "cms1500": 1,
+    "eob": 1,
+    "radiology_report": 1,
+    "clinical_note": 1
+  },
+  "tcia_patient_ids": ["TCIA-001"],
+  "random_seed": 42,
+  "generation_timestamp": "2026-03-03T17:53:00Z"
+}

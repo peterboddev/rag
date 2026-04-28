@@ -1,5 +1,41 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { gunzipSync } from 'zlib';
+
+/**
+ * CloudWatch Logs subscription filter event shape.
+ */
+export interface CloudWatchLogsEvent {
+  awslogs: {
+    data: string; // base64-encoded, gzip-compressed
+  };
+}
+
+/**
+ * Decoded CloudWatch Logs subscription filter payload.
+ */
+export interface CloudWatchLogsDecodedData {
+  messageType: string;
+  owner: string;
+  logGroup: string;
+  logStream: string;
+  subscriptionFilters: string[];
+  logEvents: Array<{
+    id: string;
+    timestamp: number;
+    message: string; // JSON string containing EvaluationResultEvent
+  }>;
+}
+
+/**
+ * Decodes a CloudWatch Logs subscription filter payload.
+ * Base64-decodes, gunzips, and JSON-parses to extract log events.
+ */
+export function decodeCloudWatchLogsPayload(data: string): CloudWatchLogsDecodedData {
+  const buffer = Buffer.from(data, 'base64');
+  const decompressed = gunzipSync(buffer);
+  return JSON.parse(decompressed.toString('utf-8'));
+}
 
 // Environment variables
 const EVALUATION_RESULTS_TABLE = process.env.EVALUATION_RESULTS_TABLE || 'evaluation-results-table';
@@ -38,12 +74,12 @@ export function clampScore(score: number): number {
 }
 
 /**
- * Builds the strategyKey sort key as `{strategy}#{chunkingMethod}`.
+ * Builds the strategyKey sort key as `{strategy}#{chunkingMethod}#{evaluationSource}`.
  * Defaults chunkingMethod to 'none' when not provided.
  */
-export function buildStrategyKey(strategy: string, chunkingMethod?: string): string {
+export function buildStrategyKey(strategy: string, chunkingMethod?: string, evaluationSource: string = 'agentcore-online'): string {
   const cm = chunkingMethod || 'none';
-  return `${strategy}#${cm}`;
+  return `${strategy}#${cm}#${evaluationSource}`;
 }
 
 /**
@@ -82,23 +118,10 @@ export function parseEvaluationEvent(event: EvaluationResultEvent): {
 
 
 /**
- * Lambda handler that receives evaluation result events from AgentCore Evaluations
- * and writes them to the Evaluation_Results_Table DynamoDB table.
+ * Processes a single EvaluationResultEvent and writes it to DynamoDB.
+ * Returns a result object indicating success or skip/error.
  */
-export const handler = async (event: unknown): Promise<{ statusCode: number; body: string }> => {
-  // Validate the event is a parseable object
-  let parsed: EvaluationResultEvent;
-  try {
-    parsed = (typeof event === 'string' ? JSON.parse(event) : event) as EvaluationResultEvent;
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.evaluationResults)) {
-      console.error('Malformed event payload: missing evaluationResults array', JSON.stringify(event).substring(0, 500));
-      return { statusCode: 400, body: JSON.stringify({ error: 'Malformed event payload' }) };
-    }
-  } catch (err) {
-    console.error('Malformed event payload: not valid JSON', String(event).substring(0, 500));
-    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed event payload' }) };
-  }
-
+async function processSingleEvent(parsed: EvaluationResultEvent): Promise<{ statusCode: number; body: string }> {
   const attrs = parsed.spanAttributes || {};
   const claimId = attrs['claim.id'];
 
@@ -125,6 +148,7 @@ export const handler = async (event: unknown): Promise<{ statusCode: number; bod
   const record: Record<string, unknown> = {
     claimId,
     strategyKey,
+    evaluationSource: 'agentcore-online',
     evaluatedAt: parsed.evaluatedAt || new Date().toISOString(),
     traceId: parsed.traceId,
   };
@@ -154,4 +178,65 @@ export const handler = async (event: unknown): Promise<{ statusCode: number; bod
     console.error('DynamoDB write failure:', JSON.stringify({ claimId, strategyKey, error: errorMessage }));
     return { statusCode: 500, body: JSON.stringify({ error: 'DynamoDB write failure', claimId, strategyKey }) };
   }
+}
+
+/**
+ * Lambda handler that receives evaluation result events from AgentCore Evaluations
+ * and writes them to the Evaluation_Results_Table DynamoDB table.
+ *
+ * Supports two invocation modes:
+ * 1. CloudWatch Logs subscription filter: `{ awslogs: { data: "<base64-gzip>" } }`
+ * 2. Direct invocation with a raw EvaluationResultEvent (for testing)
+ */
+export const handler = async (event: unknown): Promise<{ statusCode: number; body: string }> => {
+  // Detect CloudWatch Logs subscription filter payload
+  const cwEvent = event as Record<string, any>;
+  if (cwEvent?.awslogs?.data) {
+    let decoded: CloudWatchLogsDecodedData;
+    try {
+      decoded = decodeCloudWatchLogsPayload(cwEvent.awslogs.data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Failed to decode CloudWatch Logs payload:', errorMessage);
+      return { statusCode: 400, body: JSON.stringify({ error: 'Failed to decode CloudWatch Logs payload' }) };
+    }
+
+    const results: Array<{ statusCode: number; body: string }> = [];
+    for (const logEvent of decoded.logEvents) {
+      let parsed: EvaluationResultEvent;
+      try {
+        parsed = JSON.parse(logEvent.message) as EvaluationResultEvent;
+        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.evaluationResults)) {
+          console.warn('Malformed log event message: missing evaluationResults array. eventId:', logEvent.id);
+          continue;
+        }
+      } catch (err) {
+        console.warn('Malformed log event message: not valid JSON. eventId:', logEvent.id);
+        continue;
+      }
+
+      const result = await processSingleEvent(parsed);
+      results.push(result);
+    }
+
+    const processed = results.length;
+    const total = decoded.logEvents.length;
+    console.log(`Processed ${processed}/${total} log events from CloudWatch Logs`);
+    return { statusCode: 200, body: JSON.stringify({ message: `Processed ${processed}/${total} log events` }) };
+  }
+
+  // Direct invocation path (backward compatible)
+  let parsed: EvaluationResultEvent;
+  try {
+    parsed = (typeof event === 'string' ? JSON.parse(event) : event) as EvaluationResultEvent;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.evaluationResults)) {
+      console.error('Malformed event payload: missing evaluationResults array', JSON.stringify(event).substring(0, 500));
+      return { statusCode: 400, body: JSON.stringify({ error: 'Malformed event payload' }) };
+    }
+  } catch (err) {
+    console.error('Malformed event payload: not valid JSON', String(event).substring(0, 500));
+    return { statusCode: 400, body: JSON.stringify({ error: 'Malformed event payload' }) };
+  }
+
+  return processSingleEvent(parsed);
 };

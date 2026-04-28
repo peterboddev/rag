@@ -34,11 +34,14 @@ logger.setLevel(logging.INFO)
 # Environment configuration
 DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "rag-app-documents-dev")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 # Initialize module-level DynamoDB resource and table
 dynamodb = boto3.resource("dynamodb", region_name=BEDROCK_REGION)
 documents_table = dynamodb.Table(DOCUMENTS_TABLE)
+
+# Initialize Bedrock Runtime client for LLM anomaly detection
+bedrock_runtime_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
 
 class DocumentRetrievalError(Exception):
@@ -370,6 +373,11 @@ def _detect_anomalies_impl(documents: list[dict]) -> list[dict]:
             _check_payment_date_anomalies(file_name, text)
         )
 
+        # Check for billed vs allowed amount discrepancies
+        anomalies.extend(
+            _check_billed_vs_allowed_anomalies(file_name, text)
+        )
+
     # Check for duplicate/conflicting info across documents
     anomalies.extend(
         _check_cross_document_anomalies(documents)
@@ -432,14 +440,64 @@ def _check_payment_date_anomalies(
             if pd < sd:
                 anomalies.append({
                     "description": (
-                        f"Payment date ({pd_str}) precedes service "
-                        f"date ({sd_str})"
+                        f"Payment date ({pd_str}) precedes service date ({sd_str})"
                     ),
                     "severity": "critical",
                     "sourceDocument": file_name,
                     "dataValues": {
                         "paymentDate": pd_str,
                         "serviceDate": sd_str,
+                    },
+                })
+
+    return anomalies
+
+
+def _check_billed_vs_allowed_anomalies(
+    file_name: str, text: str
+) -> list[dict]:
+    """Check for discrepancies between billed and allowed amounts."""
+    anomalies = []
+
+    # Extract billed amounts
+    billed_pattern = r'(?:billed|billed amount|total billed|amount billed)[:\s]*\$?([\d,]+(?:\.\d{2})?)'
+    allowed_pattern = r'(?:allowed|allowed amount|total allowed|amount allowed)[:\s]*\$?([\d,]+(?:\.\d{2})?)'
+
+    billed_matches = re.findall(billed_pattern, text, re.IGNORECASE)
+    allowed_matches = re.findall(allowed_pattern, text, re.IGNORECASE)
+
+    for billed_str in billed_matches:
+        try:
+            billed = float(billed_str.replace(',', ''))
+        except ValueError:
+            continue
+        for allowed_str in allowed_matches:
+            try:
+                allowed = float(allowed_str.replace(',', ''))
+            except ValueError:
+                continue
+            if billed > allowed:
+                anomalies.append({
+                    "description": (
+                        f"Billed amount (${billed_str}) exceeds allowed amount (${allowed_str})"
+                    ),
+                    "severity": "warning",
+                    "sourceDocument": file_name,
+                    "dataValues": {
+                        "billedAmount": billed_str,
+                        "allowedAmount": allowed_str,
+                    },
+                })
+            elif allowed > billed:
+                anomalies.append({
+                    "description": (
+                        f"Allowed amount (${allowed_str}) exceeds billed amount (${billed_str})"
+                    ),
+                    "severity": "warning",
+                    "sourceDocument": file_name,
+                    "dataValues": {
+                        "billedAmount": billed_str,
+                        "allowedAmount": allowed_str,
                     },
                 })
 
@@ -578,12 +636,13 @@ def extract_timeline_data(documents: str) -> str:
 
 
 @tool
-def detect_anomalies(documents: str) -> str:
-    """Detect data anomalies in insurance claim documents.
+def detect_anomalies_deterministic(documents: str) -> str:
+    """Detect data anomalies using deterministic rule-based checks.
 
     Analyzes documents for chronological impossibilities (service date before
-    birth date), payment dates before service dates, and conflicting patient
-    names across documents.
+    birth date), payment dates before service dates, billed vs allowed amount
+    discrepancies, and conflicting patient names across documents. Does not
+    invoke any LLM or Bedrock model.
 
     Args:
         documents: A JSON string containing a list of document records,
@@ -591,11 +650,90 @@ def detect_anomalies(documents: str) -> str:
 
     Returns:
         A JSON string containing a list of anomaly dicts, each with keys
-        'description', 'severity', 'sourceDocument', and 'dataValues'.
+        'description', 'severity', 'sourceDocument', 'dataValues', and 'source'.
     """
     docs = json.loads(documents)
     result = _detect_anomalies_impl(docs)
+    for anomaly in result:
+        anomaly["source"] = "deterministic"
     return json.dumps(result, default=str)
+
+
+@tool
+def detect_anomalies_llm(combined_text: str) -> str:
+    """Detect anomalies using LLM analysis of document text.
+
+    Invokes a Bedrock model to analyze the combined document text for
+    clinical implausibilities, billing anomalies, and patterns that
+    warrant investigation.
+
+    Args:
+        combined_text: Combined document text string to analyze.
+
+    Returns:
+        A JSON string containing a list of anomaly dicts, each with keys
+        'description', 'severity', 'sourceDocument', 'dataValues', and 'source'.
+    """
+    prompt = (
+        "Analyze the following insurance claim documents for anomalies. "
+        "Look for clinical implausibilities, billing anomalies, timeline conflicts, "
+        "and patterns that warrant investigation.\n\n"
+        "Return ONLY a JSON array of anomaly objects. Each object must have:\n"
+        '- "description": string describing the anomaly\n'
+        '- "severity": one of "critical", "warning", or "info"\n'
+        '- "sourceDocument": the document name where the anomaly was found\n'
+        '- "dataValues": object with key-value pairs of relevant data\n\n'
+        "If no anomalies are found, return an empty array: []\n\n"
+        "Documents:\n" + combined_text
+    )
+
+    model_id = BEDROCK_MODEL_ID if any(
+        BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')
+    ) else f"us.{BEDROCK_MODEL_ID}"
+
+    try:
+        response = bedrock_runtime_client.invoke_model(
+            modelId=model_id,
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 4096,
+                "temperature": 0.2,
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": prompt}]}
+                ],
+            }),
+        )
+
+        response_body = json.loads(response["body"].read())
+        response_text = response_body.get("content", [{}])[0].get("text", "[]")
+
+        # Extract JSON array from response (handle markdown code blocks)
+        json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+        if not json_match:
+            logger.error("LLM response did not contain a JSON array")
+            return "[]"
+
+        anomalies = json.loads(json_match.group())
+        if not isinstance(anomalies, list):
+            logger.error("LLM response JSON is not a list")
+            return "[]"
+
+        # Validate and inject source tag
+        required_fields = {"description", "severity", "sourceDocument", "dataValues"}
+        valid_anomalies = []
+        for anomaly in anomalies:
+            if not isinstance(anomaly, dict):
+                continue
+            if not required_fields.issubset(anomaly.keys()):
+                continue
+            anomaly["source"] = "llm"
+            valid_anomalies.append(anomaly)
+
+        return json.dumps(valid_anomalies, default=str)
+
+    except Exception as e:
+        logger.error(f"LLM anomaly detection failed: {e}")
+        return "[]"
 
 
 # ---------------------------------------------------------------------------
@@ -608,7 +746,8 @@ SYSTEM_PROMPT = """You are an insurance claims analyst agent. For each claim, yo
 2. Call combine_document_text with the retrieved documents to get the full text
 3. Call extract_financial_data with the retrieved documents to get payment information
 4. Call extract_timeline_data with the retrieved documents to get care history timeline
-5. Call detect_anomalies with the retrieved documents to find data inconsistencies
+5. Call detect_anomalies_deterministic with the retrieved documents to find rule-based data inconsistencies
+6. Call detect_anomalies_llm with the combined document text to find LLM-detected anomalies
 
 Then generate a comprehensive summary that includes:
 
@@ -648,7 +787,7 @@ Include specific dollar amounts, dates, and medical codes where available. Base 
 - Frequency of services
 - Gaps or intensive treatment periods
 
-**ANOMALY DETECTION**: Combine detect_anomalies results with your own analysis to identify:
+**ANOMALY DETECTION**: Combine anomalies from both detect_anomalies_deterministic and detect_anomalies_llm. Preserve the source tag on each anomaly so the user can distinguish rule-based findings from LLM reasoning. Use the combined results to identify:
 - Financial inconsistencies (duplicate charges, unusual amounts)
 - Clinical implausibilities for patient age/condition
 - Timeline conflicts or impossible sequences
@@ -661,7 +800,7 @@ Include specific dollar amounts, dates, and medical codes where available. Base 
 
 Return your final response with these sections clearly labeled:
 - SUMMARY: your structured summary text (use markdown headers as shown above)
-- ANOMALIES: the anomalies from detect_anomalies plus your additional findings
+- ANOMALIES: the anomalies from both detect_anomalies_deterministic and detect_anomalies_llm combined, preserving source tags
 - DOCUMENT_COUNT: number of documents retrieved
 - STRATEGY: "full-context"
 - FINANCIAL_SUMMARY: the complete result from extract_financial_data
@@ -669,7 +808,7 @@ Return your final response with these sections clearly labeled:
 """
 
 model = BedrockModel(
-    model_id=f"us.{BEDROCK_MODEL_ID}",
+    model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
     max_tokens=4096,
@@ -682,7 +821,8 @@ agent = Agent(
         combine_document_text,
         extract_financial_data,
         extract_timeline_data,
-        detect_anomalies
+        detect_anomalies_deterministic,
+        detect_anomalies_llm
     ],
     system_prompt=SYSTEM_PROMPT,
 )
@@ -913,34 +1053,66 @@ def handler(event, context):
     financial_summary = _aggregate_financial_data(documents)
     timeline_data = _aggregate_timeline_data(documents)
 
-    # 3. Strands Agent invocation (may fail — partial results still returned)
-    try:
-        result = agent(
-            f"Process claim {claim_id} and provide a comprehensive analysis "
-            f"with financial and timeline data in the structured format specified"
-        )
-        response = parse_agent_response(result, default_count=len(documents))
-    except Exception as e:
-        logger.warning(
-            f"Strands Agent failed for claim {claim_id}, but deterministic "
-            f"extraction succeeded: {e}"
-        )
-        response = {
-            "summary": f"Agent analysis unavailable: {e}",
-            "anomalies": [],
-            "documentCount": len(documents),
-            "strategy": "full-context",
-            "promptInfo": {
-                "promptTemplate": SYSTEM_PROMPT,
-                "strategyLabel": "Enhanced Full Context Agent",
-            },
-            "financialSummary": {},
-            "timeline": {},
-        }
+    # 3. Strands Agent invocation with retry for transient model errors
+    response = None
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = agent(
+                f"Process claim {claim_id} and provide a comprehensive analysis "
+                f"with financial and timeline data in the structured format specified"
+            )
+            response = parse_agent_response(result, default_count=len(documents))
+            break  # Success — exit retry loop
+        except Exception as e:
+            error_str = str(e)
+            is_transient = any(keyword in error_str for keyword in [
+                'modelStreamErrorException', 'ToolUse', 'invalid sequence',
+                'throttlingException', 'ThrottlingException',
+            ])
+            if is_transient and attempt < max_retries:
+                logger.warning(
+                    f"Strands Agent transient error (attempt {attempt}/{max_retries}) "
+                    f"for claim {claim_id}: {e}"
+                )
+                import time
+                time.sleep(2 * attempt)  # Exponential backoff
+                continue
+            logger.warning(
+                f"Strands Agent failed for claim {claim_id} after {attempt} attempt(s), "
+                f"but deterministic extraction succeeded: {e}"
+            )
+            response = {
+                "summary": f"Agent analysis unavailable: {e}",
+                "anomalies": [],
+                "documentCount": len(documents),
+                "strategy": "full-context",
+                "promptInfo": {
+                    "promptTemplate": SYSTEM_PROMPT,
+                    "strategyLabel": "Enhanced Full Context Agent",
+                },
+                "financialSummary": {},
+                "timeline": {},
+            }
 
     # 4. Override with deterministic results — always authoritative
     response["financialSummary"] = financial_summary
     response["timeline"] = timeline_data
+
+    # 5. Ensure anomalies have source tags — run deterministic detection directly
+    # and tag any untagged anomalies from the LLM response as "llm"
+    try:
+        det_anomalies = _detect_anomalies_impl(documents)
+        for a in det_anomalies:
+            a["source"] = "deterministic"
+        # Tag existing anomalies without source as "llm" (they came from the agent's text)
+        for a in response.get("anomalies", []):
+            if "source" not in a:
+                a["source"] = "llm"
+        # Merge: deterministic first, then LLM
+        response["anomalies"] = det_anomalies + response.get("anomalies", [])
+    except Exception as e:
+        logger.warning(f"Post-processing anomaly tagging failed: {e}")
 
     return response
 
