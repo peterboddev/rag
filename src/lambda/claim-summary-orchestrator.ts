@@ -853,9 +853,9 @@ async function executeFullContextStrategy(
     summary: agentResult.summary || '',
     anomalies: taggedAnomalies,
     documentCount: agentResult.documentCount || 0,
-    promptInfo: agentResult.promptInfo || {
-      promptTemplate: 'Enhanced Full Context Agent',
-      strategyLabel: 'full-context (enhanced agent)'
+    promptInfo: {
+      promptTemplate: 'Full Context Agent — uses Strands SDK with tools: retrieve_claim_documents, combine_document_text, extract_financial_data, extract_timeline_data, detect_anomalies_deterministic, detect_anomalies_llm. System prompt instructs the agent to call all tools and generate a structured summary with anomaly detection.',
+      strategyLabel: 'full-context (AgentCore Strands agent)'
     },
     financialSummary: agentResult.financialSummary,
     timeline: agentResult.timeline,
