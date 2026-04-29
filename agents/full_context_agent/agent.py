@@ -33,13 +33,14 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 try:
     from shared.tool_trace import TraceCollector, traced
+    logger.info("tool_trace imported successfully from shared.tool_trace")
 except ImportError:
     # Fallback: try relative import for when running as a module
     try:
         from agents.shared.tool_trace import TraceCollector, traced
+        logger.info("tool_trace imported successfully from agents.shared.tool_trace")
     except ImportError as e:
-        import logging as _log
-        _log.getLogger(__name__).warning(f"Could not import tool_trace: {e}")
+        logger.warning(f"Could not import tool_trace: {e}")
         TraceCollector = None
         traced = None
 
@@ -1042,6 +1043,7 @@ def handler(event, context):
     # Initialize tool trace collector
     collector = TraceCollector() if TraceCollector else None
     trace_fn = traced(collector) if (traced and collector) else lambda fn: fn
+    logger.info(f"TraceCollector initialized: {collector is not None}, traced available: {traced is not None}")
 
     # 1. Retrieve documents once — fail fast if retrieval fails
     try:
@@ -1144,7 +1146,9 @@ def handler(event, context):
 
     # 6. Attach tool execution trace
     try:
-        response["toolTrace"] = collector.to_list() if collector else None
+        trace_list = collector.to_list() if collector else None
+        response["toolTrace"] = trace_list
+        logger.info(f"toolTrace attached: {len(trace_list) if trace_list else 0} entries")
     except Exception as e:
         logger.warning(f"Failed to serialize tool trace: {e}")
         response["toolTrace"] = None
