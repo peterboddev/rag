@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getClaimSummary } from '../services/claimApi';
+import { getClaimSummary, clearClaimCache } from '../services/claimApi';
 import StrategyColumn, { ColumnState } from './StrategyColumn';
 import { MODEL_OPTIONS } from './StrategyComparisonView';
 
@@ -83,6 +83,22 @@ const FullContextTab: React.FC<FullContextTabProps> = ({ claimId }) => {
 
   const isLoading = columnState.status === 'loading';
   const hasResult = columnState.status === 'success' || columnState.status === 'error';
+  const [cacheClearing, setCacheClearing] = useState(false);
+  const [cacheMessage, setCacheMessage] = useState<string | null>(null);
+
+  const handleClearCache = useCallback(async () => {
+    setCacheClearing(true);
+    setCacheMessage(null);
+    try {
+      const result = await clearClaimCache(claimId);
+      setCacheMessage(`✅ ${result.message}`);
+      setTimeout(() => setCacheMessage(null), 5000);
+    } catch (err: any) {
+      setCacheMessage(`❌ Failed to clear cache: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setCacheClearing(false);
+    }
+  }, [claimId]);
 
   return (
     <div data-testid="full-context-tab">
@@ -155,8 +171,8 @@ const FullContextTab: React.FC<FullContextTabProps> = ({ claimId }) => {
         )}
       </div>
 
-      {/* Generate / Regenerate button */}
-      <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+      {/* Generate / Regenerate button + Clear Cache */}
+      <div style={{ marginBottom: '16px', textAlign: 'center', display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
         <button
           data-testid="generate-btn"
           onClick={handleGenerate}
@@ -178,7 +194,31 @@ const FullContextTab: React.FC<FullContextTabProps> = ({ claimId }) => {
               ? '🔄 Regenerate'
               : '🚀 Generate'}
         </button>
+        <button
+          data-testid="clear-cache-btn"
+          onClick={handleClearCache}
+          disabled={isLoading || cacheClearing}
+          style={{
+            padding: '10px 16px',
+            fontSize: '13px',
+            fontWeight: 600,
+            backgroundColor: cacheClearing ? '#6c757d' : '#dc3545',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: (isLoading || cacheClearing) ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {cacheClearing ? '⏳ Clearing...' : '🗑️ Clear Cache'}
+        </button>
       </div>
+
+      {/* Cache operation message */}
+      {cacheMessage && (
+        <div style={{ textAlign: 'center', marginBottom: '12px', fontSize: '13px', color: cacheMessage.startsWith('✅') ? '#28a745' : '#dc3545' }}>
+          {cacheMessage}
+        </div>
+      )}
 
       {/* Elapsed time counter during loading */}
       {isLoading && (

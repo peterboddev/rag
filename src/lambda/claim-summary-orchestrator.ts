@@ -1304,7 +1304,8 @@ async function handleFinancialAnalysisTrigger(claimId: string, event: APIGateway
 async function handlePostSummary(
   claimId: string,
   request: ClaimSummaryRequest,
-  tenantId: string
+  tenantId: string,
+  isAsyncRegenerate: boolean = false
 ): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
 
@@ -1342,7 +1343,8 @@ async function handlePostSummary(
     }
 
     // Cache miss for full-context strategy: use async pattern since agent takes >29s
-    if (request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) {
+    // Skip this if we're already in an async regeneration (prevent infinite loop)
+    if (!isAsyncRegenerate && request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) {
       console.log('Cache miss for full-context — triggering async generation');
       try {
         const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
@@ -1693,6 +1695,18 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return handleFinancialAnalysisTrigger(claimId, event);
     }
 
+    // DELETE /claims/{claimId}/cache — clear all cached summaries for a claim
+    if (event.httpMethod === 'DELETE' && (event.path?.endsWith('/cache') || event.resource?.endsWith('/cache'))) {
+      console.log('Handling DELETE /cache for claimId:', claimId);
+      try {
+        const count = await invalidateCache(claimId);
+        return successResponse(200, { claimId, cacheEntriesDeleted: count, message: `Cleared ${count} cached summaries` });
+      } catch (error) {
+        console.error('Cache invalidation failed:', error);
+        return errorResponse(500, 'Failed to clear cache');
+      }
+    }
+
     // POST /summary - validate request body
     const validation = validateRequest(event.body);
 
@@ -1710,7 +1724,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       includeEvaluation: request.includeEvaluation,
     }));
 
-    return handlePostSummary(claimId, request, extractTenantId(event));
+    return handlePostSummary(claimId, request, extractTenantId(event), !!(JSON.parse(event.body || '{}') as any)._asyncRegenerate);
 
   } catch (error) {
     console.error('Unexpected error in claim summary orchestrator:', error);

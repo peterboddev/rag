@@ -1337,6 +1337,12 @@ export class RAGApplicationStack extends cdk.Stack {
     // Grant DynamoDB permissions
     documentsTableRef.grantReadData(claimSummaryOrchestratorFunction);
     summaryCacheTable.grantReadWriteData(claimSummaryOrchestratorFunction);
+    // Grant explicit Query permission on the claimId-index GSI for cache invalidation
+    claimSummaryOrchestratorFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['dynamodb:Query'],
+      resources: [`${summaryCacheTable.tableArn}/index/*`],
+    }));
     evaluationResultsTable.grantReadWriteData(claimSummaryOrchestratorFunction);
 
     // Grant S3 permissions
@@ -1924,9 +1930,19 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       methodOptions
     );
 
+    // DELETE /claims/{claimId}/cache - Clear cached summaries for a claim
+    const claimCacheResource = claimResource.addResource('cache');
+    addCorsOptions(claimCacheResource);
+    claimCacheResource.addMethod(
+      'DELETE',
+      new apigateway.LambdaIntegration(claimSummaryOrchestratorFunction, { proxy: true }),
+      methodOptions
+    );
+
     // Ensure deployment depends on new claim summary resources
     deployment.node.addDependency(claimSummaryResource);
     deployment.node.addDependency(claimEvaluationsResource);
     deployment.node.addDependency(claimFinancialAnalysisResource);
+    deployment.node.addDependency(claimCacheResource);
   }
 }

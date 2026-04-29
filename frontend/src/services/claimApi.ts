@@ -266,6 +266,16 @@ export async function getFinancialAnalysis(claimId: string): Promise<FinancialAn
   return apiRequest<FinancialAnalysisResponse>(`/claims/${encodeURIComponent(claimId)}/financial-analysis`);
 }
 
+/**
+ * Clear all cached summaries for a claim.
+ */
+export async function clearClaimCache(claimId: string): Promise<{ claimId: string; cacheEntriesDeleted: number; message: string }> {
+  return apiRequest<{ claimId: string; cacheEntriesDeleted: number; message: string }>(
+    `/claims/${encodeURIComponent(claimId)}/cache`,
+    { method: 'DELETE' }
+  );
+}
+
 // Claim Status History Types
 
 export type ClaimStatusValue = 'Submitted' | 'Under Review' | 'Approved' | 'Denied' | 'Pending Information';
