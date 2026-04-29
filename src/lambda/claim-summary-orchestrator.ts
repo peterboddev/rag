@@ -5,6 +5,7 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from '@aws-sdk/client-bedrock-agentcore';
+import { randomUUID } from 'crypto';
 import {
   ClaimSummaryRequest,
   ClaimSummaryResponse,
@@ -66,6 +67,7 @@ async function invokeAgentCoreRuntime(
 
   const command = new InvokeAgentRuntimeCommand({
     agentRuntimeArn,
+    runtimeSessionId: randomUUID(),
     payload: new TextEncoder().encode(body),
     contentType: 'application/json',
     accept: 'application/json',
