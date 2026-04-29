@@ -19,7 +19,10 @@ import os
 import re
 import logging
 import time as time_module
+import functools
 from datetime import datetime
+from dataclasses import dataclass
+from typing import Any
 
 from opentelemetry import trace
 
@@ -28,21 +31,86 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-# Import shared tool trace utilities
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-try:
-    from shared.tool_trace import TraceCollector, traced
-    logger.info("tool_trace imported successfully from shared.tool_trace")
-except ImportError:
-    # Fallback: try relative import for when running as a module
-    try:
-        from agents.shared.tool_trace import TraceCollector, traced
-        logger.info("tool_trace imported successfully from agents.shared.tool_trace")
-    except ImportError as e:
-        logger.warning(f"Could not import tool_trace: {e}")
-        TraceCollector = None
-        traced = None
+
+# ---------------------------------------------------------------------------
+# Inline Tool Trace utilities (avoids cross-module import issues in containers)
+# ---------------------------------------------------------------------------
+
+def _truncate(text: str, max_len: int) -> str:
+    if len(text) <= max_len:
+        return text
+    if max_len < 4:
+        return text[:max_len]
+    return text[: max_len - 3] + "..."
+
+
+def _format_value(value: Any) -> str:
+    if isinstance(value, str):
+        if value.startswith("[") or value.startswith("{"):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return f"[...] ({len(parsed)} items)"
+                elif isinstance(parsed, dict):
+                    keys = list(parsed.keys())[:3]
+                    return "{" + ", ".join(keys) + ("..." if len(parsed) > 3 else "") + "}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if len(value) > 100:
+            return value[:97] + "..."
+        return value
+    if isinstance(value, list):
+        return f"[...] ({len(value)} items)"
+    if isinstance(value, dict):
+        keys = list(value.keys())[:3]
+        return "{" + ", ".join(keys) + ("..." if len(value) > 3 else "") + "}"
+    return str(value)[:100]
+
+
+class TraceCollector:
+    def __init__(self) -> None:
+        self._entries: list[dict] = []
+        self._order: int = 0
+
+    def record(self, tool_name: str, start_time: float, end_time: float,
+               input_summary: str, output_summary: str, error: str | None = None) -> None:
+        self._order += 1
+        duration_ms = max(0, int((end_time - start_time) * 1000))
+        self._entries.append({
+            "toolName": tool_name,
+            "executionOrder": self._order,
+            "durationMs": duration_ms,
+            "inputSummary": _truncate(input_summary, 200),
+            "outputSummary": _truncate(output_summary, 300),
+            **({"error": error} if error else {}),
+        })
+
+    def to_list(self) -> list[dict]:
+        return list(self._entries)
+
+
+def traced(collector: TraceCollector):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            parts = []
+            for i, arg in enumerate(args):
+                parts.append(f"arg{i}: {_format_value(arg)}")
+            for key, val in kwargs.items():
+                parts.append(f"{key}: {_format_value(val)}")
+            input_summary = ", ".join(parts) if parts else "(no args)"
+            start = time_module.time()
+            try:
+                result = fn(*args, **kwargs)
+                end = time_module.time()
+                collector.record(fn.__name__, start, end, input_summary, _format_value(result))
+                return result
+            except Exception as e:
+                end = time_module.time()
+                collector.record(fn.__name__, start, end, input_summary, f"ERROR: {e}", error=str(e))
+                raise
+        return wrapper
+    return decorator
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1041,21 +1109,20 @@ def handler(event, context):
         pass  # OpenTelemetry may not be available in all environments
 
     # Initialize tool trace collector
-    collector = TraceCollector() if TraceCollector else None
-    trace_fn = traced(collector) if (traced and collector) else lambda fn: fn
-    logger.info(f"TraceCollector initialized: {collector is not None}, traced available: {traced is not None}")
+    collector = TraceCollector()
+    trace_fn = traced(collector)
+    logger.info("TraceCollector initialized for claim %s", claim_id)
 
     # 1. Retrieve documents once — fail fast if retrieval fails
     try:
         start_t = time_module.time()
         documents = _retrieve_claim_documents_impl(claim_id)
         end_t = time_module.time()
-        if collector:
-            collector.record(
-                "retrieve_claim_documents", start_t, end_t,
-                f"claim_id: {claim_id}",
-                f"[...] ({len(documents)} documents)",
-            )
+        collector.record(
+            "retrieve_claim_documents", start_t, end_t,
+            f"claim_id: {claim_id}",
+            f"[...] ({len(documents)} documents)",
+        )
     except DocumentRetrievalError as e:
         logger.error(f"Document retrieval failed for claim {claim_id}: {e}")
         return {"error": str(e), "statusCode": e.status_code}
@@ -1146,9 +1213,9 @@ def handler(event, context):
 
     # 6. Attach tool execution trace
     try:
-        trace_list = collector.to_list() if collector else None
+        trace_list = collector.to_list()
         response["toolTrace"] = trace_list
-        logger.info(f"toolTrace attached: {len(trace_list) if trace_list else 0} entries")
+        logger.info(f"toolTrace attached: {len(trace_list)} entries")
     except Exception as e:
         logger.warning(f"Failed to serialize tool trace: {e}")
         response["toolTrace"] = None

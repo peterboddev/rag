@@ -21,23 +21,94 @@ import os
 import re
 import logging
 import time as time_module
+import functools
 from datetime import datetime
+from typing import Any
 
 import boto3
 from opentelemetry import trace
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-# Import shared tool trace utilities
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-try:
-    from shared.tool_trace import TraceCollector, traced
-except ImportError:
-    try:
-        from agents.shared.tool_trace import TraceCollector, traced
-    except ImportError as e:
-        import logging as _log
-        _log.getLogger(__name__).warning(f"Could not import tool_trace: {e}")
+
+# ---------------------------------------------------------------------------
+# Inline Tool Trace utilities
+# ---------------------------------------------------------------------------
+
+def _truncate_trace(text: str, max_len: int) -> str:
+    if len(text) <= max_len:
+        return text
+    if max_len < 4:
+        return text[:max_len]
+    return text[: max_len - 3] + "..."
+
+
+def _format_trace_value(value: Any) -> str:
+    if isinstance(value, str):
+        if value.startswith("[") or value.startswith("{"):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return f"[...] ({len(parsed)} items)"
+                elif isinstance(parsed, dict):
+                    keys = list(parsed.keys())[:3]
+                    return "{" + ", ".join(keys) + ("..." if len(parsed) > 3 else "") + "}"
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if len(value) > 100:
+            return value[:97] + "..."
+        return value
+    if isinstance(value, list):
+        return f"[...] ({len(value)} items)"
+    if isinstance(value, dict):
+        keys = list(value.keys())[:3]
+        return "{" + ", ".join(keys) + ("..." if len(value) > 3 else "") + "}"
+    return str(value)[:100]
+
+
+class TraceCollector:
+    def __init__(self) -> None:
+        self._entries: list[dict] = []
+        self._order: int = 0
+
+    def record(self, tool_name: str, start_time: float, end_time: float,
+               input_summary: str, output_summary: str, error: str | None = None) -> None:
+        self._order += 1
+        duration_ms = max(0, int((end_time - start_time) * 1000))
+        self._entries.append({
+            "toolName": tool_name,
+            "executionOrder": self._order,
+            "durationMs": duration_ms,
+            "inputSummary": _truncate_trace(input_summary, 200),
+            "outputSummary": _truncate_trace(output_summary, 300),
+            **({"error": error} if error else {}),
+        })
+
+    def to_list(self) -> list[dict]:
+        return list(self._entries)
+
+
+def traced(collector: TraceCollector):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            parts = []
+            for i, arg in enumerate(args):
+                parts.append(f"arg{i}: {_format_trace_value(arg)}")
+            for key, val in kwargs.items():
+                parts.append(f"{key}: {_format_trace_value(val)}")
+            input_summary = ", ".join(parts) if parts else "(no args)"
+            start = time_module.time()
+            try:
+                result = fn(*args, **kwargs)
+                end = time_module.time()
+                collector.record(fn.__name__, start, end, input_summary, _format_trace_value(result))
+                return result
+            except Exception as e:
+                end = time_module.time()
+                collector.record(fn.__name__, start, end, input_summary, f"ERROR: {e}", error=str(e))
+                raise
+        return wrapper
+    return decorator
         TraceCollector = None
         traced = None
 
@@ -814,8 +885,8 @@ def handler(event, context):
         logger.info(f"Processing enriched strategy for claim {claim_id}")
 
         # Initialize tool trace collector
-        collector = TraceCollector() if TraceCollector else None
-        trace_fn = traced(collector) if (traced and collector) else lambda fn: fn
+        collector = TraceCollector()
+        trace_fn = traced(collector)
 
         # 1. Gather source material from all three sources
         # Full Context is required — failure raises an error
@@ -866,7 +937,7 @@ def handler(event, context):
 
         # 7. Attach tool execution trace
         try:
-            result["toolTrace"] = collector.to_list() if collector else None
+            result["toolTrace"] = collector.to_list()
         except Exception as e:
             logger.warning(f"Failed to serialize tool trace: {e}")
             result["toolTrace"] = None
