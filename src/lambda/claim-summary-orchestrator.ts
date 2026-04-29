@@ -701,6 +701,7 @@ async function executeFullContextStrategy(
   agentReasoning?: string | null;
   bdaFinancialSummary?: FinancialSummary | null;
   bdaTimeline?: TimelineData | null;
+  toolTrace?: ToolTraceEntry[] | null;
 }> {
   const fullContextAgentEndpoint = process.env.FULL_CONTEXT_AGENT_ENDPOINT;
   const financialTimelineAgentEndpoint = process.env.FINANCIAL_TIMELINE_AGENT_ENDPOINT;
@@ -1043,7 +1044,7 @@ async function executeEnrichedStrategy(
   tenantId: string,
   patientId?: string | null,
   modelId?: string
-): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo }> {
+): Promise<{ summary: string; anomalies: DataAnomaly[]; documentCount: number; promptInfo: PromptInfo; toolTrace?: ToolTraceEntry[] | null }> {
   const enrichedAgentEndpoint = process.env.ENRICHED_AGENT_ENDPOINT;
   if (!enrichedAgentEndpoint) {
     throw new Error('ENRICHED_AGENT_ENDPOINT environment variable is not configured');
@@ -1502,7 +1503,7 @@ async function handlePostSummary(
       anomalies = enrichedResult.anomalies;
       documentCount = enrichedResult.documentCount;
       promptInfo = enrichedResult.promptInfo;
-      toolTrace = (enrichedResult as any).toolTrace ?? null;
+      toolTrace = enrichedResult.toolTrace ?? null;
       try {
         const docs = await queryClaimDocuments(claimId, tenantId);
         sourceDocumentsText = docs
@@ -1549,7 +1550,7 @@ async function handlePostSummary(
       agentReasoning = result.agentReasoning;
       bdaFinancialSummary = result.bdaFinancialSummary;
       bdaTimeline = result.bdaTimeline;
-      toolTrace = (result as any).toolTrace ?? null;
+      toolTrace = result.toolTrace ?? null;
 
       // Fetch source documents for evaluation pipeline
       try {
