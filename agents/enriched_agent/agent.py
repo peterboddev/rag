@@ -29,8 +29,17 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Import shared tool trace utilities
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from shared.tool_trace import TraceCollector, traced
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+try:
+    from shared.tool_trace import TraceCollector, traced
+except ImportError:
+    try:
+        from agents.shared.tool_trace import TraceCollector, traced
+    except ImportError as e:
+        import logging as _log
+        _log.getLogger(__name__).warning(f"Could not import tool_trace: {e}")
+        TraceCollector = None
+        traced = None
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -805,8 +814,8 @@ def handler(event, context):
         logger.info(f"Processing enriched strategy for claim {claim_id}")
 
         # Initialize tool trace collector
-        collector = TraceCollector()
-        trace_fn = traced(collector)
+        collector = TraceCollector() if TraceCollector else None
+        trace_fn = traced(collector) if (traced and collector) else lambda fn: fn
 
         # 1. Gather source material from all three sources
         # Full Context is required — failure raises an error
@@ -857,7 +866,7 @@ def handler(event, context):
 
         # 7. Attach tool execution trace
         try:
-            result["toolTrace"] = collector.to_list()
+            result["toolTrace"] = collector.to_list() if collector else None
         except Exception as e:
             logger.warning(f"Failed to serialize tool trace: {e}")
             result["toolTrace"] = None

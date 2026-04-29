@@ -847,6 +847,7 @@ async function executeFullContextStrategy(
 
   // Return the enhanced agent response with both deterministic and agent-predicted data
   // Tag anomalies without a source field as "llm" (they came from the agent's LLM response)
+  console.log('AgentCore response keys:', Object.keys(agentResult), 'toolTrace:', agentResult.toolTrace ? `${agentResult.toolTrace.length} entries` : 'null/undefined');
   const taggedAnomalies = (agentResult.anomalies || []).map((a: any) => ({
     ...a,
     source: a.source || 'llm',

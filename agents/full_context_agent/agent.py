@@ -30,8 +30,18 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Import shared tool trace utilities
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from shared.tool_trace import TraceCollector, traced
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+try:
+    from shared.tool_trace import TraceCollector, traced
+except ImportError:
+    # Fallback: try relative import for when running as a module
+    try:
+        from agents.shared.tool_trace import TraceCollector, traced
+    except ImportError as e:
+        import logging as _log
+        _log.getLogger(__name__).warning(f"Could not import tool_trace: {e}")
+        TraceCollector = None
+        traced = None
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1030,19 +1040,20 @@ def handler(event, context):
         pass  # OpenTelemetry may not be available in all environments
 
     # Initialize tool trace collector
-    collector = TraceCollector()
-    trace_fn = traced(collector)
+    collector = TraceCollector() if TraceCollector else None
+    trace_fn = traced(collector) if (traced and collector) else lambda fn: fn
 
     # 1. Retrieve documents once — fail fast if retrieval fails
     try:
         start_t = time_module.time()
         documents = _retrieve_claim_documents_impl(claim_id)
         end_t = time_module.time()
-        collector.record(
-            "retrieve_claim_documents", start_t, end_t,
-            f"claim_id: {claim_id}",
-            f"[...] ({len(documents)} documents)",
-        )
+        if collector:
+            collector.record(
+                "retrieve_claim_documents", start_t, end_t,
+                f"claim_id: {claim_id}",
+                f"[...] ({len(documents)} documents)",
+            )
     except DocumentRetrievalError as e:
         logger.error(f"Document retrieval failed for claim {claim_id}: {e}")
         return {"error": str(e), "statusCode": e.status_code}
@@ -1133,7 +1144,7 @@ def handler(event, context):
 
     # 6. Attach tool execution trace
     try:
-        response["toolTrace"] = collector.to_list()
+        response["toolTrace"] = collector.to_list() if collector else None
     except Exception as e:
         logger.warning(f"Failed to serialize tool trace: {e}")
         response["toolTrace"] = None
