@@ -18,6 +18,7 @@ import json
 import os
 import re
 import logging
+import time as time_module
 from datetime import datetime
 
 from opentelemetry import trace
@@ -26,6 +27,11 @@ import boto3
 from strands import Agent, tool
 from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
+# Import shared tool trace utilities
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared.tool_trace import TraceCollector, traced
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1023,9 +1029,20 @@ def handler(event, context):
     except Exception:
         pass  # OpenTelemetry may not be available in all environments
 
+    # Initialize tool trace collector
+    collector = TraceCollector()
+    trace_fn = traced(collector)
+
     # 1. Retrieve documents once — fail fast if retrieval fails
     try:
+        start_t = time_module.time()
         documents = _retrieve_claim_documents_impl(claim_id)
+        end_t = time_module.time()
+        collector.record(
+            "retrieve_claim_documents", start_t, end_t,
+            f"claim_id: {claim_id}",
+            f"[...] ({len(documents)} documents)",
+        )
     except DocumentRetrievalError as e:
         logger.error(f"Document retrieval failed for claim {claim_id}: {e}")
         return {"error": str(e), "statusCode": e.status_code}
@@ -1034,19 +1051,36 @@ def handler(event, context):
         return {"error": str(e), "statusCode": 500}
 
     # 2. Deterministic aggregation from pre-extracted data
-    financial_summary = _aggregate_financial_data(documents)
-    timeline_data = _aggregate_timeline_data(documents)
+    financial_summary = trace_fn(_aggregate_financial_data)(documents)
+    timeline_data = trace_fn(_aggregate_timeline_data)(documents)
 
     # 3. Strands Agent invocation with retry for transient model errors
     response = None
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
+            agent_start = time_module.time()
             result = agent(
                 f"Process claim {claim_id} and provide a comprehensive analysis "
                 f"with financial and timeline data in the structured format specified"
             )
+            agent_end = time_module.time()
             response = parse_agent_response(result, default_count=len(documents))
+
+            # Extract per-tool trace from Strands SDK result
+            try:
+                if hasattr(result, 'tool_results') and result.tool_results:
+                    for tool_result in result.tool_results:
+                        tool_name = getattr(tool_result, 'name', None) or getattr(tool_result, 'tool_name', 'unknown_tool')
+                        tool_output = str(getattr(tool_result, 'result', ''))[:300]
+                        collector.record(
+                            tool_name, agent_start, agent_end,
+                            f"(Strands SDK managed)",
+                            tool_output,
+                        )
+            except Exception as trace_err:
+                logger.warning(f"Failed to extract Strands tool traces: {trace_err}")
+
             break  # Success — exit retry loop
         except Exception as e:
             error_str = str(e)
@@ -1059,8 +1093,7 @@ def handler(event, context):
                     f"Strands Agent transient error (attempt {attempt}/{max_retries}) "
                     f"for claim {claim_id}: {e}"
                 )
-                import time
-                time.sleep(2 * attempt)  # Exponential backoff
+                time_module.sleep(2 * attempt)  # Exponential backoff
                 continue
             logger.warning(
                 f"Strands Agent failed for claim {claim_id} after {attempt} attempt(s), "
@@ -1086,7 +1119,7 @@ def handler(event, context):
     # 5. Ensure anomalies have source tags — run deterministic detection directly
     # and tag any untagged anomalies from the LLM response as "llm"
     try:
-        det_anomalies = _detect_anomalies_impl(documents)
+        det_anomalies = trace_fn(_detect_anomalies_impl)(documents)
         for a in det_anomalies:
             a["source"] = "deterministic"
         # Tag existing anomalies without source as "llm" (they came from the agent's text)
@@ -1097,6 +1130,13 @@ def handler(event, context):
         response["anomalies"] = det_anomalies + response.get("anomalies", [])
     except Exception as e:
         logger.warning(f"Post-processing anomaly tagging failed: {e}")
+
+    # 6. Attach tool execution trace
+    try:
+        response["toolTrace"] = collector.to_list()
+    except Exception as e:
+        logger.warning(f"Failed to serialize tool trace: {e}")
+        response["toolTrace"] = None
 
     return response
 

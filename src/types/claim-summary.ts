@@ -244,6 +244,13 @@ export interface ClaimSummaryResponse {
    * Only present for full-context strategy when BDA data is available.
    */
   bdaTimeline?: TimelineData | null;
+
+  /**
+   * Tool execution trace from the agent's tool orchestration.
+   * Present when the agent provides tool-level observability data.
+   * Contains an ordered list of tool invocations with timing and summaries.
+   */
+  toolTrace?: ToolTraceEntry[] | null;
 }
 
 /**
@@ -515,4 +522,54 @@ export interface TimelineData {
    * Null if startYear or endYear are null.
    */
   durationYears: number | null;
+}
+
+
+/**
+ * A single tool invocation record within a Tool Execution Trace.
+ * Captured by the agent during claim analysis to provide visibility
+ * into which tools were called, in what order, and how long each took.
+ *
+ * @example
+ * ```typescript
+ * const entry: ToolTraceEntry = {
+ *   toolName: "retrieve_claim_documents",
+ *   executionOrder: 1,
+ *   durationMs: 342,
+ *   inputSummary: "claim_id: CLM-001",
+ *   outputSummary: "[...] (3 documents)"
+ * };
+ * ```
+ */
+export interface ToolTraceEntry {
+  /**
+   * Name of the tool that was invoked.
+   */
+  toolName: string;
+
+  /**
+   * Execution order (1-based sequential).
+   */
+  executionOrder: number;
+
+  /**
+   * Duration of the tool invocation in milliseconds.
+   */
+  durationMs: number;
+
+  /**
+   * Truncated summary of the tool input (max 200 characters).
+   */
+  inputSummary: string;
+
+  /**
+   * Truncated summary of the tool output (max 300 characters).
+   */
+  outputSummary: string;
+
+  /**
+   * Error message if the tool invocation failed.
+   * Absent for successful invocations.
+   */
+  error?: string;
 }

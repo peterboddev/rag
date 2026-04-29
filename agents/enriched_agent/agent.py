@@ -20,11 +20,17 @@ import json
 import os
 import re
 import logging
+import time as time_module
 from datetime import datetime
 
 import boto3
 from opentelemetry import trace
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
+# Import shared tool trace utilities
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from shared.tool_trace import TraceCollector, traced
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -798,14 +804,18 @@ def handler(event, context):
 
         logger.info(f"Processing enriched strategy for claim {claim_id}")
 
+        # Initialize tool trace collector
+        collector = TraceCollector()
+        trace_fn = traced(collector)
+
         # 1. Gather source material from all three sources
         # Full Context is required — failure raises an error
-        full_context_docs = _retrieve_full_context(claim_id, tenant_id)
+        full_context_docs = trace_fn(_retrieve_full_context)(claim_id, tenant_id)
         document_count = len(full_context_docs)
 
         # RAG and Graph RAG are optional — failures log warnings and return []
-        rag_chunks = _retrieve_rag_chunks(claim_id, patient_id)
-        graph_rag_chunks = _retrieve_graph_rag_chunks(claim_id, patient_id)
+        rag_chunks = trace_fn(_retrieve_rag_chunks)(claim_id, patient_id)
+        graph_rag_chunks = trace_fn(_retrieve_graph_rag_chunks)(claim_id, patient_id)
 
         if rag_chunks:
             logger.info(f"Retrieved {len(rag_chunks)} RAG chunks")
@@ -818,32 +828,41 @@ def handler(event, context):
             logger.warning("No Graph RAG chunks retrieved, continuing with other sources")
 
         # 2. Deduplicate across sources
-        deduplicated = _deduplicate_sources(
+        deduplicated = trace_fn(_deduplicate_sources)(
             full_context_docs, rag_chunks, graph_rag_chunks
         )
 
         # 3. Build enriched context
-        enriched_context = _build_enriched_context(deduplicated)
+        enriched_context = trace_fn(_build_enriched_context)(deduplicated)
 
         # 4. Detect anomalies from full context documents
-        anomalies = _detect_anomalies_impl(full_context_docs)
+        anomalies = trace_fn(_detect_anomalies_impl)(full_context_docs)
 
         # 5. Invoke Bedrock Nova Pro for summarization
         prompt = _build_summary_prompt(enriched_context)
-        response_text = _invoke_bedrock(prompt, model_id)
+        response_text = trace_fn(_invoke_bedrock)(prompt, model_id)
         parsed = _parse_summary_response(response_text)
 
         # Merge LLM-detected anomalies with programmatic anomalies
         all_anomalies = anomalies + parsed.get("anomalies", [])
 
         # 6. Build and return response
-        return {
+        result = {
             "summary": parsed.get("summary", ""),
             "anomalies": all_anomalies,
             "documentCount": document_count,
             "strategy": "enriched",
             "promptInfo": _build_prompt_info(),
         }
+
+        # 7. Attach tool execution trace
+        try:
+            result["toolTrace"] = collector.to_list()
+        except Exception as e:
+            logger.warning(f"Failed to serialize tool trace: {e}")
+            result["toolTrace"] = None
+
+        return result
 
     except DocumentRetrievalError as e:
         logger.error(f"Document retrieval failed: {e}")

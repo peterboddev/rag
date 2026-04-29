@@ -428,6 +428,19 @@ export interface ClaimSummaryResponse {
   agentReasoning?: string | null;
   bdaFinancialSummary?: FinancialSummary | null;
   bdaTimeline?: TimelineData | null;
+  toolTrace?: ToolTraceEntry[] | null;
+}
+
+/**
+ * A single tool invocation record within a Tool Execution Trace.
+ */
+export interface ToolTraceEntry {
+  toolName: string;
+  executionOrder: number;
+  durationMs: number;
+  inputSummary: string;
+  outputSummary: string;
+  error?: string;
 }
 
 export interface ClaimEvaluationsResponse {

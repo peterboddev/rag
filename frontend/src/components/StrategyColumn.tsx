@@ -1,6 +1,7 @@
 import React from 'react';
 import { ClaimSummaryResponse, EvaluationScores, getFinancialAnalysis } from '../services/claimApi';
 import EvaluationScoreDisplay from './EvaluationScoreDisplay';
+import ToolTracePanel from './ToolTracePanel';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,6 +177,11 @@ const StrategyColumn: React.FC<StrategyColumnProps> = ({ strategyKey, label, dat
 
             {/* Anomalies */}
             <AnomalySection response={response} strategyKey={strategyKey} />
+
+            {/* Tool Execution Trace */}
+            {response.toolTrace && response.toolTrace.length > 0 && (
+              <ToolTracePanel toolTrace={response.toolTrace} strategyKey={strategyKey} />
+            )}
 
             {/* Enhanced Analysis for Full Context Strategy */}
             {strategyKey === 'full-context' && (response.financialSummary || response.timeline || response.agentFinancialSummary || response.agentTimeline || response.bdaFinancialSummary || response.bdaTimeline) && (

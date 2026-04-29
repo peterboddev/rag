@@ -15,6 +15,7 @@ import {
   PromptInfo,
   FinancialSummary,
   TimelineData,
+  ToolTraceEntry,
 } from '../types/claim-summary';
 import { buildCacheKey, getCachedSummary, cacheSummary, invalidateCache } from '../services/summary-cache';
 
@@ -770,6 +771,7 @@ async function executeFullContextStrategy(
       agentReasoning: null,
       bdaFinancialSummary,
       bdaTimeline,
+      toolTrace: null,
     };
   }
 
@@ -877,12 +879,9 @@ Model: Claude Sonnet 4 (us.anthropic.claude-sonnet-4-20250514-v1:0) via Strands 
     agentReasoning: null,
     bdaFinancialSummary: null,
     bdaTimeline: null,
+    toolTrace: agentResult.toolTrace || null,
   };
 }
-
-/**
- * RAG strategy: use Knowledge Base retrieval then invoke Bedrock.
- */
 async function executeRagStrategy(
   claimId: string,
   chunkingMethod: string,
@@ -1076,6 +1075,7 @@ async function executeEnrichedStrategy(
     anomalies: filterFalsePositiveDateAnomalies(agentAnomalies),
     documentCount: responsePayload.documentCount || 0,
     promptInfo: responsePayload.promptInfo || buildPromptInfo('Enriched (Full Context + RAG + Graph RAG)'),
+    toolTrace: responsePayload.toolTrace || null,
   };
 }
 
@@ -1339,6 +1339,38 @@ async function handlePostSummary(
       // Cache read failure: log and proceed with generation (graceful degradation)
       console.error('Cache read failed, proceeding with generation:', error);
     }
+
+    // Cache miss for full-context strategy: use async pattern since agent takes >29s
+    if (request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) {
+      console.log('Cache miss for full-context — triggering async generation');
+      try {
+        const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
+        await lambdaClient.send(new InvokeCommand({
+          FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+          InvocationType: 'Event',
+          Payload: JSON.stringify({
+            httpMethod: 'POST',
+            path: `/claims/${claimId}/summary`,
+            pathParameters: { claimId },
+            body: JSON.stringify({
+              ...request,
+              forceRegenerate: false,
+              _asyncRegenerate: true,
+            }),
+            headers: { 'x-tenant-id': tenantId },
+            resource: '/claims/{claimId}/summary',
+          }),
+        }));
+        return successResponse(202, {
+          message: 'Full context analysis started. Results will be available shortly.',
+          status: 'processing',
+          claimId,
+          strategy: request.strategy,
+        });
+      } catch (triggerErr) {
+        console.warn('Failed to trigger async full-context, falling through to sync:', triggerErr);
+      }
+    }
   }
 
   // Async regeneration: for strategies that use AgentCore agents (full-context, enriched),
@@ -1401,6 +1433,7 @@ async function handlePostSummary(
   let agentReasoning: string | null | undefined;
   let bdaFinancialSummary: FinancialSummary | null | undefined;
   let bdaTimeline: TimelineData | null | undefined;
+  let toolTrace: ToolTraceEntry[] | null | undefined;
 
   try {
     // Resolve patientId from claimId for KB metadata filtering
@@ -1469,8 +1502,7 @@ async function handlePostSummary(
       anomalies = enrichedResult.anomalies;
       documentCount = enrichedResult.documentCount;
       promptInfo = enrichedResult.promptInfo;
-
-      // Fetch source documents for evaluation pipeline
+      toolTrace = (enrichedResult as any).toolTrace ?? null;
       try {
         const docs = await queryClaimDocuments(claimId, tenantId);
         sourceDocumentsText = docs
@@ -1517,6 +1549,7 @@ async function handlePostSummary(
       agentReasoning = result.agentReasoning;
       bdaFinancialSummary = result.bdaFinancialSummary;
       bdaTimeline = result.bdaTimeline;
+      toolTrace = (result as any).toolTrace ?? null;
 
       // Fetch source documents for evaluation pipeline
       try {
@@ -1558,6 +1591,7 @@ async function handlePostSummary(
     agentReasoning: agentReasoning ?? undefined,
     bdaFinancialSummary: bdaFinancialSummary ?? undefined,
     bdaTimeline: bdaTimeline ?? undefined,
+    toolTrace: toolTrace ?? undefined,
   };
 
   // Include evaluation scores if requested
