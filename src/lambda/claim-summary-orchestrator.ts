@@ -65,10 +65,10 @@ async function invokeAgentCoreRuntime(
   const body = JSON.stringify(payload);
   console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
 
-  const sessionId = `claim-${(payload as any).claim_id || 'default'}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
+
   const command = new InvokeAgentRuntimeCommand({
     agentRuntimeArn,
-    runtimeSessionId: sessionId,
     payload: new TextEncoder().encode(body),
     contentType: 'application/json',
     accept: 'application/json',
