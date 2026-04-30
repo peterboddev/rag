@@ -65,9 +65,10 @@ async function invokeAgentCoreRuntime(
   const body = JSON.stringify(payload);
   console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
 
+  const sessionId = `claim-${(payload as any).claim_id || 'default'}-${Date.now()}`;
   const command = new InvokeAgentRuntimeCommand({
     agentRuntimeArn,
-    runtimeSessionId: randomUUID(),
+    runtimeSessionId: sessionId,
     payload: new TextEncoder().encode(body),
     contentType: 'application/json',
     accept: 'application/json',
@@ -794,7 +795,9 @@ async function executeFullContextStrategy(
         errorStr.includes('modelStreamErrorException') ||
         errorStr.includes('invalid sequence') ||
         errorStr.includes('ToolUse') ||
-        errorStr.includes('throttlingException')
+        errorStr.includes('throttlingException') ||
+        errorStr.includes('Concurrent invocations are not supported') ||
+        errorStr.includes('already processing')
       )) {
         console.warn(`Full Context agent transient error (attempt ${attempt}/${maxRetries}), retrying:`, errorStr);
         await new Promise(r => setTimeout(r, 1000 * attempt));
