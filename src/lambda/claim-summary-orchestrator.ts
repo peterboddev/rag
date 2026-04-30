@@ -1754,7 +1754,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       includeEvaluation: request.includeEvaluation,
     }));
 
-    return handlePostSummary(claimId, request, extractTenantId(event), !!(JSON.parse(event.body || '{}') as any)._asyncRegenerate);
+    const parsedBody = JSON.parse(event.body || '{}');
+    const isAsync = !!parsedBody._asyncRegenerate;
+    console.log('isAsyncRegenerate:', isAsync, 'body keys:', Object.keys(parsedBody));
+
+    return handlePostSummary(claimId, request, extractTenantId(event), isAsync);
 
   } catch (error) {
     console.error('Unexpected error in claim summary orchestrator:', error);
