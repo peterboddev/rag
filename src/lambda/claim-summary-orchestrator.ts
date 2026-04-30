@@ -836,16 +836,40 @@ async function executeFullContextStrategy(
     }
   }
 
-  // Await only the Full Context agent
-  const agentResult = await fullContextPromise;
+  // Await only the Full Context agent — with retry for agent-level errors
+  let agentResult: any;
+  const maxAgentRetries = 3;
+  for (let agentAttempt = 1; agentAttempt <= maxAgentRetries; agentAttempt++) {
+    agentResult = await invokeFullContextAgent();
 
-  // Handle error responses from the Full Context agent
-  if (agentResult.error || agentResult.statusCode >= 400) {
-    const errorMessage = agentResult.error || 'Full Context agent invocation failed';
-    console.error('Full Context agent error:', errorMessage);
-    throw new Error(errorMessage);
+    // Check for SDK-level errors
+    if (agentResult.error || agentResult.statusCode >= 400) {
+      const errorMessage = agentResult.error || 'Full Context agent invocation failed';
+      const isTransient = errorMessage.includes('Concurrent') || errorMessage.includes('already processing') || errorMessage.includes('throttl');
+      if (isTransient && agentAttempt < maxAgentRetries) {
+        console.warn(`Full Context agent error (attempt ${agentAttempt}/${maxAgentRetries}), retrying:`, errorMessage);
+        await new Promise(r => setTimeout(r, 2000 * agentAttempt));
+        continue;
+      }
+      console.error('Full Context agent error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    // Check for agent-level errors in summary
+    const summaryCheck = agentResult.summary || '';
+    if (summaryCheck.startsWith('Agent analysis unavailable:')) {
+      const isTransient = summaryCheck.includes('Concurrent') || summaryCheck.includes('already processing');
+      if (isTransient && agentAttempt < maxAgentRetries) {
+        console.warn(`Agent returned concurrency error (attempt ${agentAttempt}/${maxAgentRetries}), retrying in ${2 * agentAttempt}s`);
+        await new Promise(r => setTimeout(r, 2000 * agentAttempt));
+        continue;
+      }
+      console.error('Full Context agent returned error in summary:', summaryCheck);
+      throw new Error(summaryCheck);
+    }
+
+    break; // Success
   }
-
   // Financial Timeline Agent runs fire-and-forget — no results to process here
   // The agent-predicted fields are null for this request; future enhancement
   // could store results in DynamoDB/cache for retrieval on next request
