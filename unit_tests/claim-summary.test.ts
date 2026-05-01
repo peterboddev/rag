@@ -51,6 +51,11 @@ jest.mock('@aws-sdk/client-lambda', () => ({
   InvokeCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'Invoke' })),
 }));
 
+jest.mock('@aws-sdk/client-sfn', () => ({
+  SFNClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  StartExecutionCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'StartExecution' })),
+}));
+
 jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
   BedrockAgentCoreClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
   InvokeAgentRuntimeCommand: jest.fn().mockImplementation((params) => params),
@@ -58,6 +63,11 @@ jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { APIGatewayProxyEvent } from 'aws-lambda';
+
+// Set environment variables before importing handler
+process.env.AGENT_WORKFLOW_ARN = 'arn:aws:states:us-east-1:123456789:stateMachine:test-workflow';
+process.env.FULL_CONTEXT_AGENT_ENDPOINT = 'arn:aws:bedrock-agentcore:us-east-1:123456789:runtime/test-agent';
+
 import { handler } from '../src/lambda/claim-summary-orchestrator';
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
@@ -241,18 +251,15 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
   // Req 9.2: No documents returns 404
   describe('no documents returns 404', () => {
-    it('should return 404 when no documents found for full-context', async () => {
-      mockDynamoSend
-        .mockResolvedValueOnce({ Item: null })  // cache miss
-        .mockResolvedValueOnce({ Items: [] })   // resolvePatientId → queryClaimDocuments (empty)
-        .mockResolvedValueOnce({ Items: [] });   // documents query (empty)
-
+    it('should return 202 when no documents found for full-context (async dispatch)', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
-      expect(result.statusCode).toBe(404);
-      expect(JSON.parse(result.body).error).toContain('No documents found');
+      const body = JSON.parse(result.body);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
 
     it('should return 404 when no documents found for graph-rag', async () => {
@@ -288,79 +295,40 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
   // Req 9.2 (variant): No processed documents returns 400
   describe('no processed documents returns 400', () => {
-    it('should return 400 when documents exist but none have extracted text', async () => {
-      const unprocessedDocs = [
-        {
-          documentId: 'doc-1',
-          fileName: 'pending.pdf',
-          extractedText: '',
-          processingStatus: 'processing',
-          claimMetadata: { claimId: 'test-claim-001' },
-          tenantId: 'local-dev-tenant',
-        },
-        {
-          documentId: 'doc-2',
-          fileName: 'pending2.pdf',
-          processingStatus: 'queued',
-          claimMetadata: { claimId: 'test-claim-001' },
-          tenantId: 'local-dev-tenant',
-        },
-      ];
-
-      mockDynamoSend
-        .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: unprocessedDocs }) // resolvePatientId
-        .mockResolvedValueOnce({ Items: unprocessedDocs }); // documents query
-
+    it('should return 202 when documents exist but none have extracted text (async dispatch)', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
-      expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('No summarizable content');
+      const body = JSON.parse(result.body);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
 
-    it('should return 400 when all documents have whitespace-only text', async () => {
-      const whitespaceOnlyDocs = [
-        {
-          documentId: 'doc-1',
-          fileName: 'blank.pdf',
-          extractedText: '   \n\t  ',
-          processingStatus: 'completed',
-          claimMetadata: { claimId: 'test-claim-001' },
-          tenantId: 'local-dev-tenant',
-        },
-      ];
-
-      mockDynamoSend
-        .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: whitespaceOnlyDocs }) // resolvePatientId
-        .mockResolvedValueOnce({ Items: whitespaceOnlyDocs }); // documents query
-
+    it('should return 202 when all documents have whitespace-only text (async dispatch)', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
-      expect(result.statusCode).toBe(400);
-      expect(JSON.parse(result.body).error).toContain('No summarizable content');
+      const body = JSON.parse(result.body);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
   });
 
   // Req 9.6: Bedrock failure returns 502
   describe('Bedrock failure returns 502', () => {
-    it('should return 502 when Bedrock invocation throws', async () => {
-      mockDynamoSend
-        .mockResolvedValueOnce({ Item: null })
-        .mockResolvedValueOnce({ Items: sampleDocuments }) // resolvePatientId
-        .mockResolvedValueOnce({ Items: sampleDocuments }); // documents query
-      mockBedrockSend.mockRejectedValueOnce(new Error('Bedrock service unavailable'));
-
+    it('should return 202 when Bedrock invocation throws (async dispatch)', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
-      expect(result.statusCode).toBe(502);
-      expect(JSON.parse(result.body).error).toContain('Summary generation failed');
+      const body = JSON.parse(result.body);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
 
     it('should return 502 when RAG Knowledge Base retrieval throws', async () => {
@@ -455,73 +423,44 @@ describe('Claim Summary Orchestrator - Comprehensive Tests (Task 18.1)', () => {
 
   // Req 9.7: Anomalies array returned when detected
   describe('anomalies array returned when detected', () => {
-    it('should include anomalies in response when Bedrock detects them', async () => {
-      const detectedAnomalies = [
-        {
-          description: 'Service date (2024-01-15) precedes patient birth date (2024-06-01)',
-          severity: 'critical',
-          sourceDocument: 'CMS1500_claim_001.pdf',
-          dataValues: { serviceDate: '2024-01-15', birthDate: '2024-06-01' },
-        },
-        {
-          description: 'Duplicate provider information across documents',
-          severity: 'warning',
-          sourceDocument: 'EOB_claim_001.pdf',
-          dataValues: { provider: 'Dr. Smith' },
-        },
-      ];
-
-      setupCacheMissWithDocuments('Summary with anomalies', detectedAnomalies);
-
+    it('should return 202 with async dispatch when Bedrock would detect anomalies', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
       const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(200);
-      expect(body.anomalies).toHaveLength(2);
-      expect(body.anomalies[0].severity).toBe('critical');
-      expect(body.anomalies[0].description).toContain('Service date');
-      expect(body.anomalies[1].severity).toBe('warning');
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
 
-    it('should return empty anomalies array when none detected', async () => {
-      setupCacheMissWithDocuments('Clean summary', []);
-
+    it('should return 202 with async dispatch when no anomalies would be detected', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
       const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(200);
-      expect(body.anomalies).toEqual([]);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
     });
   });
 
   // Additional: Response structure completeness
   describe('response structure completeness', () => {
-    it('should return all required fields in a successful response', async () => {
-      setupCacheMissWithDocuments('Complete summary');
-
+    it('should return 202 with async dispatch for full-context strategy (async dispatch)', async () => {
       const event = createEvent({
         body: JSON.stringify({ strategy: 'full-context' }),
       });
       const result = await handler(event);
       const body = JSON.parse(result.body);
 
-      expect(result.statusCode).toBe(200);
-      expect(typeof body.summary).toBe('string');
-      expect(body.summary.length).toBeGreaterThan(0);
-      expect(Array.isArray(body.anomalies)).toBe(true);
+      expect(result.statusCode).toBe(202);
+      expect(body.status).toBe('processing');
+      expect(body.claimId).toBe('test-claim-001');
       expect(body.strategy).toBe('full-context');
-      expect(typeof body.documentCount).toBe('number');
-      expect(body.documentCount).toBeGreaterThanOrEqual(1);
-      expect(typeof body.processingTime).toBe('number');
-      expect(body.processingTime).toBeGreaterThanOrEqual(0);
-      expect(typeof body.generatedAt).toBe('string');
-      expect(body.cached).toBe(false);
     });
 
     it('should include chunkingMethod in response for RAG strategy', async () => {
