@@ -46,10 +46,16 @@ export async function invokeAgentCoreRuntime(
   payload: Record<string, unknown>
 ): Promise<any> {
   const body = JSON.stringify(payload);
-  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
+  // Use a unique session ID per invocation so each gets its own microVM.
+  // This prevents "already processing" errors and ensures latest container code.
+  // Format: claim-{claimId}-{timestamp}-{random} (must be >= 33 chars)
+  const claimId = (payload as any).claim_id || 'default';
+  const sessionId = `claim-${claimId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn} (session: ${sessionId})`);
 
   const command = new InvokeAgentRuntimeCommand({
     agentRuntimeArn,
+    runtimeSessionId: sessionId,
     payload: new TextEncoder().encode(body),
     contentType: 'application/json',
     accept: 'application/json',
