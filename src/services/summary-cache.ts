@@ -38,7 +38,9 @@ const CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 // Initialize clients
 const dynamoClient = new DynamoDBClient({ region: AWS_REGION });
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
+const docClient = DynamoDBDocumentClient.from(dynamoClient, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 const s3Client = new S3Client({ region: AWS_REGION });
 
 /**
@@ -253,6 +255,91 @@ export async function cacheSummary(
  * console.log(`Invalidated ${count} cache entries`);
  * ```
  */
+/**
+ * Stores an error result in the cache so polling clients receive feedback
+ * instead of polling indefinitely when agent processing has permanently failed.
+ *
+ * The error entry has a short 5-minute TTL (vs normal 24-hour) so it is
+ * automatically cleaned up, allowing the user to retry.
+ *
+ * @param claimId - The claim identifier
+ * @param strategy - The summarization strategy
+ * @param chunkingMethod - The chunking method (optional)
+ * @param useReranker - Whether reranking was enabled (optional)
+ * @param errorMessage - The original error message from the agent
+ *
+ * @example
+ * ```typescript
+ * await cacheErrorResult("claim-001", "full-context", undefined, false, "Agent timeout");
+ * ```
+ */
+export async function cacheErrorResult(
+  claimId: string,
+  strategy: string,
+  chunkingMethod: string | undefined,
+  useReranker: boolean | undefined,
+  errorMessage: string
+): Promise<void> {
+  const cacheKey = buildCacheKey(claimId, strategy, chunkingMethod, useReranker);
+  const s3Key = buildS3Path(claimId, strategy, chunkingMethod);
+
+  // 5-minute TTL for error entries
+  const ERROR_TTL_SECONDS = 300;
+  const ttl = Math.floor(Date.now() / 1000) + ERROR_TTL_SECONDS;
+
+  // Build a user-facing error message
+  const userFacingMessage = errorMessage.length > 200
+    ? errorMessage.substring(0, 200)
+    : errorMessage;
+
+  const errorResponse: ClaimSummaryResponse = {
+    summary: `Error: ${userFacingMessage}`,
+    anomalies: [],
+    strategy,
+    chunkingMethod: chunkingMethod !== 'none' ? chunkingMethod : undefined,
+    documentCount: 0,
+    processingTime: 0,
+    generatedAt: new Date().toISOString(),
+    cached: false,
+  };
+
+  try {
+    // Store error content in S3
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: SUMMARY_CONTENT_BUCKET,
+        Key: s3Key,
+        Body: JSON.stringify(errorResponse),
+        ContentType: 'application/json',
+      })
+    );
+
+    // Store metadata in DynamoDB with short TTL
+    const cacheMetadata: CachedSummary = {
+      cacheKey,
+      s3Key,
+      strategy,
+      chunkingMethod: chunkingMethod !== 'none' ? chunkingMethod : undefined,
+      documentCount: 0,
+      documentIds: [],
+      processingTime: 0,
+      generatedAt: errorResponse.generatedAt,
+      ttl,
+    };
+
+    await docClient.send(
+      new PutCommand({
+        TableName: SUMMARY_CACHE_TABLE,
+        Item: cacheMetadata,
+      })
+    );
+
+    console.log('Error result cached', { cacheKey, ttl: new Date(ttl * 1000).toISOString() });
+  } catch (error) {
+    console.warn('Failed to cache error result:', error);
+  }
+}
+
 export async function invalidateCache(claimId: string): Promise<number> {
   try {
     // Query all cache entries for this claim using the GSI

@@ -11,6 +11,8 @@ import * as cr from 'aws-cdk-lib/custom-resources';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as destinations from 'aws-cdk-lib/aws-logs-destinations';
+import * as sfn from 'aws-cdk-lib/aws-stepfunctions';
+import * as tasks from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import {
   Evaluator, EvaluatorConfig, EvaluationLevel, RatingScale,
   OnlineEvaluationConfig, DataSourceConfig, EvaluatorReference, ExecutionStatus,
@@ -1898,6 +1900,180 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
       'GRAPH_RAG_AGENT_ENDPOINT',
       graphRagAgentEndpoint,
     );
+
+    // ============================================================
+    // Async Agent Architecture — Step Functions + Worker Lambda
+    // ============================================================
+
+    // Dead Letter Queue for orchestrator Lambda
+    const orchestratorDLQ = new sqs.Queue(this, 'OrchestratorDLQ', {
+      visibilityTimeout: cdk.Duration.seconds(300),
+      retentionPeriod: cdk.Duration.days(14),
+      encryption: sqs.QueueEncryption.SQS_MANAGED,
+    });
+
+    // Configure orchestrator Lambda with retryAttempts: 0 and DLQ
+    const cfnOrchestratorFunction = claimSummaryOrchestratorFunction.node.defaultChild as lambda.CfnFunction;
+    cfnOrchestratorFunction.addPropertyOverride('DeadLetterConfig', {
+      TargetArn: orchestratorDLQ.queueArn,
+    });
+
+    // Grant orchestrator permission to send to DLQ
+    orchestratorDLQ.grantSendMessages(claimSummaryOrchestratorFunction);
+
+    // Agent Worker Lambda function
+    const agentWorkerFunction = createLambdaFunction(
+      'AgentWorkerFunction',
+      'dist/src/lambda/agent-worker.handler',
+      {
+        SUMMARY_CACHE_TABLE: summaryCacheTable.tableName,
+        SUMMARY_CONTENT_BUCKET: summaryContentBucket.bucketName,
+        EVALUATION_RESULTS_TABLE: evaluationResultsTable.tableName,
+        DOCUMENTS_TABLE: documentsTableName,
+        BEDROCK_REGION: 'us-east-1',
+        REGION: this.region,
+        FULL_CONTEXT_AGENT_ENDPOINT: fullContextAgentEndpoint,
+        ENRICHED_AGENT_ENDPOINT: enrichedAgentEndpoint,
+        FINANCIAL_TIMELINE_AGENT_ENDPOINT: financialTimelineAgentEndpoint,
+      },
+      cdk.Duration.minutes(5),
+      512
+    );
+
+    // Configure Worker Lambda with retryAttempts: 0
+    const cfnWorkerFunction = agentWorkerFunction.node.defaultChild as lambda.CfnFunction;
+    cfnWorkerFunction.addPropertyOverride('DeadLetterConfig', {
+      TargetArn: orchestratorDLQ.queueArn,
+    });
+
+    // Grant Worker Lambda permissions (same as orchestrator for agent invocation)
+    summaryCacheTable.grantReadWriteData(agentWorkerFunction);
+    agentWorkerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['dynamodb:Query'],
+      resources: [`${summaryCacheTable.tableArn}/index/*`],
+    }));
+    summaryContentBucket.grantReadWrite(agentWorkerFunction);
+    evaluationResultsTable.grantReadWriteData(agentWorkerFunction);
+    documentsTableRef.grantReadData(agentWorkerFunction);
+
+    // AgentCore permissions for Worker Lambda
+    agentWorkerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock:InvokeAgent',
+        'bedrock-agentcore:*',
+      ],
+      resources: ['*'],
+    }));
+
+    // Bedrock model access for Worker Lambda
+    agentWorkerFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['bedrock:InvokeModel'],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.nova-pro-v1:0`,
+      ],
+    }));
+
+    // Agent Workflow Log Group
+    const agentWorkflowLogGroup = new logs.LogGroup(this, 'AgentWorkflowLogGroup', {
+      logGroupName: `/aws/stepfunctions/${applicationName}-agent-workflow-${environment}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      retention: logs.RetentionDays.TWO_WEEKS,
+    });
+
+    // Define the workflow: InvokeWorker task with retry and catch
+    const invokeWorkerTask = new tasks.LambdaInvoke(this, 'InvokeWorker', {
+      lambdaFunction: agentWorkerFunction,
+      outputPath: '$.Payload',
+      retryOnServiceExceptions: false,
+    });
+
+    invokeWorkerTask.addRetry({
+      errors: ['RetryableAgentError', 'States.TaskFailed'],
+      interval: cdk.Duration.seconds(5),
+      maxAttempts: 3,
+      backoffRate: 2.0,
+    });
+
+    const workflowFailed = new sfn.Fail(this, 'WorkflowFailed', {
+      error: 'AgentProcessingFailed',
+      cause: 'Agent invocation failed after retries',
+    });
+
+    invokeWorkerTask.addCatch(workflowFailed, {
+      resultPath: '$.error',
+    });
+
+    // Agent Workflow — Step Functions Express state machine
+    const agentWorkflow = new sfn.StateMachine(this, 'AgentWorkflow', {
+      stateMachineName: `${applicationName}-agent-workflow-${environment}`,
+      stateMachineType: sfn.StateMachineType.EXPRESS,
+      definitionBody: sfn.DefinitionBody.fromChainable(invokeWorkerTask),
+      timeout: cdk.Duration.minutes(5),
+      logs: {
+        destination: agentWorkflowLogGroup,
+        level: sfn.LogLevel.ERROR,
+        includeExecutionData: true,
+      },
+    });
+
+    // Pass AGENT_WORKFLOW_ARN to orchestrator and worker
+    claimSummaryOrchestratorFunction.addEnvironment(
+      'AGENT_WORKFLOW_ARN',
+      agentWorkflow.stateMachineArn,
+    );
+    agentWorkerFunction.addEnvironment(
+      'AGENT_WORKFLOW_ARN',
+      agentWorkflow.stateMachineArn,
+    );
+
+    // Grant orchestrator permission to start workflow executions
+    agentWorkflow.grantStartExecution(claimSummaryOrchestratorFunction);
+
+    // Grant worker permission to start workflow executions (for financial timeline dispatch)
+    agentWorkflow.grantStartExecution(agentWorkerFunction);
+
+    // CloudWatch Alarm: Workflow error rate > 10% over 5-minute period
+    new cloudwatch.Alarm(this, 'WorkflowErrorAlarm', {
+      alarmDescription: 'Agent Workflow error rate exceeds 10% over 5 minutes',
+      metric: agentWorkflow.metricFailed({
+        period: cdk.Duration.minutes(5),
+        statistic: 'Sum',
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    });
+
+    // CloudWatch Alarm: Workflow execution duration > 4 minutes
+    new cloudwatch.Alarm(this, 'WorkflowDurationAlarm', {
+      alarmDescription: 'Agent Workflow execution duration exceeds 4 minutes (warning before 5-min timeout)',
+      metric: agentWorkflow.metricTime({
+        period: cdk.Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 240000, // 4 minutes in milliseconds
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+    });
+
+    // Export Worker Lambda and Workflow ARNs
+    new cdk.CfnOutput(this, 'AgentWorkerFunctionArn', {
+      value: agentWorkerFunction.functionArn,
+      description: 'Agent Worker Lambda Function ARN',
+    });
+
+    new cdk.CfnOutput(this, 'AgentWorkflowArn', {
+      value: agentWorkflow.stateMachineArn,
+      description: 'Agent Workflow State Machine ARN',
+    });
+
+    new cdk.CfnOutput(this, 'OrchestratorDLQUrl', {
+      value: orchestratorDLQ.queueUrl,
+      description: 'Orchestrator Dead Letter Queue URL',
+    });
 
     // ============================================================
     // Claim Summary API Gateway Endpoints

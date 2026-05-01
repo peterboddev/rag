@@ -601,10 +601,18 @@ export async function getClaimSummary(
           body: JSON.stringify(pollReq.body),
         });
         if (pollResult.summary) {
+          // Detect error cache entries: summary starts with "Error: "
+          if (pollResult.summary.startsWith('Error: ')) {
+            throw new Error(pollResult.summary.substring(7)); // Strip "Error: " prefix
+          }
           return pollResult;
         }
-      } catch {
-        // Keep polling on errors
+      } catch (pollError) {
+        // Re-throw error cache detection errors (don't swallow them)
+        if (pollError instanceof Error && !pollError.message.includes('API request failed')) {
+          throw pollError;
+        }
+        // Keep polling on transient API errors
       }
     }
     throw new Error('Regeneration timed out. Please try again.');

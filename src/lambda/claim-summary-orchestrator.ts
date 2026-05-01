@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient, QueryCommand, ScanCommand, PutCommand } from '@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { BedrockAgentRuntimeClient, RetrieveCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
-import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from '@aws-sdk/client-bedrock-agentcore';
+import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { randomUUID } from 'crypto';
 import {
   ClaimSummaryRequest,
@@ -19,6 +19,8 @@ import {
   ToolTraceEntry,
 } from '../types/claim-summary';
 import { buildCacheKey, getCachedSummary, cacheSummary, invalidateCache } from '../services/summary-cache';
+import { invokeAgentCoreRuntime } from '../services/agentcore-client';
+import { acquireExecutionLock } from '../services/execution-lock';
 
 // Environment variables
 const DOCUMENTS_TABLE = process.env.DOCUMENTS_TABLE || 'rag-app-v2-documents-dev';
@@ -33,92 +35,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const bedrockClient = new BedrockRuntimeClient({ region: BEDROCK_REGION });
 const bedrockAgentClient = new BedrockAgentRuntimeClient({ region: BEDROCK_REGION });
 
-/**
- * Default timeout for AgentCore Runtime API calls (in milliseconds).
- */
-const AGENTCORE_TIMEOUT_MS = parseInt(process.env.AGENTCORE_TIMEOUT_MS || '120000', 10);
-
-// AgentCore client (lazy-initialized)
-let agentCoreClient: BedrockAgentCoreClient | null = null;
-
-function getAgentCoreClient(): BedrockAgentCoreClient {
-  if (!agentCoreClient) {
-    agentCoreClient = new BedrockAgentCoreClient({
-      region: process.env.AWS_REGION || BEDROCK_REGION,
-      requestHandler: { requestTimeout: AGENTCORE_TIMEOUT_MS } as any,
-    });
-  }
-  return agentCoreClient;
-}
-
-/**
- * Invoke an AgentCore Runtime agent using the AWS SDK.
- *
- * @param agentRuntimeArn - The ARN or agent ID of the AgentCore Runtime agent
- * @param payload  - JSON-serializable request payload
- * @returns Parsed JSON response from the agent
- */
-async function invokeAgentCoreRuntime(
-  agentRuntimeArn: string,
-  payload: Record<string, unknown>,
-): Promise<any> {
-  const body = JSON.stringify(payload);
-  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
-
-  console.log(`Invoking AgentCore Runtime: ${agentRuntimeArn}`);
-
-  const command = new InvokeAgentRuntimeCommand({
-    agentRuntimeArn,
-    payload: new TextEncoder().encode(body),
-    contentType: 'application/json',
-    accept: 'application/json',
-  });
-
-  const response = await getAgentCoreClient().send(command);
-
-  // Collect the streaming response
-  const chunks: string[] = [];
-  const responseStream = response.response;
-
-  if (responseStream) {
-    // Handle ReadableStream / async iterable
-    if (Symbol.asyncIterator in Object(responseStream)) {
-      for await (const chunk of responseStream as AsyncIterable<Uint8Array>) {
-        chunks.push(new TextDecoder().decode(chunk));
-      }
-    } else if (typeof (responseStream as any).transformToString === 'function') {
-      chunks.push(await (responseStream as any).transformToString());
-    } else if (typeof (responseStream as any).read === 'function') {
-      // Node.js Readable stream
-      for await (const chunk of responseStream as any) {
-        chunks.push(typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk));
-      }
-    }
-  }
-
-  const responseBody = chunks.join('');
-
-  // Handle text/event-stream format (SSE)
-  if (response.contentType?.includes('text/event-stream')) {
-    const dataLines = responseBody
-      .split('\n')
-      .filter(line => line.startsWith('data: '))
-      .map(line => line.substring(6));
-    const fullContent = dataLines.join('');
-    try {
-      return JSON.parse(fullContent);
-    } catch {
-      return { summary: fullContent, anomalies: [], documentCount: 0, strategy: 'unknown' };
-    }
-  }
-
-  // Handle plain JSON response
-  try {
-    return JSON.parse(responseBody);
-  } catch {
-    throw new Error(`AgentCore Runtime returned invalid JSON: ${responseBody.substring(0, 200)}`);
-  }
-}
+// AgentCore client imported from shared module (src/services/agentcore-client.ts)
 
 /**
  * Valid summarization strategies
@@ -739,29 +656,8 @@ async function executeFullContextStrategy(
     const bdaFinancialSummary = aggregateBdaFinancialData(documents);
     const bdaTimeline = aggregateBdaTimelineData(documents);
 
-    // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
-    // (fire-and-forget in Lambda .then() doesn't work because runtime freezes after handler returns)
-    if (financialTimelineAgentEndpoint) {
-      try {
-        const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-        // Re-invoke this same Lambda with a special action to run the financial agent
-        // and store results. This ensures the async work runs in a separate invocation.
-        await lambdaClient.send(new InvokeCommand({
-          FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
-          InvocationType: 'Event', // async — returns immediately
-          Payload: JSON.stringify({
-            httpMethod: 'POST',
-            path: `/claims/${claimId}/financial-analysis-trigger`,
-            pathParameters: { claimId },
-            body: JSON.stringify({ claimId, tenantId, modelId }),
-            headers: {},
-          }),
-        }));
-        console.log('Financial Timeline Agent trigger invoked asynchronously for claim:', claimId);
-      } catch (triggerErr) {
-        console.warn('Failed to trigger Financial Timeline Agent (non-blocking):', triggerErr);
-      }
-    }
+    // Financial Timeline Agent is now triggered by the Worker Lambda via Step Functions workflow
+    // (removed self-invocation pattern)
 
     return {
       ...parseSummaryResponse(responseText),
@@ -815,26 +711,8 @@ async function executeFullContextStrategy(
   };
   const fullContextPromise = invokeFullContextAgent();
 
-  // Trigger Financial Timeline Agent asynchronously via Lambda Event invocation
-  if (financialTimelineAgentEndpoint) {
-    try {
-      const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-      await lambdaClient.send(new InvokeCommand({
-        FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
-        InvocationType: 'Event',
-        Payload: JSON.stringify({
-          httpMethod: 'POST',
-          path: `/claims/${claimId}/financial-analysis-trigger`,
-          pathParameters: { claimId },
-          body: JSON.stringify({ claimId, tenantId, modelId }),
-          headers: {},
-        }),
-      }));
-      console.log('Financial Timeline Agent trigger invoked asynchronously for claim:', claimId);
-    } catch (triggerErr) {
-      console.warn('Failed to trigger Financial Timeline Agent (non-blocking):', triggerErr);
-    }
-  }
+  // Financial Timeline Agent is now triggered by the Worker Lambda via Step Functions workflow
+  // (removed self-invocation pattern)
 
   // Await only the Full Context agent — with retry for agent-level errors
   let agentResult: any;
@@ -1281,50 +1159,49 @@ async function handleGetFinancialAnalysis(claimId: string): Promise<APIGatewayPr
 }
 
 /**
- * Handle async financial-analysis-trigger (self-invoked via Lambda Event).
- * Calls the Financial Timeline Agent and stores results in DynamoDB.
+ * Workflow input payload for the Agent Workflow (Step Functions).
  */
-async function handleFinancialAnalysisTrigger(claimId: string, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
-  console.log('Handling financial-analysis-trigger for claimId:', claimId);
-  const financialTimelineAgentEndpoint = process.env.FINANCIAL_TIMELINE_AGENT_ENDPOINT;
-  if (!financialTimelineAgentEndpoint) {
-    return successResponse(200, { message: 'No financial timeline agent configured' });
+interface WorkflowInput {
+  claimId: string;
+  tenantId: string;
+  strategy: SummaryStrategy | string;
+  chunkingMethod?: string;
+  modelId?: string;
+  customPrompt?: string;
+  useReranker?: boolean;
+  includeEvaluation?: boolean;
+}
+
+/**
+ * Starts an Agent Workflow execution for async agent processing.
+ * Acquires an execution lock first to prevent duplicate executions.
+ *
+ * @param input - The workflow input payload
+ * @returns void - fire-and-forget; the workflow stores results in cache
+ */
+async function startAgentWorkflow(input: WorkflowInput): Promise<void> {
+  const lockKey = `lock#${input.claimId}#${input.strategy}`;
+  const lockAcquired = await acquireExecutionLock(lockKey);
+
+  if (!lockAcquired) {
+    console.log('Execution lock exists, skipping workflow start', { lockKey });
+    return; // Another execution is already in progress
   }
 
-  try {
-    const body = event.body ? JSON.parse(event.body) : {};
-    const tenantId = body.tenantId || 'local-dev-tenant';
-    const modelId = body.modelId;
+  const sfnClient = new SFNClient({ region: process.env.AWS_REGION || 'us-east-1' });
+  await sfnClient.send(
+    new StartExecutionCommand({
+      stateMachineArn: process.env.AGENT_WORKFLOW_ARN,
+      input: JSON.stringify(input),
+      name: `${input.claimId}-${input.strategy}-${Date.now()}`.substring(0, 80),
+    })
+  );
 
-    console.log('Invoking Financial Timeline Agent for claim:', claimId);
-    const financialResult = await invokeAgentCoreRuntime(financialTimelineAgentEndpoint, {
-      claim_id: claimId,
-      tenant_id: tenantId,
-      model_id: modelId || undefined,
-    });
-
-    if (!financialResult.error && !(financialResult.statusCode >= 400)) {
-      await docClient.send(new PutCommand({
-        TableName: EVALUATION_RESULTS_TABLE,
-        Item: {
-          claimId,
-          strategyKey: 'financial-analysis#full-context',
-          agentFinancialSummary: financialResult.financialSummary ?? null,
-          agentTimeline: financialResult.timeline ?? null,
-          agentConfidence: financialResult.confidence ?? null,
-          agentReasoning: financialResult.reasoning ?? null,
-          evaluatedAt: new Date().toISOString(),
-        },
-      }));
-      console.log('Financial Timeline Agent result stored for polling', { claimId });
-    } else {
-      console.warn('Financial Timeline Agent returned error:', financialResult.error);
-    }
-  } catch (err) {
-    console.error('Financial Timeline Agent trigger failed:', err);
-  }
-
-  return successResponse(200, { message: 'Financial analysis trigger completed' });
+  console.log('Agent workflow started', {
+    claimId: input.claimId,
+    strategy: input.strategy,
+    lockKey,
+  });
 }
 
 /**
@@ -1334,8 +1211,7 @@ async function handleFinancialAnalysisTrigger(claimId: string, event: APIGateway
 async function handlePostSummary(
   claimId: string,
   request: ClaimSummaryRequest,
-  tenantId: string,
-  isAsyncRegenerate: boolean = false
+  tenantId: string
 ): Promise<APIGatewayProxyResult> {
   const startTime = Date.now();
 
@@ -1372,83 +1248,66 @@ async function handlePostSummary(
       console.error('Cache read failed, proceeding with generation:', error);
     }
 
-    // Cache miss for full-context strategy: use async pattern since agent takes >29s
-    // Skip this if we're already in an async regeneration (prevent infinite loop)
-    if (!isAsyncRegenerate && request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) {
-      console.log('Cache miss for full-context — triggering async generation');
-      try {
-        const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-        await lambdaClient.send(new InvokeCommand({
-          FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
-          InvocationType: 'Event',
-          Payload: JSON.stringify({
-            httpMethod: 'POST',
-            path: `/claims/${claimId}/summary`,
-            pathParameters: { claimId },
-            body: JSON.stringify({
-              ...request,
-              forceRegenerate: false,
-              _asyncRegenerate: true,
-            }),
-            headers: { 'x-tenant-id': tenantId },
-            resource: '/claims/{claimId}/summary',
-          }),
-        }));
-        return successResponse(202, {
-          message: 'Full context analysis started. Results will be available shortly.',
-          status: 'processing',
-          claimId,
-          strategy: request.strategy,
-        });
-      } catch (triggerErr) {
-        console.warn('Failed to trigger async full-context, falling through to sync:', triggerErr);
-      }
+    // Cache miss for AgentCore strategies: dispatch to Agent Workflow and return 202
+    const isAgentCoreStrategy = (request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) ||
+      (request.strategy === 'enriched' && process.env.ENRICHED_AGENT_ENDPOINT);
+
+    if (isAgentCoreStrategy && process.env.AGENT_WORKFLOW_ARN) {
+      console.log('Cache miss for AgentCore strategy — dispatching to Agent Workflow', {
+        claimId,
+        strategy: request.strategy,
+      });
+      await startAgentWorkflow({
+        claimId,
+        tenantId,
+        strategy: request.strategy,
+        chunkingMethod: request.chunkingMethod,
+        modelId: request.modelId,
+        customPrompt: request.customPrompt,
+        useReranker: request.useReranker,
+        includeEvaluation: request.includeEvaluation,
+      });
+      return successResponse(202, {
+        message: `${request.strategy === 'full-context' ? 'Full context' : 'Enriched'} analysis started. Results will be available shortly.`,
+        status: 'processing',
+        claimId,
+        strategy: request.strategy,
+      });
     }
   }
 
-  // Async regeneration: for strategies that use AgentCore agents (full-context, enriched),
-  // forceRegenerate triggers an async self-invocation to avoid API Gateway 29s timeout.
-  // The Lambda runs the generation in the background and caches the result.
-  // The frontend should retry the same request (without forceRegenerate) to get the cached result.
+  // forceRegenerate for AgentCore strategies: invalidate cache, dispatch to workflow, return 202
   if (request.forceRegenerate) {
-    try {
-      const lambdaClient = new LambdaClient({ region: BEDROCK_REGION });
-      await lambdaClient.send(new InvokeCommand({
-        FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
-        InvocationType: 'Event', // async — returns immediately
-        Payload: JSON.stringify({
-          httpMethod: 'POST',
-          path: `/claims/${claimId}/summary`,
-          pathParameters: { claimId },
-          body: JSON.stringify({
-            ...request,
-            forceRegenerate: false, // prevent infinite loop
-            _asyncRegenerate: true, // marker for background execution
-          }),
-          headers: { 'x-tenant-id': tenantId },
-          resource: '/claims/{claimId}/summary',
-        }),
-      }));
-      console.log('Async regeneration triggered for claim:', claimId, 'strategy:', request.strategy);
-    } catch (triggerErr) {
-      console.error('Failed to trigger async regeneration:', triggerErr);
-      return errorResponse(500, 'Failed to trigger regeneration');
-    }
+    const isAgentCoreStrategy = (request.strategy === 'full-context' && process.env.FULL_CONTEXT_AGENT_ENDPOINT) ||
+      (request.strategy === 'enriched' && process.env.ENRICHED_AGENT_ENDPOINT);
 
-    // Invalidate cache so next poll gets fresh result
-    try {
-      await invalidateCache(claimId);
-      console.log('Cache invalidated for claim:', claimId);
-    } catch (e) {
-      console.warn('Cache invalidation failed (non-blocking):', e);
-    }
+    if (isAgentCoreStrategy && process.env.AGENT_WORKFLOW_ARN) {
+      // Invalidate cache so next poll gets fresh result
+      try {
+        await invalidateCache(claimId);
+        console.log('Cache invalidated for claim:', claimId);
+      } catch (e) {
+        console.warn('Cache invalidation failed (non-blocking):', e);
+      }
 
-    return successResponse(202, {
-      message: 'Regeneration started. Results will be available shortly.',
-      status: 'processing',
-      claimId,
-      strategy: request.strategy,
-    });
+      await startAgentWorkflow({
+        claimId,
+        tenantId,
+        strategy: request.strategy,
+        chunkingMethod: request.chunkingMethod,
+        modelId: request.modelId,
+        customPrompt: request.customPrompt,
+        useReranker: request.useReranker,
+        includeEvaluation: request.includeEvaluation,
+      });
+
+      return successResponse(202, {
+        message: 'Regeneration started. Results will be available shortly.',
+        status: 'processing',
+        claimId,
+        strategy: request.strategy,
+      });
+    }
   }
 
   // Task 4.3: Agent routing logic
@@ -1720,11 +1579,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       return handleGetFinancialAnalysis(claimId);
     }
 
-    // Handle async financial-analysis-trigger (self-invoked via Lambda Event)
-    if (event.path?.endsWith('/financial-analysis-trigger')) {
-      return handleFinancialAnalysisTrigger(claimId, event);
-    }
-
     // DELETE /claims/{claimId}/cache — clear all cached summaries for a claim
     if (event.httpMethod === 'DELETE' && (event.path?.endsWith('/cache') || event.resource?.endsWith('/cache'))) {
       console.log('Handling DELETE /cache for claimId:', claimId);
@@ -1741,8 +1595,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const validation = validateRequest(event.body);
 
     if (!validation.valid) {
-      console.log('Validation failed:', validation.error);
-      return errorResponse(400, validation.error);
+      console.log('Validation failed:', (validation as { error: string }).error);
+      return errorResponse(400, (validation as { error: string }).error);
     }
 
     const request = validation.request;
@@ -1754,11 +1608,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       includeEvaluation: request.includeEvaluation,
     }));
 
-    const parsedBody = JSON.parse(event.body || '{}');
-    const isAsync = !!parsedBody._asyncRegenerate;
-    console.log('isAsyncRegenerate:', isAsync, 'body keys:', Object.keys(parsedBody));
-
-    return handlePostSummary(claimId, request, extractTenantId(event), isAsync);
+    return handlePostSummary(claimId, request, extractTenantId(event));
 
   } catch (error) {
     console.error('Unexpected error in claim summary orchestrator:', error);
