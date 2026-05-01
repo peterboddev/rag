@@ -1134,63 +1134,33 @@ def handler(event, context):
     financial_summary = trace_fn(_aggregate_financial_data)(documents)
     timeline_data = trace_fn(_aggregate_timeline_data)(documents)
 
-    # 3. Strands Agent invocation with retry for transient model errors
-    response = None
-    max_retries = 3
-    for attempt in range(1, max_retries + 1):
+    # 3. Strands Agent invocation — single call, errors propagate to Step Functions
+    try:
+        agent_start = time_module.time()
+        result = agent(
+            f"Process claim {claim_id} and provide a comprehensive analysis "
+            f"with financial and timeline data in the structured format specified"
+        )
+        agent_end = time_module.time()
+        response = parse_agent_response(result, default_count=len(documents))
+
+        # Extract per-tool trace from Strands SDK result (unchanged)
         try:
-            agent_start = time_module.time()
-            result = agent(
-                f"Process claim {claim_id} and provide a comprehensive analysis "
-                f"with financial and timeline data in the structured format specified"
-            )
-            agent_end = time_module.time()
-            response = parse_agent_response(result, default_count=len(documents))
+            if hasattr(result, 'tool_results') and result.tool_results:
+                for tool_result in result.tool_results:
+                    tool_name = getattr(tool_result, 'name', None) or getattr(tool_result, 'tool_name', 'unknown_tool')
+                    tool_output = str(getattr(tool_result, 'result', ''))[:300]
+                    collector.record(
+                        tool_name, agent_start, agent_end,
+                        f"(Strands SDK managed)",
+                        tool_output,
+                    )
+        except Exception as trace_err:
+            logger.warning(f"Failed to extract Strands tool traces: {trace_err}")
 
-            # Extract per-tool trace from Strands SDK result
-            try:
-                if hasattr(result, 'tool_results') and result.tool_results:
-                    for tool_result in result.tool_results:
-                        tool_name = getattr(tool_result, 'name', None) or getattr(tool_result, 'tool_name', 'unknown_tool')
-                        tool_output = str(getattr(tool_result, 'result', ''))[:300]
-                        collector.record(
-                            tool_name, agent_start, agent_end,
-                            f"(Strands SDK managed)",
-                            tool_output,
-                        )
-            except Exception as trace_err:
-                logger.warning(f"Failed to extract Strands tool traces: {trace_err}")
-
-            break  # Success — exit retry loop
-        except Exception as e:
-            error_str = str(e)
-            is_transient = any(keyword in error_str for keyword in [
-                'modelStreamErrorException', 'ToolUse', 'invalid sequence',
-                'throttlingException', 'ThrottlingException',
-            ])
-            if is_transient and attempt < max_retries:
-                logger.warning(
-                    f"Strands Agent transient error (attempt {attempt}/{max_retries}) "
-                    f"for claim {claim_id}: {e}"
-                )
-                time_module.sleep(2 * attempt)  # Exponential backoff
-                continue
-            logger.warning(
-                f"Strands Agent failed for claim {claim_id} after {attempt} attempt(s), "
-                f"but deterministic extraction succeeded: {e}"
-            )
-            response = {
-                "summary": f"Agent analysis unavailable: {e}",
-                "anomalies": [],
-                "documentCount": len(documents),
-                "strategy": "full-context",
-                "promptInfo": {
-                    "promptTemplate": SYSTEM_PROMPT,
-                    "strategyLabel": "Enhanced Full Context Agent",
-                },
-                "financialSummary": {},
-                "timeline": {},
-            }
+    except Exception as e:
+        logger.error(f"Strands Agent failed for claim {claim_id}: {e}")
+        return {"error": str(e), "statusCode": 500}
 
     # 4. Override with deterministic results — always authoritative
     response["financialSummary"] = financial_summary
