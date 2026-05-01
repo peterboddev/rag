@@ -2119,6 +2119,7 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
     deployment.node.addDependency(claimSummaryResource);
     deployment.node.addDependency(claimEvaluationsResource);
     deployment.node.addDependency(claimFinancialAnalysisResource);
-    deployment.node.addDependency(claimCacheResource);
+    // Note: claimCacheResource dependency removed to avoid circular dependency
+    // with AgentWorkflow → Worker → Orchestrator → API deployment chain
   }
 }
