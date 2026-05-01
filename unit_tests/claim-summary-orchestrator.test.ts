@@ -50,6 +50,11 @@ jest.mock('@aws-sdk/client-lambda', () => ({
   InvokeCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'Invoke' })),
 }));
 
+jest.mock('@aws-sdk/client-sfn', () => ({
+  SFNClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
+  StartExecutionCommand: jest.fn().mockImplementation((params) => ({ ...params, _type: 'StartExecution' })),
+}));
+
 jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
   BedrockAgentCoreClient: jest.fn().mockImplementation(() => ({ send: jest.fn().mockResolvedValue({}) })),
   InvokeAgentRuntimeCommand: jest.fn().mockImplementation((params) => params),
@@ -57,6 +62,11 @@ jest.mock('@aws-sdk/client-bedrock-agentcore', () => ({
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { APIGatewayProxyEvent } from 'aws-lambda';
+
+// Set environment variables before importing handler
+process.env.AGENT_WORKFLOW_ARN = 'arn:aws:states:us-east-1:123456789:stateMachine:test-workflow';
+process.env.FULL_CONTEXT_AGENT_ENDPOINT = 'arn:aws:bedrock-agentcore:us-east-1:123456789:runtime/test-agent';
+
 import { handler } from '../src/lambda/claim-summary-orchestrator';
 
 /**
@@ -401,14 +411,15 @@ describe('Claim Summary Orchestrator - Agent Routing (Task 4.3)', () => {
 
 describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
 
-  it('should return 404 when no documents found for claim', async () => {
+  it('should return 202 when no documents found for claim (async dispatch)', async () => {
+    // With the async architecture, full-context requests are dispatched to the workflow
+    // The worker Lambda handles the 404 case, not the orchestrator
     // Reset mocks to override beforeEach
     mockDynamoSend.mockReset();
     applyDefaultDynamoMock();
     mockDynamoSend
       .mockResolvedValueOnce({ Item: null })  // cache miss
-      .mockResolvedValueOnce({ Items: [] })   // resolvePatientId → empty
-      .mockResolvedValueOnce({ Items: [] });  // documents query → empty
+      .mockResolvedValueOnce({});             // execution lock acquire
 
     const event = createEvent({
       pathParameters: { claimId: 'nonexistent-claim' },
@@ -418,37 +429,20 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
     const result = await handler(event);
     const body = JSON.parse(result.body);
 
-    expect(result.statusCode).toBe(404);
-    expect(body.error).toContain('No documents found');
+    expect(result.statusCode).toBe(202);
+    expect(body.status).toBe('processing');
   });
 
-  it('should return 400 when no documents have extracted text', async () => {
-    const documentsWithoutText = [
-      {
-        documentId: 'doc-1',
-        fileName: 'pending.pdf',
-        extractedText: '', // Empty text
-        processingStatus: 'processing',
-        claimMetadata: { claimId: 'test-claim-001' },
-        tenantId: 'local-dev-tenant',
-      },
-      {
-        documentId: 'doc-2',
-        fileName: 'pending2.pdf',
-        extractedText: null, // No text
-        processingStatus: 'queued',
-        claimMetadata: { claimId: 'test-claim-001' },
-        tenantId: 'local-dev-tenant',
-      },
-    ];
+  it('should return 202 when no documents have extracted text (async dispatch)', async () => {
+    // With the async architecture, full-context requests are dispatched to the workflow
+    // The worker Lambda handles the 400 case, not the orchestrator
 
     // Reset mocks to override beforeEach
     mockDynamoSend.mockReset();
     applyDefaultDynamoMock();
     mockDynamoSend
-      .mockResolvedValueOnce({ Item: null })                // cache miss
-      .mockResolvedValueOnce({ Items: documentsWithoutText }) // resolvePatientId
-      .mockResolvedValueOnce({ Items: documentsWithoutText }); // documents query
+      .mockResolvedValueOnce({ Item: null })  // cache miss
+      .mockResolvedValueOnce({});             // execution lock acquire
 
     const event = createEvent({
       pathParameters: { claimId: 'test-claim-001' },
@@ -458,8 +452,8 @@ describe('Claim Summary Orchestrator - Response Handling (Task 4.4)', () => {
     const result = await handler(event);
     const body = JSON.parse(result.body);
 
-    expect(result.statusCode).toBe(400);
-    expect(body.error).toContain('No summarizable content');
+    expect(result.statusCode).toBe(202);
+    expect(body.status).toBe('processing');
   });
 
   // TODO: Skip - needs mock update for new Full Context agent Lambda architecture
