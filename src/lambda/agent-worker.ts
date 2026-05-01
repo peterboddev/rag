@@ -99,6 +99,12 @@ async function executeFullContextAgent(event: WorkerEvent): Promise<any> {
     throw new Error(result.error);
   }
 
+  // Check for agent-level errors embedded in the summary
+  const summary = result.summary || '';
+  if (summary.startsWith('Agent analysis unavailable:')) {
+    throw new Error(summary);
+  }
+
   return result;
 }
 
@@ -119,6 +125,11 @@ async function executeEnrichedAgent(event: WorkerEvent): Promise<any> {
 
   if (result.error) {
     throw new Error(result.error);
+  }
+
+  const enrichedSummary = result.summary || '';
+  if (enrichedSummary.startsWith('Agent analysis unavailable:')) {
+    throw new Error(enrichedSummary);
   }
 
   return result;
