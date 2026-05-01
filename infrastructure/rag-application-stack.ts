@@ -2020,20 +2020,26 @@ Respond with a score between 0 and 1, a brief explanation, and list any false po
     });
 
     // Pass AGENT_WORKFLOW_ARN to orchestrator and worker
+    // Use Fn.ref to avoid circular dependency (orchestrator → workflow → worker → same tables)
+    const workflowArn = `arn:aws:states:${this.region}:${this.account}:stateMachine:${applicationName}-agent-workflow-${environment}`;
     claimSummaryOrchestratorFunction.addEnvironment(
       'AGENT_WORKFLOW_ARN',
-      agentWorkflow.stateMachineArn,
+      workflowArn,
     );
     agentWorkerFunction.addEnvironment(
       'AGENT_WORKFLOW_ARN',
-      agentWorkflow.stateMachineArn,
+      workflowArn,
     );
 
-    // Grant orchestrator permission to start workflow executions
-    agentWorkflow.grantStartExecution(claimSummaryOrchestratorFunction);
-
-    // Grant worker permission to start workflow executions (for financial timeline dispatch)
-    agentWorkflow.grantStartExecution(agentWorkerFunction);
+    // Grant orchestrator and worker permission to start workflow executions
+    // Use explicit IAM policy with constructed ARN to avoid circular dependency
+    const startExecutionPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['states:StartExecution', 'states:StartSyncExecution'],
+      resources: [workflowArn],
+    });
+    claimSummaryOrchestratorFunction.addToRolePolicy(startExecutionPolicy);
+    agentWorkerFunction.addToRolePolicy(startExecutionPolicy);
 
     // CloudWatch Alarm: Workflow error rate > 10% over 5-minute period
     new cloudwatch.Alarm(this, 'WorkflowErrorAlarm', {
