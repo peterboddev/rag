@@ -880,7 +880,7 @@ model = BedrockModel(
     model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
-    max_tokens=8192,
+    max_tokens=16384,
 )
 
 agent = Agent(
