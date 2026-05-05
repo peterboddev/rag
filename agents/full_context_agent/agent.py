@@ -781,7 +781,7 @@ def detect_anomalies_llm(combined_text: str) -> str:
             modelId=model_id,
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "temperature": 0.2,
                 "messages": [
                     {"role": "user", "content": [{"type": "text", "text": prompt}]}
@@ -880,7 +880,7 @@ model = BedrockModel(
     model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
     region_name=BEDROCK_REGION,
     temperature=0.3,
-    max_tokens=4096,
+    max_tokens=8192,
 )
 
 agent = Agent(
