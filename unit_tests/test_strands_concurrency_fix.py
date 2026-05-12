@@ -135,8 +135,10 @@ class TestBugConditionExploration:
         documents = [make_valid_document()]
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', side_effect=Exception(error_message)) as mock_agent, \
+             patch.object(_fc_mod, '_create_agent') as mock_create_agent, \
              patch.object(_fc_mod, 'time_module') as mock_time:
+            mock_agent = MagicMock(side_effect=Exception(error_message))
+            mock_create_agent.return_value = mock_agent
             mock_time.time.return_value = 1000.0
             mock_time.sleep = MagicMock()
 
@@ -173,7 +175,7 @@ class TestBugConditionExploration:
         documents = [make_valid_document()]
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', side_effect=Exception(error_message)), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(side_effect=Exception(error_message))), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.return_value = 1000.0
             mock_time.sleep = MagicMock()
@@ -216,7 +218,7 @@ class TestBugConditionExploration:
         documents = [make_valid_document()]
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', side_effect=Exception(error_message)), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(side_effect=Exception(error_message))), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.return_value = 1000.0
             mock_time.sleep = MagicMock()
@@ -254,7 +256,7 @@ class TestBugConditionExploration:
         documents = [make_valid_document()]
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', side_effect=Exception(error_message)), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(side_effect=Exception(error_message))), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.return_value = 1000.0
             mock_time.sleep = MagicMock()
@@ -321,7 +323,7 @@ class TestPreservation:
         ]
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', return_value=mock_result), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(return_value=mock_result)), \
              patch.object(_fc_mod, '_detect_anomalies_impl', return_value=mock_anomalies), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.side_effect = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0]
@@ -397,7 +399,7 @@ class TestPreservation:
         mock_result.tool_results = []
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', return_value=mock_result), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(return_value=mock_result)), \
              patch.object(_fc_mod, '_detect_anomalies_impl', return_value=[]), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.side_effect = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0, 109.0, 110.0]
@@ -452,7 +454,7 @@ class TestPreservation:
         mock_result.tool_results = []
 
         with patch.object(_fc_mod, '_retrieve_claim_documents_impl', return_value=documents), \
-             patch.object(_fc_mod, 'agent', return_value=mock_result), \
+             patch.object(_fc_mod, '_create_agent', return_value=MagicMock(return_value=mock_result)), \
              patch.object(_fc_mod, '_detect_anomalies_impl', return_value=[]), \
              patch.object(_fc_mod, 'time_module') as mock_time:
             mock_time.time.side_effect = [100.0 + i for i in range(20)]

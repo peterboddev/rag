@@ -876,25 +876,31 @@ IMPORTANT: Be thorough and detailed. Include EVERY piece of information from the
 Use the actual data from extract_financial_data and extract_timeline_data tool results. Quote specific dollar amounts, dates, and codes.
 """
 
-model = BedrockModel(
-    model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
-    region_name=BEDROCK_REGION,
-    temperature=0.3,
-    max_tokens=32768,
-)
+def _create_agent() -> Agent:
+    """Create a fresh Strands Agent instance.
 
-agent = Agent(
-    model=model,
-    tools=[
-        retrieve_claim_documents,
-        combine_document_text,
-        extract_financial_data,
-        extract_timeline_data,
-        detect_anomalies_deterministic,
-        detect_anomalies_llm
-    ],
-    system_prompt=SYSTEM_PROMPT,
-)
+    Returns a new Agent per invocation to avoid the singleton concurrency
+    issue where AgentCore routes multiple sessions to the same container
+    and the Strands Agent rejects concurrent calls.
+    """
+    model = BedrockModel(
+        model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
+        region_name=BEDROCK_REGION,
+        temperature=0.3,
+        max_tokens=32768,
+    )
+    return Agent(
+        model=model,
+        tools=[
+            retrieve_claim_documents,
+            combine_document_text,
+            extract_financial_data,
+            extract_timeline_data,
+            detect_anomalies_deterministic,
+            detect_anomalies_llm
+        ],
+        system_prompt=SYSTEM_PROMPT,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1137,7 +1143,8 @@ def handler(event, context):
     # 3. Strands Agent invocation — single call, errors propagate to Step Functions
     try:
         agent_start = time_module.time()
-        result = agent(
+        current_agent = _create_agent()
+        result = current_agent(
             f"Process claim {claim_id} and provide a comprehensive analysis "
             f"with financial and timeline data in the structured format specified"
         )
