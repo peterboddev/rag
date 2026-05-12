@@ -13,7 +13,7 @@ import { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } from '@aws-sdk/clie
 /**
  * Default timeout for AgentCore Runtime API calls (in milliseconds).
  */
-export const AGENTCORE_TIMEOUT_MS = parseInt(process.env.AGENTCORE_TIMEOUT_MS || '120000', 10);
+export const AGENTCORE_TIMEOUT_MS = parseInt(process.env.AGENTCORE_TIMEOUT_MS || '300000', 10);
 
 // AgentCore client (lazy-initialized)
 let agentCoreClient: BedrockAgentCoreClient | null = null;

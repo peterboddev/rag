@@ -829,12 +829,10 @@ SYSTEM_PROMPT = """You are an insurance claims analyst agent. For each claim, yo
 
 1. Call retrieve_claim_documents with the claim_id to get all documents
 2. Call combine_document_text with the retrieved documents to get the full text
-3. Call extract_financial_data with the retrieved documents to get payment information
-4. Call extract_timeline_data with the retrieved documents to get care history timeline
-5. Call detect_anomalies_deterministic with the retrieved documents to find rule-based data inconsistencies
-6. Call detect_anomalies_llm with the combined document text to find LLM-detected anomalies
 
-After calling all tools, generate a DETAILED and COMPREHENSIVE summary. Your summary MUST be at least 500 words and use the following markdown sections. Do NOT compress everything into a single paragraph.
+After calling both tools, generate a DETAILED and COMPREHENSIVE summary. Your summary MUST be at least 500 words and use the following markdown sections. Do NOT compress everything into a single paragraph.
+
+NOTE: Financial data, timeline data, and anomaly detection are handled separately by the system. Focus your summary on the clinical narrative and patient context.
 
 ## PATIENT & TIMELINE OVERVIEW
 - Full patient demographics: name, date of birth, age at time of service, gender, policy number, insurance type
@@ -860,10 +858,9 @@ After calling all tools, generate a DETAILED and COMPREHENSIVE summary. Your sum
 - Lab results and imaging findings (if documented)
 
 ## DATA QUALITY & ANOMALIES
-- Summarize ALL anomalies found by both detect_anomalies_deterministic and detect_anomalies_llm
-- For each anomaly, explain why it matters and what action a reviewer should take
 - Cross-document contradictions or unusual patterns
 - Data completeness assessment: what information is missing or incomplete
+- Any inconsistencies you notice in dates, names, or amounts
 
 ## CLAIM STATUS & RECOMMENDATIONS
 - Current claim status (approved, denied, pending)
@@ -873,7 +870,7 @@ After calling all tools, generate a DETAILED and COMPREHENSIVE summary. Your sum
 
 IMPORTANT: Be thorough and detailed. Include EVERY piece of information from the documents. Do not summarize or abbreviate. A claims reviewer reading your analysis should not need to look at the original documents.
 
-Use the actual data from extract_financial_data and extract_timeline_data tool results. Quote specific dollar amounts, dates, and codes.
+Quote specific dollar amounts, dates, and codes directly from the document text.
 """
 
 def _create_agent() -> Agent:
@@ -882,6 +879,10 @@ def _create_agent() -> Agent:
     Returns a new Agent per invocation to avoid the singleton concurrency
     issue where AgentCore routes multiple sessions to the same container
     and the Strands Agent rejects concurrent calls.
+
+    The agent only has retrieval and text combination tools — financial,
+    timeline, and anomaly extraction are handled deterministically by the
+    handler, eliminating redundant LLM round-trips.
     """
     model = BedrockModel(
         model_id=BEDROCK_MODEL_ID if any(BEDROCK_MODEL_ID.startswith(p) for p in ('us.', 'eu.', 'global.')) else f"us.{BEDROCK_MODEL_ID}",
@@ -894,10 +895,6 @@ def _create_agent() -> Agent:
         tools=[
             retrieve_claim_documents,
             combine_document_text,
-            extract_financial_data,
-            extract_timeline_data,
-            detect_anomalies_deterministic,
-            detect_anomalies_llm
         ],
         system_prompt=SYSTEM_PROMPT,
     )
@@ -1173,18 +1170,28 @@ def handler(event, context):
     response["financialSummary"] = financial_summary
     response["timeline"] = timeline_data
 
-    # 5. Ensure anomalies have source tags — run deterministic detection directly
-    # and tag any untagged anomalies from the LLM response as "llm"
+    # 5. Run anomaly detection outside the agent (saves 2-3 LLM round-trips)
+    # Deterministic anomalies + LLM anomalies run here, not inside the Strands Agent
     try:
         det_anomalies = trace_fn(_detect_anomalies_impl)(documents)
         for a in det_anomalies:
             a["source"] = "deterministic"
+
+        # Run LLM anomaly detection on combined document text
+        llm_anomalies = []
+        try:
+            combined_text = trace_fn(_combine_document_text_impl)(documents)
+            llm_result_str = detect_anomalies_llm(combined_text)
+            llm_anomalies = json.loads(llm_result_str) if llm_result_str else []
+        except Exception as llm_err:
+            logger.warning(f"LLM anomaly detection failed: {llm_err}")
+
         # Tag existing anomalies without source as "llm" (they came from the agent's text)
         for a in response.get("anomalies", []):
             if "source" not in a:
                 a["source"] = "llm"
-        # Merge: deterministic first, then LLM
-        response["anomalies"] = det_anomalies + response.get("anomalies", [])
+        # Merge: deterministic first, then LLM from dedicated call, then any from agent
+        response["anomalies"] = det_anomalies + llm_anomalies + response.get("anomalies", [])
     except Exception as e:
         logger.warning(f"Post-processing anomaly tagging failed: {e}")
 
